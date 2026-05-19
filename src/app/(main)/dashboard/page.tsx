@@ -107,9 +107,9 @@ const recentActivity = [
 ];
 
 const tagColorMap: Record<string, string> = {
-  amber: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  amber: "bg-white/8 text-zinc-100 border-white/15",
   blue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  violet: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  violet: "bg-white/6 text-zinc-300 border-white/12",
   emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   purple: "bg-purple-500/10 text-purple-400 border-purple-500/20",
 };
@@ -119,9 +119,9 @@ const statColorMap: Record<
   { icon: string; ring: string; bar: string }
 > = {
   amber: {
-    icon: "bg-amber-500/10 text-amber-400",
-    ring: "border-amber-500/20",
-    bar: "bg-amber-400",
+    icon: "bg-white/8 text-zinc-100",
+    ring: "border-white/15",
+    bar: "bg-zinc-300",
   },
   blue: {
     icon: "bg-blue-500/10 text-blue-400",
@@ -212,7 +212,7 @@ export default function DashboardPage() {
             </h2>
             <Link
               href="/docs/gobilda"
-              className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors"
+              className="text-xs text-zinc-300 hover:text-zinc-100 flex items-center gap-1 transition-colors"
             >
               Browse all <ArrowRight className="h-3 w-3" />
             </Link>
@@ -280,10 +280,10 @@ export default function DashboardPage() {
           </div>
 
           {/* Next challenge CTA */}
-          <div className="mt-4 rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-amber-600/5 p-4">
+          <div className="mt-4 rounded-xl border border-white/15 bg-white/4 p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Code2 className="h-4 w-4 text-amber-400" />
-              <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+              <Code2 className="h-4 w-4 text-zinc-100" />
+              <span className="text-xs font-semibold text-zinc-100 uppercase tracking-wide">
                 Up Next
               </span>
             </div>
@@ -295,7 +295,7 @@ export default function DashboardPage() {
             </p>
             <Link
               href="/challenges"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-amber-400 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-white transition-colors"
             >
               Start Challenge <ArrowRight className="h-3 w-3" />
             </Link>

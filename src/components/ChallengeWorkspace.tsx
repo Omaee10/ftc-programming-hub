@@ -21,8 +21,10 @@ import {
   Code2,
   FileCode,
   Loader2,
+  MessageSquare,
   Play,
   RefreshCcw,
+  Send,
   Star,
   Target,
   Terminal,
@@ -35,10 +37,12 @@ import {
 } from "lucide-react";
 
 import type { Challenge } from "@/data/challenges";
-import { difficultyConfig, getChallengeById } from "@/data/challenges";
+import { challenges as staticChallenges, difficultyConfig, getChallengeById } from "@/data/challenges";
 import { type GradedResult, type Grade, gradeCode } from "@/lib/codeValidator";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
+import { supabase, type SubmissionRow } from "@/lib/supabase";
+import { getSession, type Session } from "@/lib/auth";
 import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
 
@@ -140,7 +144,7 @@ function EditorSkeleton() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-[#020617]">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-zinc-100" />
         <span className="text-xs text-slate-500">Loading editor…</span>
       </div>
     </div>
@@ -169,15 +173,15 @@ function ConsoleLine({ entry }: { entry: ConsoleEntry }) {
 
   if (entry.type === "verdict-improve") {
     return (
-      <div className="my-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+      <div className="my-2 rounded-lg border border-white/20 bg-white/8 px-4 py-3">
         <div className="flex items-center gap-2">
-          <TriangleAlert className="h-4 w-4 shrink-0 text-amber-400" />
-          <span className="font-mono text-sm font-bold text-amber-300">
+          <TriangleAlert className="h-4 w-4 shrink-0 text-zinc-100" />
+          <span className="font-mono text-sm font-bold text-zinc-200">
             {entry.message}
           </span>
         </div>
         {entry.sub && (
-          <p className="mt-1 font-mono text-xs text-amber-400/70 pl-6">
+          <p className="mt-1 font-mono text-xs text-zinc-100/70 pl-6">
             {entry.sub}
           </p>
         )}
@@ -210,10 +214,10 @@ function ConsoleLine({ entry }: { entry: ConsoleEntry }) {
   const cfg = {
     init: { Icon: Terminal, color: "text-slate-500" },
     info: { Icon: Info, color: "text-slate-400" },
-    running: { Icon: Loader2, color: "text-amber-400" },
+    running: { Icon: Loader2, color: "text-zinc-100" },
     success: { Icon: CheckCircle2, color: "text-emerald-400" },
     error: { Icon: XCircle, color: "text-red-400" },
-    warning: { Icon: AlertTriangle, color: "text-amber-300" },
+    warning: { Icon: AlertTriangle, color: "text-zinc-200" },
     separator: { Icon: null, color: "" },
     "verdict-good": { Icon: null, color: "" },
     "verdict-improve": { Icon: null, color: "" },
@@ -279,7 +283,7 @@ function RequirementItem({
     },
     warn: {
       icon: <AlertTriangle className="h-2.5 w-2.5" />,
-      color: "text-amber-400",
+      color: "text-zinc-100",
       dot: "bg-amber-500",
     },
   };
@@ -313,7 +317,7 @@ function InstructionBlock({ text }: { text: string }) {
                 return (
                   <code
                     key={j}
-                    className="rounded bg-amber-400/10 px-1 py-0.5 text-[0.8rem] font-mono text-amber-300 border border-amber-400/15"
+                    className="rounded bg-zinc-200/10 px-1 py-0.5 text-[0.8rem] font-mono text-zinc-200 border border-zinc-200/15"
                   >
                     {part.slice(1, -1)}
                   </code>
@@ -347,12 +351,12 @@ function GradeBanner({ grade }: { grade: Grade | null }) {
 
   if (grade === "needs-improvement") {
     return (
-      <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2.5">
-        <TriangleAlert className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-        <span className="text-xs font-bold text-amber-300 tracking-wide">
+      <div className="flex shrink-0 items-center gap-2 border-b border-white/15 bg-white/8 px-4 py-2.5">
+        <TriangleAlert className="h-3.5 w-3.5 text-zinc-100 shrink-0" />
+        <span className="text-xs font-bold text-zinc-200 tracking-wide">
           WORKS — But could be better
         </span>
-        <span className="ml-auto text-[10px] text-amber-500">Review ⚠ hints</span>
+        <span className="ml-auto text-[10px] text-zinc-200">Review ⚠ hints</span>
       </div>
     );
   }
@@ -365,6 +369,34 @@ function GradeBanner({ grade }: { grade: Grade | null }) {
       </span>
       <span className="ml-auto text-[10px] text-red-500">Review ✗ errors</span>
     </div>
+  );
+}
+
+// ─── Mentor grade badge ───────────────────────────────────────────────────────
+
+function GradeBadge({ grade }: { grade: SubmissionRow["grade"] }) {
+  if (!grade) return null;
+  const cfg = {
+    pass: {
+      label: "Pass",
+      className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+    },
+    "needs-work": {
+      label: "Needs Work",
+      className: "bg-amber-500/10 text-amber-300 border-amber-500/20",
+    },
+    redo: {
+      label: "Redo",
+      className: "bg-red-500/10 text-red-300 border-red-500/20",
+    },
+  } as const;
+  const c = cfg[grade];
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${c.className}`}
+    >
+      {c.label}
+    </span>
   );
 }
 
@@ -404,6 +436,33 @@ export default function ChallengeWorkspace({
     markCompleteDB(id);
   };
 
+  // ── Mentor-challenge detection & submission state ────────────────────────
+  const isMentorChallenge = !staticChallenges.find((c) => c.id === challenge.id);
+  const [studentSession, setStudentSession] = useState<Session | null>(null);
+  const [submission, setSubmission] = useState<SubmissionRow | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitBanner, setSubmitBanner] = useState(false);
+
+  // Resolve student session on client only (avoids SSR / hydration mismatch)
+  useEffect(() => {
+    const s = getSession();
+    if (s?.role === "student") setStudentSession(s);
+  }, []);
+
+  // Load existing submission for this student + mentor challenge
+  useEffect(() => {
+    if (!isMentorChallenge || !studentSession?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from("challenge_submissions")
+        .select("*")
+        .eq("student_id", studentSession.id)
+        .eq("challenge_id", challenge.id)
+        .maybeSingle();
+      if (data) setSubmission(data as SubmissionRow);
+    })();
+  }, [challenge.id, isMentorChallenge, studentSession?.id]);
+
   // ── Editor state ────────────────────────────────────────────────────────
   const [code, setCode] = useState(challenge.starterCode);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -417,6 +476,39 @@ export default function ChallengeWorkspace({
     setCode(challenge.starterCode);
     editorRef.current?.setValue(challenge.starterCode);
   }, [challenge.starterCode]);
+
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleSubmitForReview = useCallback(async () => {
+    if (!studentSession?.id || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    const { data, error } = await supabase
+      .from("challenge_submissions")
+      .upsert(
+        {
+          student_id: studentSession.id,
+          challenge_id: challenge.id,
+          code_snapshot: code,
+          status: "pending",
+          grade: null,
+          feedback: null,
+          graded_at: null,
+          graded_by: null,
+        },
+        { onConflict: "student_id,challenge_id" }
+      )
+      .select()
+      .single();
+    setSubmitting(false);
+    if (error) {
+      setSubmitError(error.message);
+      return;
+    }
+    if (data) setSubmission(data as SubmissionRow);
+    setSubmitBanner(true);
+    setTimeout(() => setSubmitBanner(false), 4000);
+  }, [studentSession?.id, challenge.id, code, submitting]);
 
   // Restore saved code from Supabase once it loads
   useEffect(() => {
@@ -667,9 +759,9 @@ export default function ChallengeWorkspace({
           >
             {diff.label}
           </span>
-          <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/5 px-2 py-0.5">
-            <Zap className="h-2.5 w-2.5 text-amber-400" />
-            <span className="text-[10px] font-semibold text-amber-400">
+          <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/4 px-2 py-0.5">
+            <Zap className="h-2.5 w-2.5 text-zinc-100" />
+            <span className="text-[10px] font-semibold text-zinc-100">
               {challenge.xp} XP
             </span>
           </span>
@@ -681,7 +773,7 @@ export default function ChallengeWorkspace({
               Completed
             </span>
           ) : lastGrade === "needs-improvement" ? (
-            <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+            <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/4 px-2 py-0.5 text-[10px] font-semibold text-zinc-100">
               <TriangleAlert className="h-2.5 w-2.5" />
               Needs work
             </span>
@@ -707,7 +799,7 @@ export default function ChallengeWorkspace({
             <Link
               href={`/challenges/${nextChallenge.id}`}
               title={nextChallenge.title}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-800 hover:text-amber-400 transition-all"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-800 hover:text-zinc-100 transition-all"
             >
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -723,7 +815,7 @@ export default function ChallengeWorkspace({
           style={{ width: `${leftPct}%` }}
         >
           <div className="flex h-9 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-900/80 px-4">
-            <Target className="h-3.5 w-3.5 text-amber-400" />
+            <Target className="h-3.5 w-3.5 text-zinc-100" />
             <span className="text-xs font-semibold text-slate-300">
               Instructions
             </span>
@@ -842,11 +934,11 @@ export default function ChallengeWorkspace({
         {/* ── Drag handle ───────────────────────────────────────────────── */}
         <div
           onMouseDown={handleDividerDown}
-          className="group relative flex w-1 shrink-0 cursor-col-resize items-center justify-center bg-slate-800 hover:bg-amber-500/40 active:bg-amber-500/60 transition-colors"
+          className="group relative flex w-1 shrink-0 cursor-col-resize items-center justify-center bg-slate-800 hover:bg-zinc-100/40 active:bg-amber-500/60 transition-colors"
           title="Drag to resize"
         >
           <div className="absolute inset-y-0 -left-1 -right-1" />
-          <div className="h-8 w-0.5 rounded-full bg-slate-700 group-hover:bg-amber-400/60 transition-colors" />
+          <div className="h-8 w-0.5 rounded-full bg-slate-700 group-hover:bg-zinc-200/60 transition-colors" />
         </div>
 
         {/* ── RIGHT: Editor + Console ───────────────────────────────────── */}
@@ -857,7 +949,7 @@ export default function ChallengeWorkspace({
             <span className="font-mono text-xs text-slate-400 truncate">
               Challenge{challenge.id}_{challenge.title.replace(/\s+/g, "")}.java
             </span>
-            <span className="ml-1 rounded border border-violet-500/20 bg-violet-500/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">
+            <span className="ml-1 rounded border border-white/12 bg-white/4 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-zinc-300">
               Java
             </span>
 
@@ -923,6 +1015,53 @@ export default function ChallengeWorkspace({
             />
           </div>
 
+          {/* ── Submit error banner ─────────────────────────────────────── */}
+          {submitError && (
+            <div className="flex shrink-0 items-center gap-2 border-t border-red-500/20 bg-red-500/10 px-4 py-2">
+              <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+              <span className="text-xs text-red-300">{submitError}</span>
+            </div>
+          )}
+
+          {/* ── Submit success banner ───────────────────────────────────── */}
+          {submitBanner && (
+            <div className="flex shrink-0 items-center gap-2 border-t border-amber-500/20 bg-amber-500/10 px-4 py-2">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <span className="text-xs font-medium text-amber-300">
+                Submitted for mentor review!
+              </span>
+            </div>
+          )}
+
+          {/* ── Mentor feedback (graded submission) ─────────────────────── */}
+          {isMentorChallenge && studentSession && submission?.status === "graded" && (
+            <div className="shrink-0 border-t border-slate-800 bg-slate-950 px-4 py-3">
+              <div className="flex items-start gap-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-xs font-semibold text-slate-300">
+                      Mentor Feedback
+                    </span>
+                    <GradeBadge grade={submission.grade} />
+                  </div>
+                  {submission.feedback ? (
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      {submission.feedback}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-600 italic">
+                      No written feedback provided.
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-[10px] text-slate-600">
+                    Graded by your mentor
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Console ─────────────────────────────────────────────────── */}
           <div
             className={`flex flex-col border-t border-slate-800 bg-slate-950 transition-all duration-300 ${
@@ -972,7 +1111,7 @@ export default function ChallengeWorkspace({
                   className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all duration-150 ${
                     isRunning
                       ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                      : "bg-amber-500 text-slate-900 hover:bg-amber-400 shadow-sm shadow-amber-500/20"
+                      : "bg-zinc-100 text-slate-900 hover:bg-zinc-200 shadow-sm shadow-white/20"
                   }`}
                 >
                   {isRunning ? (
@@ -987,6 +1126,39 @@ export default function ChallengeWorkspace({
                     </>
                   )}
                 </button>
+
+                {/* Submit for Review — mentor challenges, student sessions only */}
+                {isMentorChallenge && studentSession && (
+                  <button
+                    onClick={handleSubmitForReview}
+                    disabled={!code.trim() || submitting || submission?.status === "graded"}
+                    title="Submit to your mentor for grading"
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all duration-150 ${
+                      submission?.status === "graded"
+                        ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 cursor-default"
+                        : submitting
+                        ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                        : "bg-amber-500 text-slate-900 hover:bg-amber-400 shadow-sm"
+                    }`}
+                  >
+                    {submission?.status === "graded" ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3" />
+                        Submitted ✓
+                      </>
+                    ) : submitting ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Submitting…
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-3 w-3" />
+                        Submit for Review
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
 

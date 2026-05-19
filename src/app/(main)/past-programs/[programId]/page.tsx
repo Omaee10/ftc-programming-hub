@@ -67,7 +67,7 @@ function DescriptionBlock({ text }: { text: string }) {
                 return (
                   <code
                     key={j}
-                    className="rounded bg-amber-400/10 px-1 py-0.5 font-mono text-[0.78rem] text-amber-300 border border-amber-400/15"
+                    className="rounded bg-zinc-200/10 px-1 py-0.5 font-mono text-[0.78rem] text-zinc-200 border border-zinc-200/15"
                   >
                     {part.slice(1, -1)}
                   </code>
@@ -203,10 +203,10 @@ export default async function ProgramPage({
                       key={i}
                       className="border-b border-slate-800/40 last:border-0"
                     >
-                      <td className="py-2 pr-4 font-mono text-amber-300/80 whitespace-nowrap">
+                      <td className="py-2 pr-4 font-mono text-zinc-200/80 whitespace-nowrap">
                         {d.configName}
                       </td>
-                      <td className="py-2 pr-4 font-mono text-violet-400/80 whitespace-nowrap">
+                      <td className="py-2 pr-4 font-mono text-zinc-300/80 whitespace-nowrap">
                         {d.type}
                       </td>
                       <td className="py-2 text-slate-500 leading-snug">

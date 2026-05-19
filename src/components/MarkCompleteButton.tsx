@@ -73,7 +73,7 @@ export default function MarkCompleteButton({
       className={`group relative flex items-center gap-3 overflow-hidden rounded-xl border px-6 py-3.5 text-sm font-semibold transition-all duration-200 ${
         justCompleted
           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-          : "border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10"
+          : "border-white/20 bg-white/8 text-zinc-100 hover:bg-white/12 hover:border-amber-500/50 hover:shadow-lg hover:shadow-white/10"
       }`}
     >
       {/* Shimmer effect on hover */}
@@ -90,7 +90,7 @@ export default function MarkCompleteButton({
       </span>
 
       {!justCompleted && (
-        <span className="ml-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold">
+        <span className="ml-1 rounded-full border border-white/20 bg-white/8 px-1.5 py-0.5 text-[10px] font-bold">
           +{xp} XP
         </span>
       )}

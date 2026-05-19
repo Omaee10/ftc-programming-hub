@@ -20,9 +20,9 @@ interface DocPageLayoutProps {
 }
 
 const badgeColorMap: Record<string, string> = {
-  amber: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  amber: "bg-white/8 text-zinc-100 border-white/15",
   blue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  violet: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  violet: "bg-white/6 text-zinc-300 border-white/12",
   emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
 
@@ -97,9 +97,9 @@ export default function DocPageLayout({
                   <div className="flex items-center gap-3 mb-6">
                     <a
                       href={`#${section.id}`}
-                      className="group flex items-center gap-2 text-slate-100 hover:text-amber-400 transition-colors"
+                      className="group flex items-center gap-2 text-slate-100 hover:text-zinc-100 transition-colors"
                     >
-                      <Hash className="h-4 w-4 text-slate-700 group-hover:text-amber-400/70 transition-colors shrink-0" />
+                      <Hash className="h-4 w-4 text-slate-700 group-hover:text-zinc-100/70 transition-colors shrink-0" />
                       <h2 className="text-xl font-semibold tracking-tight">
                         {section.title}
                       </h2>

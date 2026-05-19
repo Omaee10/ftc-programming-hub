@@ -34,7 +34,7 @@ function ChallengeCard({ challenge, isCompleted, hydrated }: { challenge: Challe
       className={`group relative flex flex-col gap-4 rounded-xl border p-5 transition-all duration-200 cursor-pointer ${
         done
           ? "border-emerald-500/20 bg-gradient-to-br from-slate-900 to-emerald-950/20 hover:border-emerald-500/40"
-          : "border-slate-800 bg-slate-900 hover:border-amber-500/30 hover:bg-slate-800/80 hover:shadow-lg hover:shadow-amber-500/5"
+          : "border-slate-800 bg-slate-900 hover:border-white/20 hover:bg-slate-800/80 hover:shadow-lg hover:shadow-white/5"
       }`}
     >
       {/* Shimmer on hover */}
@@ -48,7 +48,7 @@ function ChallengeCard({ challenge, isCompleted, hydrated }: { challenge: Challe
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold transition-all ${
               done
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                : "border-slate-700 bg-slate-800 text-slate-400 group-hover:border-amber-500/30 group-hover:text-amber-400"
+                : "border-slate-700 bg-slate-800 text-slate-400 group-hover:border-white/20 group-hover:text-zinc-100"
             }`}
           >
             {done ? (
@@ -72,9 +72,9 @@ function ChallengeCard({ challenge, isCompleted, hydrated }: { challenge: Challe
         </div>
 
         {/* XP pill */}
-        <div className="flex shrink-0 items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/5 px-2.5 py-1">
-          <Zap className="h-3 w-3 text-amber-400" />
-          <span className="text-xs font-semibold text-amber-400">
+        <div className="flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/4 px-2.5 py-1">
+          <Zap className="h-3 w-3 text-zinc-100" />
+          <span className="text-xs font-semibold text-zinc-100">
             {challenge.xp} XP
           </span>
         </div>
@@ -108,7 +108,7 @@ function ChallengeCard({ challenge, isCompleted, hydrated }: { challenge: Challe
             Completed
           </div>
         ) : (
-          <div className="flex items-center gap-1 text-xs font-medium text-slate-500 group-hover:text-amber-400 transition-colors">
+          <div className="flex items-center gap-1 text-xs font-medium text-slate-500 group-hover:text-zinc-100 transition-colors">
             <span>Start challenge</span>
             <ChevronRight className="h-3 w-3" />
           </div>
@@ -212,8 +212,8 @@ export default function ChallengesClient({
               value: hydrated
                 ? `${completedCount} / ${totalChallenges}`
                 : "— / —",
-              color: "text-amber-400",
-              iconColor: "text-amber-400",
+              color: "text-zinc-100",
+              iconColor: "text-zinc-100",
             },
             {
               icon: Zap,
@@ -264,14 +264,14 @@ export default function ChallengesClient({
       {hydrated && nextChallenge && (
         <Link
           href={`/challenges/${nextChallenge.id}`}
-          className="group mb-8 flex items-center justify-between gap-4 rounded-xl border border-amber-500/20 bg-gradient-to-r from-amber-500/5 to-amber-600/3 px-5 py-4 hover:border-amber-500/40 transition-all"
+          className="group mb-8 flex items-center justify-between gap-4 rounded-xl border border-white/15 bg-gradient-to-r from-amber-500/5 to-amber-600/3 px-5 py-4 hover:border-amber-500/40 transition-all"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10">
-              <Zap className="h-4 w-4 text-amber-400" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/8">
+              <Zap className="h-4 w-4 text-zinc-100" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-500/70">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-200/70">
                 Up next
               </p>
               <p className="text-sm font-semibold text-slate-200">
@@ -279,7 +279,7 @@ export default function ChallengesClient({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-400/70 group-hover:text-amber-400 transition-colors">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-100/70 group-hover:text-zinc-100 transition-colors">
             Continue <ArrowRight className="h-3.5 w-3.5" />
           </div>
         </Link>

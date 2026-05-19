@@ -1,17 +1,43 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-
-  --color-brand-amber: #f59e0b;
-  --color-brand-amber-dim: #d97706;
-  --color-brand-blue: #3b82f6;
-  --color-brand-cyan: #06b6d4;
 }
 
-html {
+/* ─── Dark mode (default) ─────────────────────────────────────── */
+:root {
   color-scheme: dark;
+}
+
+/* ─── Light mode overrides — inverts the slate scale ─────────────
+   Tailwind v4 exposes slate colors as CSS custom properties,
+   so we can flip the whole palette without touching any component. */
+.light {
+  color-scheme: light;
+  --color-slate-950: #ffffff;
+  --color-slate-900: #f8fafc;
+  --color-slate-800: #f1f5f9;
+  --color-slate-700: #e2e8f0;
+  --color-slate-600: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-400: #475569;
+  --color-slate-300: #334155;
+  --color-slate-200: #1e293b;
+  --color-slate-100: #0f172a;
+  /* Invert zinc accent scale so white accents become dark in light mode */
+  --color-zinc-100: #18181b;
+  --color-zinc-200: #27272a;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-400: #52525b;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #a1a1aa;
+  --color-zinc-700: #d4d4d8;
+  --color-zinc-800: #e4e4e7;
+  --color-zinc-900: #f4f4f5;
+  --color-zinc-950: #fafafa;
 }
 
 body {
@@ -19,7 +45,6 @@ body {
 }
 
 /* ─── Shiki syntax highlighting ──────────────────────────────── */
-/* Make the <pre> shiki generates transparent so our container bg wins */
 .shiki-wrapper pre,
 .shiki-wrapper .shiki {
   background: transparent !important;
@@ -31,14 +56,14 @@ body {
 
 .shiki-wrapper code {
   font-family: var(--font-geist-mono), "Fira Code", ui-monospace, monospace;
-  font-size: 0.8125rem; /* 13px */
+  font-size: 0.8125rem;
   line-height: 1.75;
   display: block;
 }
 
 /* ─── Doc page prose ─────────────────────────────────────────── */
 .doc-content p {
-  color: rgb(148 163 184); /* slate-400 */
+  color: rgb(148 163 184);
   line-height: 1.75;
   font-size: 0.9375rem;
   margin-bottom: 1rem;
@@ -51,7 +76,7 @@ body {
 .doc-content h3 {
   font-size: 1rem;
   font-weight: 600;
-  color: rgb(226 232 240); /* slate-200 */
+  color: rgb(226 232 240);
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
 }
@@ -76,7 +101,7 @@ body {
 
 .doc-content ul li::before {
   content: "–";
-  color: rgb(100 116 139); /* slate-500 */
+  color: rgb(100 116 139);
   flex-shrink: 0;
   margin-top: 0.05rem;
 }
@@ -100,11 +125,11 @@ body {
 .doc-content code:not(.shiki-wrapper *) {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.8125rem;
-  background: rgb(245 158 11 / 0.08);
-  color: rgb(251 191 36); /* amber-300 */
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(226 232 240);
   padding: 0.1em 0.4em;
   border-radius: 0.25rem;
-  border: 1px solid rgb(245 158 11 / 0.15);
+  border: 1px solid rgb(255 255 255 / 0.12);
 }
 
 .doc-content table {
@@ -119,19 +144,19 @@ body {
   color: rgb(148 163 184);
   font-weight: 600;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgb(30 41 59); /* slate-800 */
+  border-bottom: 1px solid rgb(30 41 59);
   white-space: nowrap;
 }
 
 .doc-content td {
-  color: rgb(100 116 139); /* slate-500 */
+  color: rgb(100 116 139);
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid rgb(30 41 59 / 0.5);
   vertical-align: top;
 }
 
 .doc-content td:first-child {
-  color: rgb(203 213 225); /* slate-300 */
+  color: rgb(203 213 225);
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.75rem;
 }

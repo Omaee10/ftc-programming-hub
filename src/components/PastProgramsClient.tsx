@@ -43,8 +43,8 @@ export default function PastProgramsClient() {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10">
-            <Archive className="h-4.5 w-4.5 text-amber-400" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/8">
+            <Archive className="h-4.5 w-4.5 text-zinc-100" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-100">
             Team Past Programs
@@ -61,9 +61,9 @@ export default function PastProgramsClient() {
         <div className="flex flex-wrap gap-4 pt-1">
           {(
             [
-              { label: "Programs", value: pastPrograms.length, icon: FileCode, color: "text-amber-400" },
+              { label: "Programs", value: pastPrograms.length, icon: FileCode, color: "text-zinc-100" },
               { label: "Season",   value: "2025–26",           icon: Calendar, color: "text-blue-400"  },
-              { label: "Language", value: "Java",              icon: Code2,    color: "text-violet-400"},
+              { label: "Language", value: "Java",              icon: Code2,    color: "text-zinc-300"},
             ] as const
           ).map(({ label, value, icon: Icon, color }) => (
             <div
@@ -95,7 +95,7 @@ export default function PastProgramsClient() {
               className={`rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150 ${
                 isActive
                   ? isAll
-                    ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
+                    ? "border-amber-500/40 bg-amber-500/15 text-zinc-200"
                     : `${colors!.border} ${colors!.bg} ${colors!.text}`
                   : "border-slate-800 bg-slate-900/40 text-slate-500 hover:border-slate-700 hover:text-slate-300"
               }`}
@@ -181,7 +181,7 @@ export default function PastProgramsClient() {
                     <BookOpen className="h-3 w-3" />
                     {program.hardware.length} hardware devices
                   </div>
-                  <span className="flex items-center gap-1 text-[11px] font-medium text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Eye className="h-3 w-3" />
                     View code
                     <ArrowRight className="h-3 w-3" />

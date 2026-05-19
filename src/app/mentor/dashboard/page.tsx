@@ -10,6 +10,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Circle,
+  ClipboardCheck,
   Loader2,
   Code2,
   Sparkles,
@@ -18,19 +19,24 @@ import {
   EyeOff,
   BarChart3,
 } from "lucide-react";
-import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow } from "@/lib/supabase";
+import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { challenges as staticChallenges } from "@/data/challenges";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = "progress" | "mentors" | "students" | "create";
+type Tab = "progress" | "mentors" | "students" | "create" | "challenges" | "grade";
 
 interface StudentProgress {
   student: StudentRow;
   records: ProgressRow[];
   totalChallenges: number;
 }
+
+type EnrichedSubmission = SubmissionRow & {
+  studentName: string;
+  challengeTitle: string;
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,23 +51,30 @@ function TabButton({
   onClick,
   icon: Icon,
   label,
+  badge,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ElementType;
   label: string;
+  badge?: number;
 }) {
   return (
     <button
       onClick={onClick}
       className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
         active
-          ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+          ? "bg-white/8 text-zinc-100 border border-white/15"
           : "text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent"
       }`}
     >
       <Icon className="h-4 w-4" />
       {label}
+      {badge != null && badge > 0 && (
+        <span className="ml-0.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold text-slate-900 leading-none">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -73,6 +86,7 @@ function ProgressTab() {
   const [dbChallenges, setDbChallenges] = useState<ChallengeRow[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const session = typeof window !== "undefined" ? getSession() : null;
 
   const allChallenges = [
     ...staticChallenges.map((c) => ({
@@ -83,10 +97,11 @@ function ProgressTab() {
   ];
 
   const load = useCallback(async () => {
+    if (!session?.id) return;
     setLoading(true);
     const [{ data: students }, { data: challenges }, { data: progress }] =
       await Promise.all([
-        supabase.from("students").select("*").order("name"),
+        supabase.from("students").select("*").eq("mentor_id", session.id).order("name"),
         supabase.from("challenges").select("id, title").order("id"),
         supabase.from("student_challenge_progress").select("*"),
       ]);
@@ -110,7 +125,7 @@ function ProgressTab() {
       }))
     );
     setLoading(false);
-  }, []);
+  }, [session?.id]);
 
   useEffect(() => {
     load();
@@ -126,7 +141,7 @@ function ProgressTab() {
   if (loading)
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-zinc-100" />
       </div>
     );
 
@@ -168,7 +183,7 @@ function ProgressTab() {
               <div className="hidden sm:block w-32">
                 <div className="h-1.5 w-full rounded-full bg-slate-800">
                   <div
-                    className="h-1.5 rounded-full bg-amber-500 transition-all"
+                    className="h-1.5 rounded-full bg-zinc-300 transition-all"
                     style={{
                       width: `${totalChallenges === 0 ? 0 : (completedCount / totalChallenges) * 100}%`,
                     }}
@@ -248,11 +263,22 @@ function CodeManager({
   const session = typeof window !== "undefined" ? getSession() : null;
 
   const load = useCallback(async () => {
+    if (!session?.id) return;
     setLoading(true);
-    const { data } = await supabase.from(table).select("*").order("name");
-    setRows((data ?? []) as (MentorRow | StudentRow)[]);
+    if (table === "students") {
+      const { data } = await supabase.from("students").select("*").eq("mentor_id", session.id).order("name");
+      setRows((data ?? []) as (MentorRow | StudentRow)[]);
+    } else {
+      // Show the logged-in mentor + all co-mentors they created
+      const { data } = await supabase
+        .from("mentors")
+        .select("*")
+        .or(`id.eq.${session.id},created_by.eq.${session.id}`)
+        .order("name");
+      setRows((data ?? []) as (MentorRow | StudentRow)[]);
+    }
     setLoading(false);
-  }, [table]);
+  }, [table, session?.id]);
 
   useEffect(() => {
     load();
@@ -261,14 +287,26 @@ function CodeManager({
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) { setError("Name is required."); return; }
-    if (!/^\d{6}$/.test(newCode)) { setError("Code must be exactly 6 digits."); return; }
     setError("");
 
     startTransition(async () => {
-      const { error: dbErr } = await supabase.from(table).insert({
-        name: newName.trim(),
-        code: newCode,
-      });
+      const tryInsert = async (code: string) => {
+        const payload: Record<string, string> = { name: newName.trim(), code };
+        if (table === "students" && session?.id) payload.mentor_id = session.id;
+        if (table === "mentors" && session?.id) payload.created_by = session.id;
+        return supabase.from(table).insert(payload);
+      };
+
+      let code = Math.floor(100000 + Math.random() * 900000).toString();
+
+      let { error: dbErr } = await tryInsert(code);
+
+      // Retry once on unique conflict
+      if (dbErr?.message?.includes("unique") || dbErr?.code === "23505") {
+        code = Math.floor(100000 + Math.random() * 900000).toString();
+        ({ error: dbErr } = await tryInsert(code));
+      }
+
       if (dbErr) {
         setError(dbErr.message.includes("unique") ? "That code is already in use." : dbErr.message);
         return;
@@ -300,19 +338,19 @@ function CodeManager({
         const myRow = rows.find((r) => r.id === session.id);
         if (!myRow) return null;
         return (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <div className="rounded-xl border border-white/20 bg-white/5 p-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
             <div className="flex-1">
-              <p className="text-xs font-semibold uppercase tracking-widest text-amber-500/70 mb-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
                 Your Mentor Code
               </p>
-              <p className="font-mono text-2xl font-bold tracking-[0.2em] text-amber-400">
+              <p className="font-mono text-2xl font-bold tracking-[0.2em] text-zinc-100">
                 {myRow.code}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
                 Share this code with co-mentors only
               </p>
             </div>
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-amber-500/20 bg-amber-500/10 text-sm font-bold text-amber-400">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-amber-500/20 bg-amber-500/10 text-sm font-bold text-zinc-100">
               {myRow.name[0]?.toUpperCase()}
             </div>
           </div>
@@ -329,7 +367,7 @@ function CodeManager({
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
+            <Loader2 className="h-5 w-5 animate-spin text-zinc-100" />
           </div>
         ) : rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-500">
@@ -393,22 +431,7 @@ function CodeManager({
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder={`${label} name`}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
-            />
-          </div>
-          <div className="w-full sm:w-36">
-            <label className="mb-1 block text-xs font-medium text-slate-500">
-              6-digit Code
-            </label>
-            <input
-              type="text"
-              value={newCode}
-              onChange={(e) =>
-                setNewCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-              }
-              placeholder="123456"
-              maxLength={6}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 font-mono text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30"
             />
           </div>
           <button
@@ -431,6 +454,86 @@ function CodeManager({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Manage Challenges Tab ────────────────────────────────────────────────────
+
+function ManageChallengesTab() {
+  const [rows, setRows] = useState<ChallengeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
+  const session = typeof window !== "undefined" ? getSession() : null;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("challenges")
+      .select("id, title, difficulty, xp, created_by")
+      .order("id");
+    setRows((data ?? []) as ChallengeRow[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = (id: number) => {
+    startTransition(async () => {
+      await supabase.from("challenges").delete().eq("id", id);
+      load();
+    });
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-6 w-6 animate-spin text-zinc-300" />
+    </div>
+  );
+
+  if (rows.length === 0) return (
+    <p className="py-12 text-center text-sm text-slate-500">
+      No custom challenges yet. Create one in the &quot;Create Challenge&quot; tab.
+    </p>
+  );
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-slate-800 px-5 py-3">
+        <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Custom Challenges ({rows.length})
+        </span>
+      </div>
+      <ul className="divide-y divide-slate-800/60">
+        {rows.map((row) => (
+          <li key={row.id} className="flex items-center gap-4 px-5 py-3 hover:bg-slate-800/30 transition-colors">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs font-bold text-slate-400">
+              {row.id}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-200 truncate">{row.title}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-slate-500">{row.difficulty}</span>
+                <span className="text-slate-700">·</span>
+                <span className="text-xs text-slate-500">{row.xp} XP</span>
+                {row.created_by === session?.id && (
+                  <span className="rounded-full bg-white/8 px-1.5 py-0.5 text-[9px] font-semibold text-zinc-300 uppercase tracking-wide">
+                    Yours
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => handleDelete(row.id)}
+              disabled={isPending}
+              className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
+              title="Delete challenge"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -542,7 +645,7 @@ function CreateChallengeTab() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g. Servo Control Basics"
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30"
         />
       </div>
 
@@ -556,13 +659,13 @@ function CreateChallengeTab() {
           onChange={(e) => setGist(e.target.value)}
           rows={3}
           placeholder="Briefly describe what this challenge should teach..."
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30 resize-none"
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 resize-none"
         />
         <button
           type="button"
           onClick={handleGenerate}
           disabled={generating}
-          className="mt-2 flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-sm font-semibold text-violet-400 hover:bg-violet-500/20 transition-all disabled:opacity-50"
+          className="mt-2 flex items-center gap-2 rounded-lg border border-white/15 bg-white/8 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-white/15 transition-all disabled:opacity-50"
         >
           {generating ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -588,7 +691,7 @@ function CreateChallengeTab() {
           <select
             value={difficulty}
             onChange={(e) => setDifficulty(e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-amber-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-zinc-400 focus:outline-none"
           >
             {["Beginner", "Intermediate", "Advanced"].map((d) => (
               <option key={d} value={d}>
@@ -606,7 +709,7 @@ function CreateChallengeTab() {
             value={xp}
             onChange={(e) => setXp(e.target.value)}
             min={0}
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30"
           />
         </div>
       </div>
@@ -621,7 +724,7 @@ function CreateChallengeTab() {
           value={tags}
           onChange={(e) => setTags(e.target.value)}
           placeholder="Motors, Servos, TeleOp"
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30"
         />
       </div>
 
@@ -638,7 +741,7 @@ function CreateChallengeTab() {
                 value={obj}
                 onChange={(e) => updateObj(i, e.target.value)}
                 placeholder={`Objective ${i + 1}`}
-                className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30"
               />
               {objectives.length > 1 && (
                 <button
@@ -654,7 +757,7 @@ function CreateChallengeTab() {
           <button
             type="button"
             onClick={addObj}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-amber-400 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-zinc-100 transition-colors"
           >
             <PlusCircle className="h-3.5 w-3.5" />
             Add objective
@@ -672,7 +775,7 @@ function CreateChallengeTab() {
           onChange={(e) => setInstructions(e.target.value)}
           rows={8}
           placeholder="Detailed challenge instructions shown to students..."
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30 resize-y font-mono"
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 resize-y font-mono"
         />
       </div>
 
@@ -689,7 +792,7 @@ function CreateChallengeTab() {
                 value={hint}
                 onChange={(e) => updateHint(i, e.target.value)}
                 placeholder={`Hint ${i + 1}`}
-                className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30"
               />
               {hints.length > 1 && (
                 <button
@@ -705,7 +808,7 @@ function CreateChallengeTab() {
           <button
             type="button"
             onClick={addHint}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-amber-400 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-zinc-100 transition-colors"
           >
             <PlusCircle className="h-3.5 w-3.5" />
             Add hint
@@ -723,7 +826,7 @@ function CreateChallengeTab() {
           onChange={(e) => setStarterCode(e.target.value)}
           rows={12}
           placeholder="// Starter code shown in the editor..."
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30 resize-y font-mono text-xs leading-relaxed"
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 resize-y font-mono text-xs leading-relaxed"
         />
       </div>
 
@@ -740,7 +843,7 @@ function CreateChallengeTab() {
       <button
         type="submit"
         disabled={saving || !title.trim() || !instructions.trim()}
-        className="flex items-center gap-2 rounded-xl bg-amber-500 px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-amber-400 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-2 rounded-xl bg-zinc-100 px-6 py-3 text-sm font-semibold text-slate-950 hover:bg-white transition-all shadow-sm shadow-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {saving ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -753,18 +856,368 @@ function CreateChallengeTab() {
   );
 }
 
+// ─── Grade Submissions Tab ────────────────────────────────────────────────────
+
+function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number) => void }) {
+  const [submissions, setSubmissions] = useState<EnrichedSubmission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [gradeInputs, setGradeInputs] = useState<Record<string, { grade: string; feedback: string }>>({});
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const session = typeof window !== "undefined" ? getSession() : null;
+
+  const load = useCallback(async () => {
+    if (!session?.id) return;
+    setLoading(true);
+
+    const { data: students } = await supabase
+      .from("students")
+      .select("id, name")
+      .eq("mentor_id", session.id);
+
+    if (!students || students.length === 0) {
+      setSubmissions([]);
+      onCountChange?.(0);
+      setLoading(false);
+      return;
+    }
+
+    const studentIds = (students as { id: string }[]).map((s) => s.id);
+
+    const [{ data: subs }, { data: dbChallenges }] = await Promise.all([
+      supabase
+        .from("challenge_submissions")
+        .select("*")
+        .in("student_id", studentIds)
+        .order("submitted_at", { ascending: false }),
+      supabase.from("challenges").select("id, title"),
+    ]);
+
+    const allChallengeTitles = [
+      ...staticChallenges.map((c) => ({ id: c.id, title: c.title })),
+      ...((dbChallenges ?? []) as { id: number; title: string }[]).map((c) => ({
+        id: c.id,
+        title: c.title,
+      })),
+    ];
+
+    const enriched: EnrichedSubmission[] = ((subs ?? []) as SubmissionRow[]).map((sub) => ({
+      ...sub,
+      studentName:
+        (students as { id: string; name: string }[]).find((s) => s.id === sub.student_id)?.name ??
+        "Unknown",
+      challengeTitle:
+        allChallengeTitles.find((c) => c.id === sub.challenge_id)?.title ??
+        `Challenge ${sub.challenge_id}`,
+    }));
+
+    setSubmissions(enriched);
+
+    const pendingCount = enriched.filter((s) => s.status === "pending").length;
+    onCountChange?.(pendingCount);
+
+    setGradeInputs((prev) => {
+      const next = { ...prev };
+      enriched
+        .filter((s) => s.status === "pending")
+        .forEach((s) => {
+          if (!(s.id in next)) {
+            next[s.id] = { grade: "pass", feedback: "" };
+          }
+        });
+      return next;
+    });
+
+    setLoading(false);
+  }, [session?.id, onCountChange]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const toggleExpand = (id: string) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  function timeAgo(ts: string): string {
+    const diffMs = Date.now() - new Date(ts).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+  }
+
+  function gradeBadge(grade: SubmissionRow["grade"]) {
+    if (!grade) return null;
+    const cfg = {
+      pass: { label: "Pass", cls: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" },
+      "needs-work": { label: "Needs Work", cls: "bg-amber-500/10 text-amber-300 border-amber-500/20" },
+      redo: { label: "Redo", cls: "bg-red-500/10 text-red-300 border-red-500/20" },
+    } as const;
+    const c = cfg[grade];
+    return (
+      <span
+        className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${c.cls}`}
+      >
+        {c.label}
+      </span>
+    );
+  }
+
+  const handleGrade = async (sub: EnrichedSubmission) => {
+    const input = gradeInputs[sub.id];
+    if (!input?.grade || !session?.id) return;
+    setSaving((prev) => ({ ...prev, [sub.id]: true }));
+    await supabase
+      .from("challenge_submissions")
+      .update({
+        status: "graded",
+        grade: input.grade,
+        feedback: input.feedback || null,
+        graded_at: new Date().toISOString(),
+        graded_by: session.id,
+      })
+      .eq("id", sub.id);
+    setSaving((prev) => ({ ...prev, [sub.id]: false }));
+    load();
+  };
+
+  const pending = submissions.filter((s) => s.status === "pending");
+  const graded = submissions.filter((s) => s.status === "graded");
+
+  if (loading)
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
+      </div>
+    );
+
+  if (submissions.length === 0)
+    return (
+      <p className="py-12 text-center text-sm text-slate-500">
+        No submissions yet. Students will appear here once they submit mentor-created challenges.
+      </p>
+    );
+
+  return (
+    <div className="space-y-8">
+      {/* ── Pending Reviews ──────────────────────────────────────────── */}
+      <div>
+        <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Pending Reviews
+          {pending.length > 0 && (
+            <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+              {pending.length}
+            </span>
+          )}
+        </h3>
+
+        {pending.length === 0 ? (
+          <p className="py-4 text-sm text-slate-500">All caught up — no pending reviews.</p>
+        ) : (
+          <div className="space-y-3">
+            {pending.map((sub) => {
+              const isExpanded = expandedIds.has(sub.id);
+              const input = gradeInputs[sub.id] ?? { grade: "pass", feedback: "" };
+              const isSaving = saving[sub.id] ?? false;
+              return (
+                <div
+                  key={sub.id}
+                  className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden"
+                >
+                  <button
+                    onClick={() => toggleExpand(sub.id)}
+                    className="flex w-full items-center gap-4 px-5 py-4 hover:bg-slate-800/50 transition-colors"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-sm font-bold text-slate-300">
+                      {sub.studentName[0]?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-semibold text-slate-200">
+                        {sub.studentName}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {sub.challengeTitle} · {timeAgo(sub.submitted_at)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-400">
+                      Pending
+                    </span>
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+                    )}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-slate-800 px-5 py-4 space-y-4">
+                      <pre className="max-h-64 overflow-auto rounded bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400">
+                        {sub.code_snapshot}
+                      </pre>
+
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <div className="sm:w-44">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            Grade
+                          </label>
+                          <select
+                            value={input.grade}
+                            onChange={(e) =>
+                              setGradeInputs((prev) => ({
+                                ...prev,
+                                [sub.id]: { ...input, grade: e.target.value },
+                              }))
+                            }
+                            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+                          >
+                            <option value="pass">Pass</option>
+                            <option value="needs-work">Needs Work</option>
+                            <option value="redo">Redo</option>
+                          </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            Feedback
+                          </label>
+                          <textarea
+                            value={input.feedback}
+                            onChange={(e) =>
+                              setGradeInputs((prev) => ({
+                                ...prev,
+                                [sub.id]: { ...input, feedback: e.target.value },
+                              }))
+                            }
+                            rows={3}
+                            placeholder="Write feedback for the student…"
+                            className="w-full resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleGrade(sub)}
+                        disabled={isSaving}
+                        className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-900 transition-all hover:bg-amber-400 disabled:opacity-50"
+                      >
+                        {isSaving ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        {isSaving ? "Saving…" : "Submit Grade"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Previously Graded ────────────────────────────────────────── */}
+      {graded.length > 0 && (
+        <div>
+          <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">
+            Previously Graded
+          </h3>
+          <div className="space-y-3">
+            {graded.map((sub) => {
+              const isExpanded = expandedIds.has(sub.id);
+              return (
+                <div
+                  key={sub.id}
+                  className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden"
+                >
+                  <button
+                    onClick={() => toggleExpand(sub.id)}
+                    className="flex w-full items-center gap-4 px-5 py-4 hover:bg-slate-800/50 transition-colors"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-sm font-bold text-slate-300">
+                      {sub.studentName[0]?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-semibold text-slate-200">
+                        {sub.studentName}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">{sub.challengeTitle}</p>
+                    </div>
+                    {gradeBadge(sub.grade)}
+                    <span className="shrink-0 text-xs text-slate-600">
+                      {sub.graded_at ? timeAgo(sub.graded_at) : ""}
+                    </span>
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+                    )}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-slate-800 px-5 py-4 space-y-4">
+                      <pre className="max-h-64 overflow-auto rounded bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400">
+                        {sub.code_snapshot}
+                      </pre>
+                      {sub.feedback && (
+                        <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3">
+                          <p className="mb-1 text-xs font-medium text-slate-500">Feedback</p>
+                          <p className="text-sm leading-relaxed text-slate-300">
+                            {sub.feedback}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MentorDashboardPage() {
   const [tab, setTab] = useState<Tab>("progress");
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Fetch pending submission count on mount for the tab badge
+  useEffect(() => {
+    const session = typeof window !== "undefined" ? getSession() : null;
+    if (!session?.id) return;
+    (async () => {
+      const { data: students } = await supabase
+        .from("students")
+        .select("id")
+        .eq("mentor_id", session.id);
+      if (!students || students.length === 0) return;
+      const studentIds = (students as { id: string }[]).map((s) => s.id);
+      const { count } = await supabase
+        .from("challenge_submissions")
+        .select("*", { count: "exact", head: true })
+        .in("student_id", studentIds)
+        .eq("status", "pending");
+      setPendingCount(count ?? 0);
+    })();
+  }, []);
 
   return (
     <div className="min-h-full px-6 py-8 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/5 px-3 py-1">
-          <Shield className="h-3 w-3 text-violet-400" />
-          <span className="text-xs font-medium uppercase tracking-widest text-violet-400">
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1">
+          <Shield className="h-3 w-3 text-zinc-300" />
+          <span className="text-xs font-medium uppercase tracking-widest text-zinc-300">
             Mentor Dashboard
           </span>
         </div>
@@ -797,10 +1250,23 @@ export default function MentorDashboardPage() {
           label="Manage Students"
         />
         <TabButton
+          active={tab === "challenges"}
+          onClick={() => setTab("challenges")}
+          icon={Code2}
+          label="Custom Challenges"
+        />
+        <TabButton
           active={tab === "create"}
           onClick={() => setTab("create")}
           icon={PlusCircle}
           label="Create Challenge"
+        />
+        <TabButton
+          active={tab === "grade"}
+          onClick={() => setTab("grade")}
+          icon={ClipboardCheck}
+          label="Grade Submissions"
+          badge={pendingCount}
         />
       </div>
 
@@ -810,17 +1276,21 @@ export default function MentorDashboardPage() {
         <CodeManager
           table="mentors"
           label="Mentor"
-          accentClass="bg-violet-600 text-white hover:bg-violet-500"
+          accentClass="bg-zinc-200 text-slate-950 hover:bg-white"
         />
       )}
       {tab === "students" && (
         <CodeManager
           table="students"
           label="Student"
-          accentClass="bg-amber-500 text-slate-900 hover:bg-amber-400"
+          accentClass="bg-zinc-100 text-slate-950 hover:bg-white"
         />
       )}
+      {tab === "challenges" && <ManageChallengesTab />}
       {tab === "create" && <CreateChallengeTab />}
+      {tab === "grade" && (
+        <GradeSubmissionsTab onCountChange={setPendingCount} />
+      )}
     </div>
   );
 }

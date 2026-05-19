@@ -59,3 +59,16 @@ export interface ProgressRow {
   code_snapshot: string | null;
   updated_at: string;
 }
+
+export interface SubmissionRow {
+  id: string;
+  student_id: string;
+  challenge_id: number;
+  code_snapshot: string;
+  submitted_at: string;
+  status: "pending" | "graded";
+  grade: "pass" | "needs-work" | "redo" | null;
+  feedback: string | null;
+  graded_at: string | null;
+  graded_by: string | null;
+}

@@ -67,7 +67,7 @@ function CodeInput({
           onChange={(e) => handleChange(e, i, "input")}
           onPaste={handlePaste}
           disabled={disabled}
-          className="w-11 h-12 rounded-lg border border-slate-700 bg-slate-800 text-center text-lg font-bold text-slate-100 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/50 transition-all disabled:opacity-50 caret-transparent"
+          className="w-11 h-12 rounded-lg border border-slate-700 bg-slate-800 text-center text-lg font-bold text-slate-100 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/40 transition-all disabled:opacity-50 caret-transparent"
         />
       ))}
     </div>
@@ -93,7 +93,7 @@ function LoginPanel({
   accentClass: string;
   borderClass: string;
   buttonClass: string;
-  onSuccess: (id: string, name: string) => void;
+  onSuccess: (id: string, name: string, teamName: string) => void;
 }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -109,19 +109,31 @@ function LoginPanel({
     setError("");
 
     startTransition(async () => {
-      const table = role === "mentor" ? "mentors" : "students";
-      const { data, error: dbErr } = await supabase
-        .from(table)
-        .select("id, name")
-        .eq("code", trimmed)
-        .single();
-
-      if (dbErr || !data) {
-        const detail = dbErr?.message ?? "no data returned";
-        setError(`Invalid code. (${detail})`);
-        return;
+      if (role === "mentor") {
+        const { data, error: dbErr } = await supabase
+          .from("mentors")
+          .select("id, name")
+          .eq("code", trimmed)
+          .single();
+        if (dbErr || !data) {
+          setError(`Invalid code. (${dbErr?.message ?? "no data returned"})`);
+          return;
+        }
+        // For mentors, their name IS the team name
+        onSuccess(data.id as string, data.name as string, data.name as string);
+      } else {
+        const { data, error: dbErr } = await supabase
+          .from("students")
+          .select("id, name, mentor_id, mentors(name)")
+          .eq("code", trimmed)
+          .single();
+        if (dbErr || !data) {
+          setError(`Invalid code. (${dbErr?.message ?? "no data returned"})`);
+          return;
+        }
+        const mentorName = (data.mentors as { name: string } | null)?.name ?? "";
+        onSuccess(data.id as string, data.name as string, mentorName);
       }
-      onSuccess(data.id as string, data.name as string);
     });
   };
 
@@ -185,8 +197,8 @@ function LoginPanel({
 export default function SignInPage() {
   const router = useRouter();
 
-  const handleSuccess = (role: "mentor" | "student") => (id: string, name: string) => {
-    setSession({ role, id, name });
+  const handleSuccess = (role: "mentor" | "student") => (id: string, name: string, teamName: string) => {
+    setSession({ role, id, name, teamName });
     router.push(role === "mentor" ? "/mentor/dashboard" : "/dashboard");
   };
 
@@ -194,8 +206,8 @@ export default function SignInPage() {
     <div className="flex min-h-screen flex-col items-center justify-center gap-10 bg-slate-950 px-4 py-12">
       {/* Logo */}
       <div className="flex flex-col items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10">
-          <Trophy className="h-5 w-5 text-amber-400" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/5">
+          <Trophy className="h-5 w-5 text-zinc-100" />
         </div>
         <div className="text-center">
           <h1 className="text-2xl font-bold tracking-tight text-slate-100">
@@ -214,9 +226,9 @@ export default function SignInPage() {
           icon={Shield}
           title="Mentor Login"
           subtitle="Enter your 6-digit mentor code"
-          accentClass="bg-violet-500/10 text-violet-400"
-          borderClass="border-violet-500/20"
-          buttonClass="bg-violet-600 text-white hover:bg-violet-500 shadow-sm shadow-violet-500/20"
+          accentClass="bg-white/5 text-zinc-300"
+          borderClass="border-white/15"
+          buttonClass="bg-zinc-200 text-slate-950 hover:bg-white shadow-sm shadow-white/10"
           onSuccess={handleSuccess("mentor")}
         />
 
@@ -232,9 +244,9 @@ export default function SignInPage() {
           icon={User}
           title="Student Login"
           subtitle="Enter your 6-digit student code"
-          accentClass="bg-amber-500/10 text-amber-400"
-          borderClass="border-amber-500/20"
-          buttonClass="bg-amber-500 text-slate-900 hover:bg-amber-400 shadow-sm shadow-amber-500/20"
+          accentClass="bg-white/5 text-zinc-300"
+          borderClass="border-white/15"
+          buttonClass="bg-zinc-100 text-slate-950 hover:bg-white shadow-sm shadow-white/10"
           onSuccess={handleSuccess("student")}
         />
       </div>

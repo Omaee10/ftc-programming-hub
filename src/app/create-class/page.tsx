@@ -11,6 +11,7 @@ import {
   Copy,
   Check,
   ArrowRight,
+  ArrowLeft,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { setSession } from "@/lib/auth";
@@ -26,7 +27,6 @@ export default function CreateClassPage() {
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  // Success state
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [createdName, setCreatedName] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -51,7 +51,6 @@ export default function CreateClassPage() {
 
       let { data, dbErr } = await tryInsert(code);
 
-      // Retry once on unique conflict
       if (dbErr?.message?.includes("unique") || dbErr?.code === "23505") {
         code = generateCode();
         ({ data, dbErr } = await tryInsert(code));
@@ -62,7 +61,7 @@ export default function CreateClassPage() {
         return;
       }
 
-      setSession({ role: "mentor", id: data.id as string, name: data.name as string });
+      setSession({ role: "mentor", id: data.id as string, name: data.name as string, teamName: data.name as string });
       setCreatedCode(data.code as string);
       setCreatedName(teamName.trim());
     });
@@ -80,8 +79,8 @@ export default function CreateClassPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-slate-950 px-4 py-12">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10">
-            <Trophy className="h-5 w-5 text-amber-400" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/5">
+            <Trophy className="h-5 w-5 text-zinc-100" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-100">
@@ -93,7 +92,7 @@ export default function CreateClassPage() {
           </div>
         </div>
 
-        <div className="w-full max-w-sm rounded-2xl border border-amber-500/20 bg-slate-900 p-8 flex flex-col gap-6">
+        <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900 p-8 flex flex-col gap-6">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
             <p className="text-sm text-slate-300 font-medium">
@@ -105,8 +104,8 @@ export default function CreateClassPage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
               Your Mentor Code
             </p>
-            <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
-              <span className="flex-1 font-mono text-3xl font-bold tracking-[0.2em] text-amber-400">
+            <div className="flex items-center gap-3 rounded-xl border border-white/20 bg-white/5 px-4 py-3">
+              <span className="flex-1 font-mono text-3xl font-bold tracking-[0.2em] text-zinc-100">
                 {createdCode}
               </span>
               <button
@@ -128,7 +127,7 @@ export default function CreateClassPage() {
 
           <button
             onClick={() => router.push("/mentor/dashboard")}
-            className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-900 hover:bg-amber-400 transition-all shadow-sm shadow-amber-500/20"
+            className="flex items-center justify-center gap-2 rounded-xl bg-zinc-100 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-white transition-all shadow-sm shadow-white/10"
           >
             Go to Dashboard
             <ArrowRight className="h-4 w-4" />
@@ -140,11 +139,20 @@ export default function CreateClassPage() {
 
   // ─── Form screen ───────────────────────────────────────────────────────────
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-slate-950 px-4 py-12">
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 bg-slate-950 px-4 py-12">
+      {/* Back button */}
+      <button
+        onClick={() => router.push("/onboarding")}
+        className="absolute top-5 left-5 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back
+      </button>
+
       {/* Logo */}
       <div className="flex flex-col items-center gap-3 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10">
-          <Trophy className="h-5 w-5 text-amber-400" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/5">
+          <Trophy className="h-5 w-5 text-zinc-100" />
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-100">
@@ -169,7 +177,7 @@ export default function CreateClassPage() {
               onChange={(e) => setClassName(e.target.value)}
               placeholder="e.g. Period 3 Robotics"
               disabled={isPending}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30 disabled:opacity-50 transition-all"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 disabled:opacity-50 transition-all"
             />
           </div>
 
@@ -183,7 +191,7 @@ export default function CreateClassPage() {
               onChange={(e) => setTeamName(e.target.value)}
               placeholder="e.g. Iron Wolves #12345"
               disabled={isPending}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30 disabled:opacity-50 transition-all"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 disabled:opacity-50 transition-all"
             />
           </div>
 
@@ -197,7 +205,7 @@ export default function CreateClassPage() {
           <button
             type="submit"
             disabled={isPending}
-            className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-900 hover:bg-amber-400 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+            className="flex items-center justify-center gap-2 rounded-xl bg-zinc-100 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-white transition-all shadow-sm shadow-white/10 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
           >
             {isPending ? (
               <>
@@ -212,13 +220,6 @@ export default function CreateClassPage() {
             )}
           </button>
         </form>
-
-        <button
-          onClick={() => router.push("/onboarding")}
-          className="mt-4 w-full text-center text-xs text-slate-600 hover:text-slate-400 transition-colors"
-        >
-          ← Back
-        </button>
       </div>
     </div>
   );

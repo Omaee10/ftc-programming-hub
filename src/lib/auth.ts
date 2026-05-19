@@ -5,6 +5,7 @@ export interface Session {
   role: "mentor" | "student";
   id: string;
   name: string;
+  teamName?: string;
 }
 
 export function getSession(): Session | null {

@@ -8,20 +8,35 @@ CREATE TABLE IF NOT EXISTS mentors (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name       text NOT NULL,
   code       char(6) UNIQUE NOT NULL,
+  created_by uuid REFERENCES mentors(id) ON DELETE SET NULL,
   created_at timestamptz DEFAULT now()
 );
+
+-- ─── Migration: add created_by to existing mentors table ─────────────────────
+-- Run this if the table already exists:
+-- ALTER TABLE mentors ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES mentors(id) ON DELETE SET NULL;
 
 -- Students
 CREATE TABLE IF NOT EXISTS students (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name       text NOT NULL,
   code       char(6) UNIQUE NOT NULL,
+  mentor_id  uuid REFERENCES mentors(id) ON DELETE CASCADE,
   created_at timestamptz DEFAULT now()
 );
 
+-- ─── Migration: fix challenge ID sequence to start at 1000 ──────────────────
+-- Run this if the challenges table already exists:
+-- ALTER SEQUENCE challenges_id_seq RESTART WITH 1000;
+
+-- ─── Migration: add mentor_id to existing students table ──────────────────────
+-- Run this if the table already exists:
+-- ALTER TABLE students ADD COLUMN IF NOT EXISTS mentor_id uuid REFERENCES mentors(id) ON DELETE CASCADE;
+
 -- Challenges (mirrors the Challenge interface in src/data/challenges.ts)
+-- IDs start at 1000 to avoid collisions with static challenge IDs (1–53)
 CREATE TABLE IF NOT EXISTS challenges (
-  id               serial PRIMARY KEY,
+  id               integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1000),
   title            text NOT NULL,
   difficulty       text NOT NULL DEFAULT 'Beginner',
   description      text NOT NULL DEFAULT '',
@@ -48,9 +63,42 @@ CREATE TABLE IF NOT EXISTS student_challenge_progress (
   UNIQUE (student_id, challenge_id)
 );
 
+-- Mentor-created challenge submissions (manual grading)
+CREATE TABLE IF NOT EXISTS challenge_submissions (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id    uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  challenge_id  integer NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+  code_snapshot text NOT NULL,
+  submitted_at  timestamptz DEFAULT now(),
+  status        text NOT NULL DEFAULT 'pending',  -- 'pending' | 'graded'
+  grade         text,                             -- 'pass' | 'needs-work' | 'redo'
+  feedback      text,
+  graded_at     timestamptz,
+  graded_by     uuid REFERENCES mentors(id) ON DELETE SET NULL,
+  UNIQUE (student_id, challenge_id)               -- one active submission per student per challenge
+);
+
+-- ─── Migration: add challenge_submissions to existing databases ───────────────
+-- Run this if the other tables already exist:
+-- CREATE TABLE IF NOT EXISTS challenge_submissions (
+--   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+--   challenge_id integer NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+--   code_snapshot text NOT NULL,
+--   submitted_at timestamptz DEFAULT now(),
+--   status text NOT NULL DEFAULT 'pending',
+--   grade text,
+--   feedback text,
+--   graded_at timestamptz,
+--   graded_by uuid REFERENCES mentors(id) ON DELETE SET NULL,
+--   UNIQUE (student_id, challenge_id)
+-- );
+-- ALTER TABLE challenge_submissions DISABLE ROW LEVEL SECURITY;
+
 -- ─── Disable RLS (internal tool — enable & add policies before going public) ──
 ALTER TABLE mentors                    DISABLE ROW LEVEL SECURITY;
 ALTER TABLE students                   DISABLE ROW LEVEL SECURITY;
 ALTER TABLE challenges                 DISABLE ROW LEVEL SECURITY;
 ALTER TABLE student_challenge_progress DISABLE ROW LEVEL SECURITY;
+ALTER TABLE challenge_submissions      DISABLE ROW LEVEL SECURITY;
 
