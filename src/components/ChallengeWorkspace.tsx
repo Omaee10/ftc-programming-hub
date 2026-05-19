@@ -1,0 +1,1018 @@
+"use client";
+
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import type { Monaco } from "@monaco-editor/react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  Clock,
+  Code2,
+  FileCode,
+  Loader2,
+  Play,
+  RefreshCcw,
+  Star,
+  Target,
+  Terminal,
+  Trash2,
+  TriangleAlert,
+  XCircle,
+  Zap,
+  AlertTriangle,
+  Info,
+} from "lucide-react";
+
+import type { Challenge } from "@/data/challenges";
+import { difficultyConfig, getChallengeById } from "@/data/challenges";
+import { type GradedResult, type Grade, gradeCode } from "@/lib/codeValidator";
+import { useChallengeProgress } from "@/hooks/useChallengeProgress";
+import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
+import MarkCompleteButton from "./MarkCompleteButton";
+import HintsAccordion from "./HintsAccordion";
+
+// ─── Monaco loaded lazily (browser-only) ────────────────────────────────────
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
+  ssr: false,
+  loading: () => <EditorSkeleton />,
+});
+
+// ─── Custom FTC dark theme ─────────────────────────────────────────────────
+function defineTheme(monaco: Monaco) {
+  monaco.editor.defineTheme("ftc-dark", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [
+      { token: "comment", foreground: "475569", fontStyle: "italic" },
+      { token: "keyword", foreground: "818cf8" },
+      { token: "keyword.control", foreground: "c084fc" },
+      { token: "string", foreground: "4ade80" },
+      { token: "string.escape", foreground: "86efac" },
+      { token: "number", foreground: "fb923c" },
+      { token: "type", foreground: "38bdf8" },
+      { token: "type.identifier", foreground: "7dd3fc" },
+      { token: "annotation", foreground: "fbbf24" },
+      { token: "delimiter", foreground: "64748b" },
+    ],
+    colors: {
+      "editor.background": "#020617",
+      "editor.foreground": "#cbd5e1",
+      "editor.lineHighlightBackground": "#0f172a80",
+      "editor.selectionBackground": "#1e3a5f",
+      "editor.inactiveSelectionBackground": "#1e293b",
+      "editorLineNumber.foreground": "#334155",
+      "editorLineNumber.activeForeground": "#64748b",
+      "editorCursor.foreground": "#f59e0b",
+      "editorCursor.background": "#020617",
+      "editorIndentGuide.background1": "#1e293b",
+      "editorIndentGuide.activeBackground1": "#334155",
+      "editorGutter.background": "#020617",
+      "editorWidget.background": "#0f172a",
+      "editorWidget.border": "#1e293b",
+      "editorSuggestWidget.background": "#0f172a",
+      "editorSuggestWidget.border": "#1e293b",
+      "editorSuggestWidget.selectedBackground": "#1e293b",
+      "scrollbar.shadow": "#00000000",
+      "scrollbarSlider.background": "#1e293b80",
+      "scrollbarSlider.hoverBackground": "#334155",
+      "scrollbarSlider.activeBackground": "#475569",
+      "editor.wordHighlightBackground": "#1e293b",
+    },
+  });
+}
+
+// ─── Console types ─────────────────────────────────────────────────────────
+
+type ConsoleEntryType =
+  | "init"
+  | "info"
+  | "running"
+  | "success"
+  | "error"
+  | "warning"
+  | "separator"
+  | "verdict-good"
+  | "verdict-improve"
+  | "verdict-wrong";
+
+interface ConsoleEntry {
+  id: string;
+  type: ConsoleEntryType;
+  message: string;
+  sub?: string;
+  ts: string;
+}
+
+function makeId() {
+  return Math.random().toString(36).slice(2);
+}
+function nowTime() {
+  return new Date().toLocaleTimeString("en-US", { hour12: false });
+}
+function delay(ms: number) {
+  return new Promise<void>((r) => setTimeout(r, ms));
+}
+
+/** Formats a list of 1-indexed line numbers into a human-readable suffix. */
+function fmtLines(lines: number[] | undefined): string {
+  if (!lines || lines.length === 0) return "";
+  const MAX = 5;
+  const shown = lines.slice(0, MAX);
+  const rest = lines.length - MAX;
+  const nums = shown.join(", ") + (rest > 0 ? ` (+${rest} more)` : "");
+  return lines.length === 1 ? ` — line ${nums}` : ` — lines ${nums}`;
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────
+
+function EditorSkeleton() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-[#020617]">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        <span className="text-xs text-slate-500">Loading editor…</span>
+      </div>
+    </div>
+  );
+}
+
+function ConsoleLine({ entry }: { entry: ConsoleEntry }) {
+  // ── Verdict banners ────────────────────────────────────────────────────
+  if (entry.type === "verdict-good") {
+    return (
+      <div className="my-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+          <span className="font-mono text-sm font-bold text-emerald-300">
+            {entry.message}
+          </span>
+        </div>
+        {entry.sub && (
+          <p className="mt-1 font-mono text-xs text-emerald-400/70 pl-6">
+            {entry.sub}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (entry.type === "verdict-improve") {
+    return (
+      <div className="my-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <TriangleAlert className="h-4 w-4 shrink-0 text-amber-400" />
+          <span className="font-mono text-sm font-bold text-amber-300">
+            {entry.message}
+          </span>
+        </div>
+        {entry.sub && (
+          <p className="mt-1 font-mono text-xs text-amber-400/70 pl-6">
+            {entry.sub}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (entry.type === "verdict-wrong") {
+    return (
+      <div className="my-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <XCircle className="h-4 w-4 shrink-0 text-red-400" />
+          <span className="font-mono text-sm font-bold text-red-300">
+            {entry.message}
+          </span>
+        </div>
+        {entry.sub && (
+          <p className="mt-1 font-mono text-xs text-red-400/70 pl-6">
+            {entry.sub}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (entry.type === "separator") {
+    return <div className="border-t border-slate-800/60 my-1.5" />;
+  }
+
+  const cfg = {
+    init: { Icon: Terminal, color: "text-slate-500" },
+    info: { Icon: Info, color: "text-slate-400" },
+    running: { Icon: Loader2, color: "text-amber-400" },
+    success: { Icon: CheckCircle2, color: "text-emerald-400" },
+    error: { Icon: XCircle, color: "text-red-400" },
+    warning: { Icon: AlertTriangle, color: "text-amber-300" },
+    separator: { Icon: null, color: "" },
+    "verdict-good": { Icon: null, color: "" },
+    "verdict-improve": { Icon: null, color: "" },
+    "verdict-wrong": { Icon: null, color: "" },
+  } as const;
+
+  const style = cfg[entry.type];
+  const { Icon } = style;
+
+  const prefix =
+    entry.type === "success"
+      ? "✓ "
+      : entry.type === "error"
+      ? "✗ "
+      : entry.type === "warning"
+      ? "⚠ "
+      : entry.type === "running"
+      ? "▶ "
+      : "  ";
+
+  return (
+    <div className={`flex items-start gap-2 py-0.5 font-mono text-xs ${style.color}`}>
+      <span className="shrink-0 w-16 text-slate-700 select-none">{entry.ts}</span>
+      {Icon && (
+        <Icon
+          className={`mt-0.5 h-3 w-3 shrink-0 ${
+            entry.type === "running" ? "animate-spin" : ""
+          }`}
+        />
+      )}
+      <span className="flex-1 leading-relaxed whitespace-pre-wrap break-all">
+        {prefix}
+        {entry.message}
+      </span>
+    </div>
+  );
+}
+
+// ─── Requirement status pill ──────────────────────────────────────────────
+
+function RequirementItem({
+  label,
+  status,
+}: {
+  label: string;
+  status: "pending" | "pass" | "fail" | "warn";
+}) {
+  const cfg = {
+    pending: {
+      icon: <Circle className="h-2.5 w-2.5" />,
+      color: "text-slate-600",
+      dot: "bg-slate-700",
+    },
+    pass: {
+      icon: <CheckCircle2 className="h-2.5 w-2.5" />,
+      color: "text-emerald-400",
+      dot: "bg-emerald-500",
+    },
+    fail: {
+      icon: <XCircle className="h-2.5 w-2.5" />,
+      color: "text-red-400",
+      dot: "bg-red-500",
+    },
+    warn: {
+      icon: <AlertTriangle className="h-2.5 w-2.5" />,
+      color: "text-amber-400",
+      dot: "bg-amber-500",
+    },
+  };
+  const s = cfg[status];
+  return (
+    <li className={`flex items-center gap-2 text-xs transition-colors ${s.color}`}>
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
+      {label}
+    </li>
+  );
+}
+
+// ─── Inline instruction renderer ──────────────────────────────────────────
+
+function InstructionBlock({ text }: { text: string }) {
+  return (
+    <div className="space-y-2.5 text-sm text-slate-400 leading-relaxed">
+      {text.split("\n\n").map((block, i) => {
+        const parts = block.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+        return (
+          <p key={i}>
+            {parts.map((part, j) => {
+              if (part.startsWith("**") && part.endsWith("**")) {
+                return (
+                  <strong key={j} className="text-slate-200 font-semibold">
+                    {part.slice(2, -2)}
+                  </strong>
+                );
+              }
+              if (part.startsWith("`") && part.endsWith("`")) {
+                return (
+                  <code
+                    key={j}
+                    className="rounded bg-amber-400/10 px-1 py-0.5 text-[0.8rem] font-mono text-amber-300 border border-amber-400/15"
+                  >
+                    {part.slice(1, -1)}
+                  </code>
+                );
+              }
+              return part;
+            })}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Grade banner (pinned at top of console) ──────────────────────────────
+
+function GradeBanner({ grade }: { grade: Grade | null }) {
+  if (!grade) return null;
+
+  if (grade === "good") {
+    return (
+      <div className="flex shrink-0 items-center gap-2 border-b border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5">
+        <Star className="h-3.5 w-3.5 text-emerald-400 shrink-0 fill-emerald-400/50" />
+        <span className="text-xs font-bold text-emerald-300 tracking-wide">
+          PASSED — Challenge Complete!
+        </span>
+        <span className="ml-auto text-[10px] text-emerald-500">XP awarded ✓</span>
+      </div>
+    );
+  }
+
+  if (grade === "needs-improvement") {
+    return (
+      <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2.5">
+        <TriangleAlert className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+        <span className="text-xs font-bold text-amber-300 tracking-wide">
+          WORKS — But could be better
+        </span>
+        <span className="ml-auto text-[10px] text-amber-500">Review ⚠ hints</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-b border-red-500/20 bg-red-500/10 px-4 py-2.5">
+      <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+      <span className="text-xs font-bold text-red-300 tracking-wide">
+        FAILED — Fix required checks
+      </span>
+      <span className="ml-auto text-[10px] text-red-500">Review ✗ errors</span>
+    </div>
+  );
+}
+
+// ─── Main workspace ──────────────────────────────────────────────────────────
+
+export default function ChallengeWorkspace({
+  challenge,
+}: {
+  challenge: Challenge;
+}) {
+  const diff = difficultyConfig[challenge.difficulty];
+  const prevChallenge = getChallengeById(challenge.id - 1);
+  const nextChallenge = getChallengeById(challenge.id + 1);
+
+  // Local (localStorage) progress — keeps working offline / for guests
+  const {
+    isCompleted: isCompletedLocal,
+    markComplete: markCompleteLocal,
+  } = useChallengeProgress();
+
+  // Supabase progress — active when a student session exists
+  const {
+    isCompleted: isCompletedDB,
+    markComplete: markCompleteDB,
+    saveCode,
+    loadedCode,
+    hydrated: dbHydrated,
+  } = useSupabaseProgress(challenge.id);
+
+  const isCompleted = (id: number) =>
+    isCompletedLocal(id) || isCompletedDB(id);
+  const done = isCompleted(challenge.id);
+
+  // Combined mark-complete: writes to both localStorage and Supabase
+  const markComplete = (id: number) => {
+    markCompleteLocal(id);
+    markCompleteDB(id);
+  };
+
+  // ── Editor state ────────────────────────────────────────────────────────
+  const [code, setCode] = useState(challenge.starterCode);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const editorRef = useRef<
+    Parameters<
+      NonNullable<React.ComponentProps<typeof MonacoEditor>["onMount"]>
+    >[0] | null
+  >(null);
+
+  const resetCode = useCallback(() => {
+    setCode(challenge.starterCode);
+    editorRef.current?.setValue(challenge.starterCode);
+  }, [challenge.starterCode]);
+
+  // Restore saved code from Supabase once it loads
+  useEffect(() => {
+    if (dbHydrated && loadedCode) {
+      setCode(loadedCode);
+      editorRef.current?.setValue(loadedCode);
+    }
+  }, [dbHydrated, loadedCode]);
+
+  // ── Resizable split ─────────────────────────────────────────────────────
+  const [leftPct, setLeftPct] = useState(40);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+
+  useEffect(() => {
+    const onMove = (e: globalThis.MouseEvent) => {
+      if (!isDragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const pct = ((e.clientX - rect.left) / rect.width) * 100;
+      setLeftPct(Math.max(28, Math.min(62, pct)));
+    };
+    const onUp = () => {
+      isDragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  const handleDividerDown = (e: ReactMouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  // ── Console & grade state ───────────────────────────────────────────────
+  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([]);
+  const [isRunning, setIsRunning] = useState(false);
+  const [lastGrade, setLastGrade] = useState<Grade | null>(null);
+
+  /**
+   * Per-check live status shown in the left panel's "Code Requirements" list.
+   * Keys are check labels; value is the tier-aware display status.
+   */
+  const [checkStatuses, setCheckStatuses] = useState<
+    Record<string, "pass" | "fail" | "warn">
+  >({});
+
+  const consoleEndRef = useRef<HTMLDivElement>(null);
+
+  const appendEntry = useCallback((entry: Omit<ConsoleEntry, "id" | "ts">) => {
+    setConsoleEntries((prev) => [
+      ...prev,
+      { ...entry, id: makeId(), ts: nowTime() },
+    ]);
+  }, []);
+
+  // Auto-scroll console to bottom
+  useEffect(() => {
+    consoleEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [consoleEntries]);
+
+  // ── Submit / validate ──────────────────────────────────────────────────
+  const handleSubmit = useCallback(async () => {
+    if (isRunning) return;
+    setIsRunning(true);
+    setConsoleOpen(true);
+    setConsoleEntries([]);
+    setLastGrade(null);
+
+    const filename = `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.java`;
+
+    appendEntry({ type: "init", message: "FTC Hub Analyzer v2.0" });
+    appendEntry({ type: "separator", message: "" });
+
+    await delay(280);
+    appendEntry({ type: "running", message: `Compiling ${filename}…` });
+
+    await delay(460);
+    appendEntry({ type: "info", message: "Parsing imports and class structure…" });
+
+    await delay(340);
+    appendEntry({ type: "info", message: "Validating LinearOpMode structure…" });
+
+    await delay(300);
+    appendEntry({ type: "separator", message: "" });
+
+    const result: GradedResult = gradeCode(code, challenge.id);
+
+    // ── Syntax issues ──────────────────────────────────────────────────
+    if (result.syntaxIssues.length > 0) {
+      appendEntry({ type: "info", message: "Syntax check:" });
+      for (const issue of result.syntaxIssues) {
+        await delay(120);
+        appendEntry({
+          type: issue.severity === "error" ? "error" : "warning",
+          message: issue.message + fmtLines(issue.lines),
+        });
+      }
+      appendEntry({ type: "separator", message: "" });
+    }
+
+    // ── Universal checks ───────────────────────────────────────────────
+    appendEntry({ type: "info", message: "OpMode requirements:" });
+    for (const r of result.universalResults) {
+      await delay(110);
+      appendEntry({
+        type: r.pass ? "success" : "error",
+        message: r.pass
+          ? `${r.label} — ${r.description}`
+          : `${r.label} — ${r.tip ?? r.description}${fmtLines(r.matchedLines)}`,
+      });
+    }
+
+    await delay(200);
+    appendEntry({ type: "separator", message: "" });
+
+    // ── Required checks ────────────────────────────────────────────────
+    appendEntry({
+      type: "info",
+      message: `Challenge ${challenge.id} — required checks:`,
+    });
+    for (const r of result.requiredResults) {
+      await delay(130);
+      appendEntry({
+        type: r.pass ? "success" : "error",
+        message: r.pass
+          ? `${r.label} — ${r.description}`
+          : `${r.label} — ${r.tip ?? r.description}${fmtLines(r.matchedLines)}`,
+      });
+    }
+
+    // ── Improvement hints (only shown if required all passed) ──────────
+    if (result.improvementResults.length > 0) {
+      await delay(220);
+      appendEntry({ type: "separator", message: "" });
+      appendEntry({ type: "info", message: "Best-practice suggestions:" });
+      for (const r of result.improvementResults) {
+        await delay(130);
+        appendEntry({
+          type: r.pass ? "success" : "warning",
+          message: r.pass
+            ? `${r.label} — ${r.description}`
+            : `${r.label} — ${r.tip ?? r.description}`,
+        });
+      }
+    }
+
+    // ── Style hints ────────────────────────────────────────────────────
+    if (result.styleResults.length > 0) {
+      const styleIssues = result.styleResults.filter((r) => !r.pass);
+      if (styleIssues.length > 0) {
+        await delay(200);
+        appendEntry({ type: "separator", message: "" });
+        appendEntry({ type: "info", message: "Code quality:" });
+        for (const r of styleIssues) {
+          await delay(100);
+          appendEntry({
+            type: "warning",
+            message: `${r.label} — ${r.tip ?? r.description}`,
+          });
+        }
+      }
+    }
+
+    // ── Verdict ────────────────────────────────────────────────────────
+    await delay(300);
+    appendEntry({ type: "separator", message: "" });
+
+    const { grade, verdict } = result;
+
+    const verdictType =
+      grade === "good"
+        ? "verdict-good"
+        : grade === "needs-improvement"
+        ? "verdict-improve"
+        : "verdict-wrong";
+
+    appendEntry({
+      type: verdictType,
+      message: verdict.title,
+      sub: verdict.subtitle,
+    });
+
+    if (grade === "good") {
+      await delay(160);
+      appendEntry({
+        type: "info",
+        message: "Deploy to robot hardware via Android Studio to verify on-field.",
+      });
+    }
+
+    // ── Auto-complete on "Good" ────────────────────────────────────────
+    if (grade === "good") {
+      markComplete(challenge.id);
+    }
+
+    // ── Populate live check statuses for the left panel ────────────────
+    const statuses: Record<string, "pass" | "fail" | "warn"> = {};
+    [...result.universalResults, ...result.requiredResults].forEach((r) => {
+      statuses[r.label] = r.pass ? "pass" : "fail";
+    });
+    result.improvementResults.forEach((r) => {
+      statuses[r.label] = r.pass ? "pass" : "warn";
+    });
+    result.styleResults.forEach((r) => {
+      statuses[r.label] = r.pass ? "pass" : "warn";
+    });
+    setCheckStatuses(statuses);
+    setLastGrade(grade);
+    setIsRunning(false);
+  }, [code, challenge, isRunning, appendEntry, markComplete]);
+
+  // ── Left panel section toggles ─────────────────────────────────────────
+  const [showObjectives, setShowObjectives] = useState(true);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  return (
+    <div
+      className="flex flex-col overflow-hidden"
+      style={{ height: "calc(100svh - 3.5rem)" }}
+    >
+      {/* ── Workspace top bar ──────────────────────────────────────────── */}
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/95 px-4 backdrop-blur">
+        <Link
+          href="/challenges"
+          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Challenges
+        </Link>
+
+        <span className="text-slate-800">/</span>
+
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          <span className="truncate text-sm font-medium text-slate-200">
+            {challenge.title}
+          </span>
+          <span
+            className={`hidden sm:inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${diff.badgeClass}`}
+          >
+            {diff.label}
+          </span>
+          <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/5 px-2 py-0.5">
+            <Zap className="h-2.5 w-2.5 text-amber-400" />
+            <span className="text-[10px] font-semibold text-amber-400">
+              {challenge.xp} XP
+            </span>
+          </span>
+
+          {/* Show real-time grade badge after submission */}
+          {lastGrade === "good" || done ? (
+            <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+              <CheckCircle2 className="h-2.5 w-2.5" />
+              Completed
+            </span>
+          ) : lastGrade === "needs-improvement" ? (
+            <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+              <TriangleAlert className="h-2.5 w-2.5" />
+              Needs work
+            </span>
+          ) : lastGrade === "wrong" ? (
+            <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-red-500/20 bg-red-500/5 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+              <XCircle className="h-2.5 w-2.5" />
+              Not passing
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {prevChallenge && (
+            <Link
+              href={`/challenges/${prevChallenge.id}`}
+              title={prevChallenge.title}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-800 hover:text-slate-300 transition-all"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          )}
+          {nextChallenge && (
+            <Link
+              href={`/challenges/${nextChallenge.id}`}
+              title={nextChallenge.title}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-800 hover:text-amber-400 transition-all"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* ── Split workspace body ───────────────────────────────────────── */}
+      <div ref={containerRef} className="flex flex-1 overflow-hidden">
+        {/* ── LEFT: Instructions panel ─────────────────────────────────── */}
+        <aside
+          className="flex flex-col overflow-hidden border-r border-slate-800"
+          style={{ width: `${leftPct}%` }}
+        >
+          <div className="flex h-9 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-900/80 px-4">
+            <Target className="h-3.5 w-3.5 text-amber-400" />
+            <span className="text-xs font-semibold text-slate-300">
+              Instructions
+            </span>
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-slate-600">
+              <Clock className="h-3 w-3" />
+              {challenge.estimatedTime}
+            </span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5">
+            {/* Description */}
+            <p className="text-sm leading-relaxed text-slate-400">
+              {challenge.description}
+            </p>
+
+            {/* Objectives */}
+            <div>
+              <button
+                onClick={() => setShowObjectives((v) => !v)}
+                className="flex w-full items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors mb-2"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Objectives
+                {showObjectives ? (
+                  <ChevronUp className="h-3 w-3 ml-auto" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 ml-auto" />
+                )}
+              </button>
+              {showObjectives && (
+                <ul className="space-y-1.5">
+                  {challenge.objectives.map((obj, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2.5 rounded-lg bg-slate-900/60 border border-slate-800/50 px-3 py-2"
+                    >
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-[9px] font-bold text-slate-500 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <span className="text-xs text-slate-400 leading-relaxed">
+                        {obj}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Instructions */}
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
+                Problem Statement
+              </p>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-4">
+                <InstructionBlock text={challenge.instructions} />
+              </div>
+            </div>
+
+            {/* Live requirements checklist */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Code2 className="h-3.5 w-3.5 text-blue-400" />
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Code Requirements
+                </p>
+                {Object.keys(checkStatuses).length > 0 && (
+                  <span className="ml-auto text-[10px] text-slate-600">
+                    live feedback
+                  </span>
+                )}
+              </div>
+              <ul className="space-y-1.5">
+                {challenge.objectives.map((obj, i) => {
+                  const status = checkStatuses[obj]
+                    ?? (checkStatuses[Object.keys(checkStatuses)[i]] ?? "pending");
+                  return (
+                    <RequirementItem key={i} label={obj} status={status as "pending" | "pass" | "fail" | "warn"} />
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* Concepts */}
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
+                Concepts Covered
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {challenge.conceptsCovered.map((c) => (
+                  <span
+                    key={c}
+                    className="rounded-md border border-blue-500/20 bg-blue-500/5 px-2 py-1 text-[10px] font-medium text-blue-400"
+                  >
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Hints */}
+            <HintsAccordion hints={challenge.hints} />
+
+            {/* Mark complete */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+              <p className="mb-3 text-xs font-semibold text-slate-400">
+                Mark as complete when done
+              </p>
+              <MarkCompleteButton
+                challengeId={challenge.id}
+                xp={challenge.xp}
+              />
+            </div>
+          </div>
+        </aside>
+
+        {/* ── Drag handle ───────────────────────────────────────────────── */}
+        <div
+          onMouseDown={handleDividerDown}
+          className="group relative flex w-1 shrink-0 cursor-col-resize items-center justify-center bg-slate-800 hover:bg-amber-500/40 active:bg-amber-500/60 transition-colors"
+          title="Drag to resize"
+        >
+          <div className="absolute inset-y-0 -left-1 -right-1" />
+          <div className="h-8 w-0.5 rounded-full bg-slate-700 group-hover:bg-amber-400/60 transition-colors" />
+        </div>
+
+        {/* ── RIGHT: Editor + Console ───────────────────────────────────── */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Editor toolbar */}
+          <div className="flex h-9 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-900/80 px-3">
+            <FileCode className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <span className="font-mono text-xs text-slate-400 truncate">
+              Challenge{challenge.id}_{challenge.title.replace(/\s+/g, "")}.java
+            </span>
+            <span className="ml-1 rounded border border-violet-500/20 bg-violet-500/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">
+              Java
+            </span>
+
+            <div className="ml-auto flex items-center gap-1.5">
+              <button
+                onClick={resetCode}
+                title="Reset to starter code"
+                className="flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-400 hover:border-slate-600 hover:text-slate-200 transition-all"
+              >
+                <RefreshCcw className="h-3 w-3" />
+                Reset
+              </button>
+            </div>
+          </div>
+
+          {/* Monaco editor */}
+          <div className="flex-1 overflow-hidden">
+            <MonacoEditor
+              height="100%"
+              language="java"
+              theme="ftc-dark"
+              value={code}
+              onChange={(val) => {
+                const next = val ?? "";
+                setCode(next);
+                // Auto-save to Supabase (debounced 2 s)
+                clearTimeout(saveTimer.current);
+                saveTimer.current = setTimeout(() => {
+                  saveCode(next);
+                }, 2000);
+              }}
+              onMount={(editor, monaco) => {
+                editorRef.current = editor;
+                defineTheme(monaco);
+                monaco.editor.setTheme("ftc-dark");
+              }}
+              options={{
+                fontSize: 13,
+                fontFamily:
+                  "'Geist Mono', 'Fira Code', 'JetBrains Mono', ui-monospace, monospace",
+                fontLigatures: true,
+                lineNumbers: "on",
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                wordWrap: "on",
+                tabSize: 4,
+                insertSpaces: true,
+                folding: true,
+                bracketPairColorization: { enabled: true },
+                smoothScrolling: true,
+                cursorBlinking: "smooth",
+                cursorSmoothCaretAnimation: "on",
+                renderLineHighlight: "gutter",
+                padding: { top: 12, bottom: 12 },
+                overviewRulerLanes: 0,
+                scrollbar: {
+                  verticalScrollbarSize: 6,
+                  horizontalScrollbarSize: 6,
+                },
+                lineDecorationsWidth: 4,
+                suggest: { showWords: true },
+              }}
+            />
+          </div>
+
+          {/* ── Console ─────────────────────────────────────────────────── */}
+          <div
+            className={`flex flex-col border-t border-slate-800 bg-slate-950 transition-all duration-300 ${
+              consoleOpen ? "h-64" : "h-10"
+            }`}
+          >
+            {/* Console toolbar */}
+            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-800/60 px-3">
+              <Terminal className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+              <span className="text-xs font-semibold text-slate-500">Console</span>
+
+              {consoleEntries.length > 0 && (
+                <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
+                  {consoleEntries.filter((e) => !e.type.startsWith("separator")).length}
+                </span>
+              )}
+
+              <div className="ml-auto flex items-center gap-1.5">
+                {consoleEntries.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setConsoleEntries([]);
+                      setLastGrade(null);
+                    }}
+                    title="Clear console"
+                    className="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:bg-slate-800 hover:text-slate-400 transition-colors"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setConsoleOpen((v) => !v)}
+                  className="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:bg-slate-800 hover:text-slate-400 transition-colors"
+                >
+                  {consoleOpen ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  )}
+                </button>
+
+                {/* Submit button */}
+                <button
+                  onClick={handleSubmit}
+                  disabled={isRunning}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all duration-150 ${
+                    isRunning
+                      ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                      : "bg-amber-500 text-slate-900 hover:bg-amber-400 shadow-sm shadow-amber-500/20"
+                  }`}
+                >
+                  {isRunning ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Analyzing…
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3 w-3" />
+                      Submit Code
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Grade status bar — pinned just below the toolbar */}
+            {consoleOpen && lastGrade && (
+              <GradeBanner grade={lastGrade} />
+            )}
+
+            {/* Scrollable log */}
+            {consoleOpen && (
+              <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-2">
+                {consoleEntries.length === 0 ? (
+                  <p className="mt-2 text-xs text-slate-700 italic">
+                    Press &quot;Submit Code&quot; to analyze your solution…
+                  </p>
+                ) : (
+                  consoleEntries.map((entry) => (
+                    <ConsoleLine key={entry.id} entry={entry} />
+                  ))
+                )}
+                <div ref={consoleEndRef} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
