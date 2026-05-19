@@ -131,7 +131,7 @@ function LoginPanel({
           setError(`Invalid code. (${dbErr?.message ?? "no data returned"})`);
           return;
         }
-        const mentorName = (data.mentors as { name: string } | null)?.name ?? "";
+        const mentorName = (data.mentors as unknown as { name: string } | null)?.name ?? "";
         onSuccess(data.id as string, data.name as string, mentorName);
       }
     });
