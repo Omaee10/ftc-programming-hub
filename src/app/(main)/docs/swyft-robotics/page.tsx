@@ -267,6 +267,78 @@ while (opModeIsActive()) {
             </Prose>
           ),
         },
+        {
+          id: "cr-servos",
+          title: "Continuous Rotation Servos",
+          content: (
+            <Prose>
+              <p>
+                Swyft continuous rotation servos behave differently from
+                standard FTC CR servos. Rather than using the{" "}
+                <code>CRServo</code> interface with <code>setPower()</code>,
+                they are controlled through the regular <code>Servo</code>{" "}
+                interface using <code>setPosition()</code>. The position value
+                maps to direction and speed:
+              </p>
+              <SpecTable
+                rows={[
+                  {
+                    label: "setPosition(0.0)",
+                    value: "Full speed — one direction",
+                    note: "e.g. forward / intake",
+                  },
+                  {
+                    label: "setPosition(0.5)",
+                    value: "Stopped",
+                    note: "Neutral / brake point",
+                  },
+                  {
+                    label: "setPosition(1.0)",
+                    value: "Full speed — opposite direction",
+                    note: "e.g. reverse / eject",
+                  },
+                ]}
+              />
+              <NoteBox type="warning">
+                Do <strong>not</strong> use <code>CRServo</code> or{" "}
+                <code>setPower()</code> with Swyft CR servos. Always retrieve
+                them as <code>Servo.class</code> and command them with{" "}
+                <code>setPosition()</code>. Using the wrong interface will
+                produce unexpected behavior or no movement at all.
+              </NoteBox>
+              <CodeBlock
+                filename="SwyftCRServo.java"
+                code={`Servo swyftRoller = hardwareMap.get(Servo.class, "swyft_roller");
+
+// Always start stopped — position 0.5 is the neutral/brake point
+swyftRoller.setPosition(0.5);
+
+waitForStart();
+
+while (opModeIsActive()) {
+    if (gamepad1.right_bumper) {
+        // Spin one direction (e.g. intake)
+        swyftRoller.setPosition(0.0);
+    } else if (gamepad1.left_bumper) {
+        // Spin opposite direction (e.g. eject)
+        swyftRoller.setPosition(1.0);
+    } else {
+        // Stop
+        swyftRoller.setPosition(0.5);
+    }
+}`}
+              />
+              <NoteBox type="tip">
+                Values between 0.0–0.5 and 0.5–1.0 produce intermediate speeds,
+                so you can use trigger axes for variable-speed control:{" "}
+                <code>setPosition(0.5 - (gamepad1.right_trigger * 0.5))</code>{" "}
+                for one direction and{" "}
+                <code>setPosition(0.5 + (gamepad1.left_trigger * 0.5))</code>{" "}
+                for the other.
+              </NoteBox>
+            </Prose>
+          ),
+        },
       ]}
     />
   );

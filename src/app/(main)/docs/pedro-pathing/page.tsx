@@ -13,29 +13,31 @@ export default function PedroPathingPage() {
         { label: "Pedro Pathing" },
       ]}
       title="Pedro Pathing"
-      description="Pedro Pathing is a reactive follower-based path-following library for FTC. Unlike pre-planned trajectories, Pedro's PIDF follower re-projects the robot's position onto the path every loop, making it resilient to perturbations and defense."
-      badge="New"
+      description="Pedro Pathing is a reactive Bézier-curve follower for FTC. It continuously re-projects the robot onto the path every loop, making it resilient to disturbances and defense — and supports Mecanum, swerve, Pinpoint, OTOS, and dead-wheel odometry."
+      badge="Autonomous"
       badgeColor="emerald"
-      readingTime="14 min"
+      readingTime="18 min"
       sections={[
         {
           id: "overview",
-          title: "Overview",
+          title: "What is Pedro Pathing?",
           content: (
             <Prose>
               <p>
-                Pedro Pathing was developed by FTC team 10158 (Brainstormers)
-                and open-sourced for the community. It uses a{" "}
-                <strong>centripetal force correction</strong> model and a continuous
-                re-projection algorithm to keep the robot on the path, even after
-                being pushed or when wheel slip occurs.
+                Pedro Pathing uses a custom reactive follower algorithm built for
+                FTC. Instead of pre-computing a time-parametrized trajectory and
+                replaying it, Pedro continuously re-projects the robot&apos;s current
+                position onto the nearest point on the path and computes corrective
+                motor powers every loop. This means the robot automatically
+                recovers from pushes, wheel slip, or any disturbance without any
+                special handling code.
               </p>
               <InfoGrid
                 items={[
                   { label: "Approach", value: "Reactive Follower", sub: "Re-projects per loop" },
-                  { label: "Path Type", value: "Bézier Curves", sub: "Arbitrary degree" },
-                  { label: "Odometry", value: "3-wheel pods", sub: "Required" },
-                  { label: "Created by", value: "Team 10158", sub: "Brainstormers" },
+                  { label: "Path Type", value: "Bézier Curves", sub: "Lines & arbitrary curves" },
+                  { label: "Odometry", value: "6 localizer options", sub: "Pinpoint, OTOS, dead wheels, drive enc" },
+                  { label: "Coordinate System", value: "[0, 144] × [0, 144]", sub: "Bottom-left corner is origin" },
                 ]}
               />
               <h3>Why Pedro vs Road Runner?</h3>
@@ -50,11 +52,11 @@ export default function PedroPathingPage() {
                 <tbody>
                   {[
                     ["Approach", "Pre-planned trajectory", "Reactive re-projection"],
-                    ["Path deviation recovery", "Limited", "Continuous re-projection"],
-                    ["Tuning effort", "High (6+ OpModes)", "Moderate (3 OpModes)"],
+                    ["Defense resistance", "Moderate", "High — continuous correction"],
+                    ["Tuning effort", "High (6+ OpModes)", "Moderate (automatic + PIDF)"],
                     ["Community size", "Very large", "Growing fast"],
-                    ["RR 1.0 Actions compat", "Yes (native)", "No (separate API)"],
-                    ["Defense resistance", "Moderate", "High"],
+                    ["Actions/Commands", "RR Actions API", "Ivy command library"],
+                    ["Coordinate system", "Inches from start", "[0, 144] full field"],
                   ].map(([f, rr, pp]) => (
                     <tr key={f}>
                       <td>{f}</td>
@@ -64,560 +66,861 @@ export default function PedroPathingPage() {
                   ))}
                 </tbody>
               </table>
-            </Prose>
-          ),
-        },
-        {
-          id: "setup",
-          title: "Setup & Robot Constants",
-          content: (
-            <Prose>
-              <p>
-                Clone the{" "}
-                <strong>Pedro Pathing Quickstart</strong> to get a pre-configured
-                project with all tuning OpModes:
-              </p>
-              <CodeBlock
-                lang="bash"
-                code={`# Clone the quickstart (replace with current repo URL)
-git clone https://github.com/Pedro-Pathing/PedroPathingQuickstart.git
-
-# Open in Android Studio and sync Gradle
-# Navigate to: TeamCode/src/main/java/org/firstinspires/ftc/teamcode/`}
-              />
-              <p>
-                Then configure your robot&apos;s physical parameters in{" "}
-                <code>RobotConstants.java</code>. Accurate measurements are
-                essential — Pedro&apos;s follower is more forgiving than RR but
-                still depends on correct constants.
-              </p>
-              <CodeBlock
-                filename="RobotConstants.java"
-                code={`public class RobotConstants {
-
-    // ── Drive motor names (must match Driver Station configuration) ──────────
-    public static final String LEFT_FRONT_MOTOR  = "leftFront";
-    public static final String RIGHT_FRONT_MOTOR = "rightFront";
-    public static final String LEFT_BACK_MOTOR   = "leftBack";
-    public static final String RIGHT_BACK_MOTOR  = "rightBack";
-
-    // ── Odometry pod names ───────────────────────────────────────────────────
-    // Pedro requires a 3-dead-wheel setup: 2 parallel + 1 perpendicular pod
-    public static final String LEFT_ODOMETRY_POD   = "leftFront";   // left parallel
-    public static final String RIGHT_ODOMETRY_POD  = "rightBack";   // right parallel
-    public static final String BACK_ODOMETRY_POD   = "rightFront";  // perpendicular
-
-    // ── Physical measurements — measure carefully in inches ─────────────────
-    public static final double TRACK_WIDTH          = 13.11; // parallel pod spacing
-    public static final double CENTER_WHEEL_OFFSET  = 6.5;  // perp pod offset from center
-
-    public static final double WHEEL_RADIUS         = 0.68898; // Gobilda odometry pod
-    public static final double TICKS_PER_REVOLUTION = 2000;    // encoder counts per rev
-
-    // ── Motion constraints ────────────────────────────────────────────────────
-    public static final double MAX_VELOCITY         = 60;  // in/s
-    public static final double MAX_ACCELERATION     = 50;  // in/s²
-    public static final double MAX_ANGULAR_VELOCITY = 4;   // rad/s
-}`}
-              />
-              <NoteBox type="warning">
-                Pedro requires a <strong>3-wheel dead-wheel odometry</strong>{" "}
-                setup (2 parallel pods + 1 perpendicular pod). It will not work
-                correctly with drive-encoder-based odometry.
+              <NoteBox type="info">
+                Pedro uses a field-wide coordinate system spanning{" "}
+                <strong>[0, 144] inches on both axes</strong>, where (0, 0) is
+                the bottom-left corner of the field. To convert from Road Runner
+                poses, add +72 to both X and Y.
               </NoteBox>
             </Prose>
           ),
         },
         {
-          id: "simple-path",
-          title: "Creating a Simple Path",
+          id: "installation",
+          title: "Installation",
           content: (
             <Prose>
               <p>
-                A <strong>Path</strong> in Pedro is constructed with{" "}
-                <code>PathBuilder</code>. Each segment is defined as a Bézier
-                curve with a heading interpolation strategy. The simplest path
-                is a straight line between two points.
+                The easiest way to get started is the{" "}
+                <strong>Pedro Pathing Quickstart</strong> — a ready-to-use Android
+                Studio project with all files pre-installed.
               </p>
               <StepList
                 steps={[
-                  "Create a Follower instance using the hardwareMap.",
-                  "Set the robot's starting pose with follower.setStartingPose(pose).",
-                  "Build a Path using PathBuilder and .addBezierLine().",
-                  "Call follower.followPath(path, holdEnd) to begin following.",
-                  "Update follower in a loop; check follower.atParametricEnd() to detect completion.",
+                  "In Android Studio: Main Menu → File → New → Project from Version Control. Enter URL: https://github.com/Pedro-Pathing/Quickstart.git",
+                  "OR run: git clone https://github.com/Pedro-Pathing/Quickstart.git, then open the folder in Android Studio.",
+                  "Wait for Gradle to sync. If you see a blue banner, click 'Sync Now'.",
+                  "Navigate to TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedroPathing/ — this contains Constants.java, all tuning OpModes, and the follower.",
                 ]}
               />
+              <p>
+                If you are adding Pedro to an <strong>existing project</strong>,
+                add these to <code>build.dependencies.gradle</code>:
+              </p>
               <CodeBlock
-                filename="SimplePathAuto.java"
-                code={`@Autonomous(name = "Simple Path Auto")
-public class SimplePathAuto extends LinearOpMode {
+                filename="build.dependencies.gradle"
+                code={`repositories {
+    maven { url = "https://mymaven.bylazar.com/releases" }
+}
 
-    private Follower follower;
-
-    @Override
-    public void runOpMode() throws InterruptedException {
-        follower = new Follower(hardwareMap);
-
-        // Set starting pose — (x=0, y=0, heading=0)
-        Pose startPose = new Pose(0, 0, 0);
-        follower.setStartingPose(startPose);
-
-        // Build a straight 30-inch path forward
-        Path driveForward = new PathBuilder(startPose)
-            .addBezierLine(
-                new Point(startPose),
-                new Point(30, 0, Point.CARTESIAN) // 30 inches forward
-            )
-            .setLinearHeadingInterpolation(0, 0)  // maintain 0° heading
-            .build();
-
-        waitForStart();
-
-        // Start following — true = hold end position when done
-        follower.followPath(driveForward, true);
-
-        while (opModeIsActive() && !follower.atParametricEnd()) {
-            follower.update();
-
-            Pose current = follower.getPose();
-            telemetry.addData("X", "%.2f in", current.getX());
-            telemetry.addData("Y", "%.2f in", current.getY());
-            telemetry.addData("Heading", "%.1f°", Math.toDegrees(current.getHeading()));
-            telemetry.addData("t value",  "%.3f",  follower.getCurrentTValue());
-            telemetry.update();
-        }
-    }
+dependencies {
+    implementation 'com.pedropathing:ftc:1.0.8'   // check GitHub for latest version
+    implementation 'com.pedropathing:telemetry:1.0.0'
+    implementation 'com.bylazar:fullpanels:1.0.12' // Panels dashboard
 }`}
               />
+              <p>
+                Then set the <strong>Compile SDK Version</strong> to 34 for both
+                modules: go to <code>File → Project Structure → Modules</code>{" "}
+                and update both <code>FtcRobotController</code> and{" "}
+                <code>TeamCode</code>. Finally, copy the{" "}
+                <code>pedroPathing/</code> package from the Quickstart into your
+                project.
+              </p>
+              <NoteBox type="tip">
+                Pedro&apos;s dashboard called <strong>Panels</strong> is accessible
+                at <code>192.168.43.1:8001</code> when connected to robot Wi-Fi.
+                FTC Dashboard also works at <code>192.168.43.1:8080/dash</code>.
+              </NoteBox>
             </Prose>
           ),
         },
         {
-          id: "bezier-curves",
-          title: "Bézier Curves",
+          id: "constants-setup",
+          title: "Constants.java Setup",
           content: (
             <Prose>
               <p>
-                A Bézier curve is defined by <strong>control points</strong>. The
-                robot follows the curve smoothly — the intermediate points pull the
-                path toward them without requiring the robot to pass through them.
-                Pedro supports linear, quadratic, and cubic Bézier segments.
+                All Pedro Pathing configuration lives in a single{" "}
+                <code>Constants.java</code> file. It contains four types of
+                constants and a <code>createFollower()</code> factory method
+                that you call in your OpModes.
               </p>
               <SpecTable
                 rows={[
-                  { label: "BezierLine", value: "2 points", note: "Start + End → straight line" },
-                  { label: "BezierCurve (quad)", value: "3 points", note: "Start + Control + End" },
-                  { label: "BezierCurve (cubic)", value: "4 points", note: "Start + C1 + C2 + End" },
+                  { label: "FollowerConstants", value: "PIDF gains, mass, braking", note: "Values from automatic & manual tuners" },
+                  { label: "MecanumConstants", value: "Motor names & directions", note: "Must match Driver Station config" },
+                  { label: "Localizer constants", value: "Hardware names & offsets", note: "Depends on chosen localizer" },
+                  { label: "PathConstraints", value: "Path end conditions", note: "When a path is considered finished" },
+                  { label: "createFollower()", value: "Factory method", note: "Call this in every OpMode" },
                 ]}
               />
-              <p>
-                Use <code>BezierCurve</code> with 3 or 4 control points to create
-                smooth arcs. The middle control points shape the curve:
-              </p>
               <CodeBlock
-                filename="BezierCurveExample.java"
-                code={`// Quadratic Bézier: Start → pulls toward (15, 10) → End at (30, 0)
-Path arcPath = new PathBuilder(new Pose(0, 0, 0))
-    .addBezierCurve(
-        new Point(0,  0,  Point.CARTESIAN), // Start
-        new Point(15, 10, Point.CARTESIAN), // Control point — curves toward this
-        new Point(30, 0,  Point.CARTESIAN)  // End
-    )
-    .setTangentHeadingInterpolation() // heading follows the curve tangent
-    .build();
+                filename="Constants.java"
+                code={`public class Constants {
 
-// Cubic Bézier: for more S-shaped or complex curves
-Path sPath = new PathBuilder(new Pose(0, 0, 0))
-    .addBezierCurve(
-        new Point(0,   0,  Point.CARTESIAN), // Start
-        new Point(10, -10, Point.CARTESIAN), // First control
-        new Point(20,  10, Point.CARTESIAN), // Second control
-        new Point(30,   0, Point.CARTESIAN)  // End
-    )
-    .setLinearHeadingInterpolation(0, Math.PI) // rotate 180° along path
-    .build();
+    // ── 1. Follower constants — filled in by tuning ───────────────────────────
+    public static FollowerConstants followerConstants = new FollowerConstants()
+            .mass(5); // robot mass in kilograms (used for centripetal correction)
 
-follower.followPath(arcPath, true);`}
-              />
-              <NoteBox type="tip">
-                Use <code>setTangentHeadingInterpolation()</code> when you want the
-                robot to always face along the direction of travel — great for fast
-                drive-and-pick movements. Use{" "}
-                <code>setLinearHeadingInterpolation(start, end)</code> to rotate the
-                robot by a fixed amount over the path&apos;s length.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
-          id: "path-chains",
-          title: "Chaining Paths (PathChain)",
-          content: (
-            <Prose>
-              <p>
-                A <strong>PathChain</strong> concatenates multiple path segments
-                into a single continuous motion. Pedro transitions between segments
-                without stopping — reducing overall autonomous time significantly.
-              </p>
-              <p>
-                Build a PathChain using <code>follower.pathBuilder()</code> and
-                call <code>follower.followPath(chain)</code>:
-              </p>
-              <CodeBlock
-                filename="PathChainAuto.java"
-                code={`@Autonomous(name = "Full Autonomous Routine")
-public class FullAuto extends LinearOpMode {
+    // ── 2. Drivetrain constants — motor names and directions ──────────────────
+    public static MecanumConstants driveConstants = new MecanumConstants()
+            .maxPower(1)
+            .rightFrontMotorName("rf")
+            .rightRearMotorName("rr")
+            .leftRearMotorName("lr")
+            .leftFrontMotorName("lf")
+            .leftFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
+            .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
+            .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD);
 
-    private Follower follower;
-    private Claw     claw;
-    private ArmSystem arm;
+    // ── 3. Localizer constants — see "Localizer Setup" section for options ────
+    public static PinpointConstants localizerConstants = new PinpointConstants()
+            .hardwareMapName("pinpoint")
+            .forwardPodY(-5)       // inches from robot center
+            .strafePodX(0.5)       // inches from robot center
+            .distanceUnit(DistanceUnit.INCH)
+            .encoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD)
+            .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
+            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
-    @Override
-    public void runOpMode() throws InterruptedException {
-        follower = new Follower(hardwareMap);
-        claw     = new Claw(hardwareMap);
-        arm      = new ArmSystem(hardwareMap);
+    // ── 4. Path constraints — when Pedro considers a path "done" ─────────────
+    public static PathConstraints pathConstraints = new PathConstraints(
+            0.99,  // t-value to end path (0 = start, 1 = end)
+            100,   // max centripetal scaling
+            1,     // translational tolerance (inches)
+            1      // heading tolerance (degrees)
+    );
 
-        Pose start    = new Pose(0,   0,  0);
-        Pose spikeMid = new Pose(24,  24, Math.PI / 2);
-        Pose backdrop = new Pose(48,  36, Math.PI);
-        Pose stack    = new Pose(60,  0,  0);
-
-        follower.setStartingPose(start);
-
-        // ── Chain: Start → Spike → Backdrop → Stack → Backdrop ─────────────
-        PathChain scoringChain = follower.pathBuilder()
-
-            // Leg 1: curved drive to spike mark
-            .addPath(new BezierCurve(
-                new Point(start),
-                new Point(12, 6,  Point.CARTESIAN), // pull control point
-                new Point(spikeMid)
-            ))
-            .setLinearHeadingInterpolation(start.getHeading(), spikeMid.getHeading())
-
-            // Leg 2: straight reverse to backdrop
-            .addPath(new BezierLine(
-                new Point(spikeMid),
-                new Point(backdrop)
-            ))
-            .setLinearHeadingInterpolation(spikeMid.getHeading(), backdrop.getHeading())
-
-            // Leg 3: strafe to pixel stack
-            .addPath(new BezierLine(
-                new Point(backdrop),
-                new Point(stack)
-            ))
-            .setConstantHeadingInterpolation(backdrop.getHeading())
-
-            // Leg 4: return to backdrop with pixels
-            .addPath(new BezierCurve(
-                new Point(stack),
-                new Point(54, 20, Point.CARTESIAN),
-                new Point(backdrop)
-            ))
-            .setLinearHeadingInterpolation(stack.getHeading(), backdrop.getHeading())
-
-            .build();
-
-        waitForStart();
-
-        follower.followPath(scoringChain, true);
-
-        while (opModeIsActive()) {
-            follower.update();
-
-            // Check which leg we're on to trigger mechanisms at the right time
-            if (follower.getCurrentPathNumber() == 1 && !arm.isRaised()) {
-                arm.goToHigh();
-            }
-            if (follower.getCurrentPathNumber() == 2 && arm.isAtHigh()) {
-                claw.release();
-            }
-
-            telemetry.addData("Path Segment", follower.getCurrentPathNumber());
-            telemetry.addData("t",            "%.3f", follower.getCurrentTValue());
-            telemetry.update();
-
-            if (follower.isRobotStuck()) {
-                telemetry.addLine("WARNING: Robot appears stuck!");
-                telemetry.update();
-            }
-        }
+    // ── Factory method — use this in all your OpModes ─────────────────────────
+    public static Follower createFollower(HardwareMap hardwareMap) {
+        return new FollowerBuilder(followerConstants, hardwareMap)
+                .pathConstraints(pathConstraints)
+                .mecanumDrivetrain(driveConstants)
+                .pinpointLocalizer(localizerConstants) // swap for your localizer
+                .build();
     }
 }`}
               />
-              <NoteBox type="info">
-                <code>follower.getCurrentPathNumber()</code> returns the index
-                of the current path segment in the chain (0-indexed). Use this
-                to trigger mechanisms at the right point in the sequence instead
-                of using raw timers.
+              <NoteBox type="warning">
+                Make sure your motor names match your Driver Station configuration
+                exactly (case-sensitive). It is very likely you&apos;ll need to
+                reverse one side — test with a simple teleop before running
+                any autonomous.
               </NoteBox>
             </Prose>
           ),
         },
         {
-          id: "follower-setup",
-          title: "Follower Setup",
+          id: "localizer-setup",
+          title: "Localizer Setup",
           content: (
             <Prose>
               <p>
-                The <code>Follower</code> class is Pedro&apos;s core object. It
-                wraps your drivetrain, localizer, and PIDF controllers into a
-                single interface. Initialize it in <code>runOpMode()</code> before
-                <code>waitForStart()</code>.
+                Pedro supports six localizer options. Choose the one that matches
+                your hardware and swap it into the <code>createFollower()</code>{" "}
+                builder. All localizers except OTOS use pose exponential for
+                converting robot-frame movements to global field coordinates.
+              </p>
+              <SpecTable
+                rows={[
+                  { label: "Drive Encoder", value: ".driveEncoderLocalizer(constants)", note: "No extra hardware needed" },
+                  { label: "Two Dead Wheels", value: ".twoWheelLocalizer(constants)", note: "1 parallel + 1 perpendicular" },
+                  { label: "Three Dead Wheels", value: ".threeWheelLocalizer(constants)", note: "2 parallel + 1 perpendicular" },
+                  { label: "Three Wheels + IMU", value: ".threeWheelImuLocalizer(constants)", note: "Better heading accuracy" },
+                  { label: "Pinpoint", value: ".pinpointLocalizer(constants)", note: "Recommended — goBILDA Pinpoint" },
+                  { label: "OTOS", value: ".otosLocalizer(constants)", note: "SparkFun optical sensor" },
+                ]}
+              />
+              <p>
+                <strong>Pinpoint Localizer</strong> — the most common choice for
+                teams using goBILDA Pinpoint:
               </p>
               <CodeBlock
-                
-                filename="PedroFollowerSetup.java"
-                code={`import org.firstinspires.ftc.teamcode.pedroPathing.follower.Follower;
-import org.firstinspires.ftc.teamcode.pedroPathing.localization.Pose;
-import org.firstinspires.ftc.teamcode.pedroPathing.pathGeneration.BezierLine;
-import org.firstinspires.ftc.teamcode.pedroPathing.pathGeneration.BezierCurve;
-import org.firstinspires.ftc.teamcode.pedroPathing.pathGeneration.Path;
-import org.firstinspires.ftc.teamcode.pedroPathing.pathGeneration.PathChain;
-import org.firstinspires.ftc.teamcode.pedroPathing.pathGeneration.PathBuilder;
-import org.firstinspires.ftc.teamcode.pedroPathing.pathGeneration.Point;
+                filename="Constants.java (Pinpoint)"
+                code={`public static PinpointConstants localizerConstants = new PinpointConstants()
+        .hardwareMapName("pinpoint")
+        .forwardPodY(-5)    // Y offset of forward pod from center (inches)
+        .strafePodX(0.5)    // X offset of strafe pod from center (inches)
+        .distanceUnit(DistanceUnit.INCH)
+        .encoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD)
+        .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
+        .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);`}
+              />
+              <NoteBox type="warning">
+                Pinpoint must be plugged into an I2C port <strong>other than port 0</strong>{" "}
+                — the Control Hub&apos;s built-in IMU uses port 0. Also ensure the
+                forward pod is in the Pinpoint&apos;s X port and the strafe pod is
+                in the Y port.
+              </NoteBox>
+              <p>
+                After configuring your localizer, verify encoder directions using the
+                Localization Test OpMode. Move the robot forward — X should
+                increase. Move left — Y should increase. Reverse any encoder that
+                reads backwards:
+              </p>
+              <CodeBlock
+                filename="Constants.java (Pinpoint encoder directions)"
+                code={`// If forward motion decreases X, reverse the forward encoder:
+.forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)
 
-@Autonomous(name = "Pedro Auto", group = "Pedro Pathing")
-public class PedroAutoExample extends OpMode {
+// If leftward motion decreases Y, reverse the strafe encoder:
+.strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)`}
+              />
+              <p>
+                <strong>Localization Test</strong> — after tuning, verify accuracy:
+              </p>
+              <StepList
+                steps={[
+                  "Run the 'Tuning' OpMode and navigate to Localization Test.",
+                  "Connect to robot Wi-Fi and open Panels at 192.168.43.1:8001 or FTC Dashboard at 192.168.43.1:8080/dash.",
+                  "Drive the robot around and observe the position overlay — it should closely track your physical movements.",
+                  "Push the robot manually and verify the estimated pose updates correctly.",
+                ]}
+              />
+            </Prose>
+          ),
+        },
+        {
+          id: "tuning",
+          title: "Tuning Process",
+          content: (
+            <Prose>
+              <p>
+                Tuning must be completed in the correct order — each step
+                depends on the previous one. All tuning OpModes live inside
+                the <code>Tuning</code> OpMode entry point that comes with the
+                Quickstart. Connect to Panels at{" "}
+                <code>192.168.43.1:8001</code> before starting — it shows a
+                live field view that makes every step much easier.
+              </p>
+              <StepList
+                steps={[
+                  "Step 1: Set robot mass and motor constants (see below)",
+                  "Step 2: Tune and verify your localizer (see Localizer Setup section)",
+                  "Step 3: Run Forward & Lateral Velocity Tuners",
+                  "Step 4: Run Heading Tuner",
+                  "Step 5: Choose braking algorithm and run its tuners",
+                ]}
+              />
+
+              <h3>Step 1 — Robot Mass & Motor Setup</h3>
+              <p>
+                Set your robot&apos;s mass in kilograms — Pedro uses this to
+                compensate for centripetal force on curves. Weigh your robot
+                with all hardware attached.
+              </p>
+              <CodeBlock
+                filename="Constants.java"
+                code={`public static FollowerConstants followerConstants = new FollowerConstants()
+        .mass(5.2); // replace with your robot's actual mass in kg
+
+public static MecanumConstants driveConstants = new MecanumConstants()
+        .maxPower(1)
+        .rightFrontMotorName("rf")   // must match Driver Station config exactly
+        .rightRearMotorName("rr")
+        .leftRearMotorName("lr")
+        .leftFrontMotorName("lf")
+        .leftFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
+        .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
+        .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
+        .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD);`}
+              />
+              <NoteBox type="warning">
+                Before running any tuner, drive the robot manually using the
+                built-in TeleOp in the Quickstart and confirm all four wheels
+                spin the correct direction. Wrong motor directions will cause
+                every tuner to fail.
+              </NoteBox>
+
+              <h3>Step 2 — Localizer Setup</h3>
+              <p>
+                Pedro needs to know where the robot is on the field at all
+                times. Add your localizer constants to <code>Constants.java</code>{" "}
+                and plug them into the <code>createFollower()</code> builder.
+                The example below uses the <strong>goBILDA Pinpoint</strong> —
+                swap the builder method for your hardware (see the Localizer
+                Setup section for all options).
+              </p>
+              <CodeBlock
+                filename="Constants.java (Pinpoint localizer)"
+                code={`public static PinpointConstants localizerConstants = new PinpointConstants()
+        .hardwareMapName("pinpoint")     // must match Driver Station config
+        .forwardPodY(-5)                 // forward pod Y offset from robot center (inches)
+        .strafePodX(0.5)                 // strafe pod X offset from robot center (inches)
+        .distanceUnit(DistanceUnit.INCH)
+        .encoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD)
+        .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
+        .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
+
+public static Follower createFollower(HardwareMap hardwareMap) {
+    return new FollowerBuilder(followerConstants, hardwareMap)
+            .pathConstraints(pathConstraints)
+            .mecanumDrivetrain(driveConstants)
+            .pinpointLocalizer(localizerConstants) // swap this line for your localizer
+            .build();
+}`}
+              />
+              <p>
+                After adding your localizer, <strong>verify encoder directions</strong>{" "}
+                using the Localization Test OpMode before continuing:
+              </p>
+              <StepList
+                steps={[
+                  "Run the Tuning OpMode and navigate to Localization Test.",
+                  "Connect to Panels at 192.168.43.1:8001 — you should see the robot's position on the field.",
+                  "Push the robot forward — the X coordinate must increase. If it decreases, add .forwardEncoderDirection(EncoderDirection.REVERSED) to your localizer constants.",
+                  "Push the robot left — the Y coordinate must increase. If it decreases, add .strafeEncoderDirection(EncoderDirection.REVERSED).",
+                  "Drive the robot in a full square and return it to start — the pose on Panels should return close to its starting values.",
+                ]}
+              />
+              <CodeBlock
+                filename="Constants.java (reversed encoder example)"
+                code={`// If forward motion made X decrease, reverse the forward encoder:
+public static PinpointConstants localizerConstants = new PinpointConstants()
+        .hardwareMapName("pinpoint")
+        .forwardPodY(-5)
+        .strafePodX(0.5)
+        .distanceUnit(DistanceUnit.INCH)
+        .encoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD)
+        .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED) // <-- flipped
+        .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);`}
+              />
+              <NoteBox type="info">
+                The pod <strong>offsets</strong> (<code>forwardPodY</code> and{" "}
+                <code>strafePodX</code>) are measured from the robot&apos;s center
+                of rotation in inches. Positive <code>forwardPodY</code> means
+                the forward pod is to the left of center; positive{" "}
+                <code>strafePodX</code> means the strafe pod is in front of
+                center. Use the offset tuner OpMode in the Quickstart if you
+                are unsure of the exact values.
+              </NoteBox>
+
+              <h3>Step 3 — Forward & Lateral Velocity Tuners</h3>
+              <p>
+                These tuners drive the robot at full power and measure its
+                actual top speed. The values are stored automatically — you
+                just run the OpMode and read the output from telemetry.
+              </p>
+              <CodeBlock
+                filename="ForwardVelocityTuner output → Constants.java"
+                code={`// After running ForwardVelocityTuner, copy the reported value here:
+public static FollowerConstants followerConstants = new FollowerConstants()
+        .mass(5.2)
+        .forwardZeroPowerAcceleration(-34.0)  // reported by ForwardVelocityTuner
+        .lateralZeroPowerAcceleration(-78.5); // reported by LateralVelocityTuner`}
+              />
+              <NoteBox type="info">
+                Both values will be <strong>negative</strong> — they represent
+                deceleration (the robot slowing down when power cuts to zero).
+                If you get a positive number, a motor direction is wrong.
+              </NoteBox>
+
+              <h3>Step 4 — Heading Tuner</h3>
+              <p>
+                The heading PIDF corrects the robot&apos;s rotation while following
+                paths. Run <code>HeadingTuner</code> — the robot will rotate
+                back and forth. Watch Panels and adjust gains until rotation
+                is fast, accurate, and settles without oscillating.
+              </p>
+              <CodeBlock
+                filename="Constants.java (heading PIDF)"
+                code={`// Starting values — increase P until heading corrects quickly,
+// then add D to reduce overshoot/oscillation
+public static FollowerConstants followerConstants = new FollowerConstants()
+        .mass(5.2)
+        .forwardZeroPowerAcceleration(-34.0)
+        .lateralZeroPowerAcceleration(-78.5)
+        .headingPIDF(new PIDFCoefficients(
+                1.0,   // P — increase if heading is slow to correct
+                0,     // I — leave at 0 unless steady-state heading error
+                0.1,   // D — increase to damp oscillation
+                0      // F — leave at 0
+        ));`}
+              />
+              <SpecTable
+                rows={[
+                  { label: "P (Proportional)", value: "How hard it corrects heading error", note: "Start 1.0 — increase if correction is sluggish" },
+                  { label: "I (Integral)", value: "Eliminates small persistent error", note: "Leave at 0 — rarely needed" },
+                  { label: "D (Derivative)", value: "Damps oscillation / overshoot", note: "Start 0.1 — increase if robot wobbles" },
+                  { label: "F (Feedforward)", value: "Constant baseline effort", note: "Leave at 0" },
+                ]}
+              />
+
+              <h3>Step 5A — Predictive Braking (recommended)</h3>
+              <p>
+                Automatically tunes braking in a few minutes. The robot drives
+                forward at full speed and coasts to a stop; Pedro measures the
+                natural deceleration and computes the braking curve for you.
+              </p>
+              <StepList
+                steps={[
+                  "Run PredictiveBrakingTuner from the Tuning OpMode. The robot will drive forward and stop automatically — give it at least 6 feet of clear space.",
+                  "After it stops, read zeroPowerAccelForward from telemetry and copy it into FollowerConstants (it is the same value measured in Step 3).",
+                  "Tune a single drive P gain starting at 0.025 — increase until the robot reaches path endpoints quickly without oscillating past them.",
+                ]}
+              />
+              <CodeBlock
+                filename="Constants.java (Predictive Braking)"
+                code={`public static FollowerConstants followerConstants = new FollowerConstants()
+        .mass(5.2)
+        .forwardZeroPowerAcceleration(-34.0)
+        .lateralZeroPowerAcceleration(-78.5)
+        .headingPIDF(new PIDFCoefficients(1.0, 0, 0.1, 0))
+        // Drive P — controls how fast follower "chases" the path's t-value
+        // Increase if robot is slow to reach endpoints; decrease if it oscillates
+        .drivePIDF(new PIDFCoefficients(
+                0.025, // P — start here, tune up slowly
+                0,
+                0,
+                0.6    // F — feedforward keeps robot moving at constant speed
+        ));`}
+              />
+
+              <h3>Step 5B — Manual PIDFs (advanced)</h3>
+              <p>
+                For more control over path following behavior. Run these
+                tuners in order after the heading tuner:
+              </p>
+              <StepList
+                steps={[
+                  "ZeroPowerAccelerationTuner (forward) — confirms the forward deceleration value.",
+                  "ZeroPowerAccelerationTuner (lateral) — confirms the lateral deceleration value.",
+                  "TranslationalPIDTuner — tune translationalPIDF. Push the robot off the path and watch it snap back.",
+                  "CentripetalTuner — tune centripetalScaling. Run a curved path and increase until the inside wheels don't slip on turns.",
+                  "DrivePIDTuner — tune drivePIDF last. Increase P until the robot reaches waypoints quickly without oscillating.",
+                ]}
+              />
+              <CodeBlock
+                filename="Constants.java (Manual PIDFs)"
+                code={`public static FollowerConstants followerConstants = new FollowerConstants()
+        .mass(5.2)
+        .forwardZeroPowerAcceleration(-34.0)
+        .lateralZeroPowerAcceleration(-78.5)
+        .headingPIDF(new PIDFCoefficients(1.0, 0, 0.1, 0))
+
+        // Translational PIDF — corrects X/Y position error
+        // Run TranslationalPIDTuner: push robot off a straight path and watch it snap back
+        // Increase P until correction is snappy; add D if it oscillates
+        .translationalPIDF(new PIDFCoefficients(
+                0.1,   // P
+                0,     // I
+                0.01,  // D
+                0      // F
+        ))
+
+        // Centripetal scaling — compensates for centripetal force on curves
+        // Run CentripetalTuner: increase from 0.001 until curves are clean and wheels don't slip
+        .centripetalScaling(0.0005)
+
+        // Drive PIDF — controls how fast the follower advances along the path
+        // Tune last: increase P until robot reaches endpoints quickly, D to stop oscillation
+        .drivePIDF(new PIDFCoefficients(
+                0.025, // P
+                0,     // I
+                0,     // D
+                0.6    // F
+        ));`}
+              />
+              <NoteBox type="tip">
+                When tuning PIDFs, change only <strong>one value at a time</strong>{" "}
+                and run the test again before adjusting further. Changing
+                multiple values at once makes it impossible to know what caused
+                an improvement or regression.
+              </NoteBox>
+              <NoteBox type="info">
+                Pedro&apos;s Panels dashboard at{" "}
+                <code>192.168.43.1:8001</code> shows a live field overlay
+                during all tuning OpModes. The robot&apos;s estimated pose and
+                target path are both drawn — you can immediately see if the
+                follower is tracking the path or drifting.
+              </NoteBox>
+            </Prose>
+          ),
+        },
+        {
+          id: "path-building",
+          title: "Building Paths",
+          content: (
+            <Prose>
+              <p>
+                Paths are built from Bézier geometry. There are two path
+                primitives:
+              </p>
+              <SpecTable
+                rows={[
+                  { label: "BezierLine", value: "Straight line", note: "Requires 2 points: start + end" },
+                  { label: "BezierCurve", value: "Smooth curve", note: "3+ points: start + controls + end. Control points pull the curve." },
+                ]}
+              />
+              <p>
+                A single <code>Path</code> wraps one Bézier segment. A{" "}
+                <code>PathChain</code> (from <code>follower.pathBuilder()</code>){" "}
+                links multiple segments together with seamless, stop-free
+                transitions.
+              </p>
+              <CodeBlock
+                filename="PathBuilding.java"
+                code={`// ── Poses (x, y, heading in radians) — [0, 144] field coordinate system ──
+private final Pose startPose    = new Pose(28.5, 128, Math.toRadians(180));
+private final Pose scorePose    = new Pose(60,   85,  Math.toRadians(135));
+private final Pose pickup1Pose  = new Pose(37,   121, Math.toRadians(0));
+private final Pose pickup2Pose  = new Pose(43,   130, Math.toRadians(0));
+
+// ── Single path (BezierLine straight line) ────────────────────────────────
+private Path scorePreload;
+
+// ── PathChains for cycles ─────────────────────────────────────────────────
+private PathChain grabPickup1, scorePickup1, grabPickup2, scorePickup2;
+
+public void buildPaths() {
+
+    // ── Single BezierLine path — straight from start to score ─────────────
+    scorePreload = new Path(new BezierLine(startPose, scorePose));
+    scorePreload.setLinearHeadingInterpolation(
+        startPose.getHeading(), scorePose.getHeading());
+
+    // ── PathChain example: score → grab pickup 1 ──────────────────────────
+    grabPickup1 = follower.pathBuilder()
+        .addPath(new BezierLine(scorePose, pickup1Pose))
+        .setLinearHeadingInterpolation(
+            scorePose.getHeading(), pickup1Pose.getHeading())
+        .build();
+
+    // ── PathChain with a curved segment (BezierCurve) ─────────────────────
+    // Control point at (50, 105) pulls the path into a curve
+    scorePickup1 = follower.pathBuilder()
+        .addPath(new BezierCurve(
+            pickup1Pose,
+            new Pose(50, 105, 0), // control point — shapes the arc
+            scorePose
+        ))
+        .setLinearHeadingInterpolation(
+            pickup1Pose.getHeading(), scorePose.getHeading())
+        .build();
+}`}
+              />
+              <p>
+                Heading interpolation strategies:
+              </p>
+              <SpecTable
+                rows={[
+                  { label: "setLinearHeadingInterpolation(start, end)", value: "Rotate linearly from start to end heading" },
+                  { label: "setConstantHeadingInterpolation(heading)", value: "Hold a fixed heading the entire path" },
+                  { label: "setTangentHeadingInterpolation()", value: "Always face in the direction of travel" },
+                ]}
+              />
+              <NoteBox type="tip">
+                All headings are in <strong>radians</strong>. Use{" "}
+                <code>Math.toRadians(degrees)</code> to convert. The official
+                QuickStart uses degrees in some comments but the actual API
+                always takes radians.
+              </NoteBox>
+            </Prose>
+          ),
+        },
+        {
+          id: "full-auto",
+          title: "Full Autonomous Example",
+          content: (
+            <Prose>
+              <p>
+                The recommended approach is a <strong>Finite State Machine (FSM)</strong>{" "}
+                inside an iterative <code>OpMode</code> (not <code>LinearOpMode</code>).
+                Build all paths in <code>init()</code> so they are ready the
+                moment <code>start()</code> is pressed.
+              </p>
+              <CodeBlock
+                filename="ExampleAuto.java"
+                code={`@Autonomous(name = "Example Auto", group = "Examples")
+public class ExampleAuto extends OpMode {
+
+    private Follower follower;
+    private Timer pathTimer, opmodeTimer;
+    private int pathState;
+
+    // ── Poses ─────────────────────────────────────────────────────────────────
+    private final Pose startPose   = new Pose(28.5, 128, Math.toRadians(180));
+    private final Pose scorePose   = new Pose(60,   85,  Math.toRadians(135));
+    private final Pose pickup1Pose = new Pose(37,   121, Math.toRadians(0));
+    private final Pose pickup2Pose = new Pose(43,   130, Math.toRadians(0));
+
+    // ── Paths ─────────────────────────────────────────────────────────────────
+    private Path scorePreload;
+    private PathChain grabPickup1, scorePickup1, grabPickup2, scorePickup2;
+
+    public void buildPaths() {
+        scorePreload = new Path(new BezierLine(startPose, scorePose));
+        scorePreload.setLinearHeadingInterpolation(
+            startPose.getHeading(), scorePose.getHeading());
+
+        grabPickup1 = follower.pathBuilder()
+            .addPath(new BezierLine(scorePose, pickup1Pose))
+            .setLinearHeadingInterpolation(
+                scorePose.getHeading(), pickup1Pose.getHeading())
+            .build();
+
+        scorePickup1 = follower.pathBuilder()
+            .addPath(new BezierLine(pickup1Pose, scorePose))
+            .setLinearHeadingInterpolation(
+                pickup1Pose.getHeading(), scorePose.getHeading())
+            .build();
+
+        grabPickup2 = follower.pathBuilder()
+            .addPath(new BezierLine(scorePose, pickup2Pose))
+            .setLinearHeadingInterpolation(
+                scorePose.getHeading(), pickup2Pose.getHeading())
+            .build();
+
+        scorePickup2 = follower.pathBuilder()
+            .addPath(new BezierLine(pickup2Pose, scorePose))
+            .setLinearHeadingInterpolation(
+                pickup2Pose.getHeading(), scorePose.getHeading())
+            .build();
+    }
+
+    // ── FSM path logic ────────────────────────────────────────────────────────
+    public void autonomousPathUpdate() {
+        switch (pathState) {
+            case 0:
+                follower.followPath(scorePreload);
+                setPathState(1);
+                break;
+
+            case 1:
+                // Wait until follower is done, then trigger scoring mechanism
+                if (!follower.isBusy()) {
+                    // score preloaded piece here
+                    follower.followPath(grabPickup1, true); // true = hold end
+                    setPathState(2);
+                }
+                break;
+
+            case 2:
+                if (!follower.isBusy()) {
+                    // grab pickup 1 here
+                    follower.followPath(scorePickup1, true);
+                    setPathState(3);
+                }
+                break;
+
+            case 3:
+                if (!follower.isBusy()) {
+                    // score pickup 1 here
+                    follower.followPath(grabPickup2, true);
+                    setPathState(4);
+                }
+                break;
+
+            case 4:
+                if (!follower.isBusy()) {
+                    // grab pickup 2 here
+                    follower.followPath(scorePickup2, true);
+                    setPathState(5);
+                }
+                break;
+
+            case 5:
+                if (!follower.isBusy()) {
+                    // score pickup 2 here
+                    setPathState(-1); // -1 = done
+                }
+                break;
+        }
+    }
+
+    public void setPathState(int pState) {
+        pathState = pState;
+        pathTimer.resetTimer();
+    }
+
+    // ── OpMode lifecycle ──────────────────────────────────────────────────────
+    @Override
+    public void init() {
+        pathTimer  = new Timer();
+        opmodeTimer = new Timer();
+
+        follower = Constants.createFollower(hardwareMap);
+        buildPaths();
+        follower.setStartingPose(startPose);
+
+        telemetry.addData("Status", "Ready");
+        telemetry.update();
+    }
+
+    @Override
+    public void start() {
+        opmodeTimer.resetTimer();
+        setPathState(0);
+    }
+
+    @Override
+    public void loop() {
+        follower.update();          // REQUIRED every loop iteration
+        autonomousPathUpdate();
+
+        telemetry.addData("Path State", pathState);
+        telemetry.addData("X",          "%.2f", follower.getPose().getX());
+        telemetry.addData("Y",          "%.2f", follower.getPose().getY());
+        telemetry.addData("Heading",    "%.1f°",
+            Math.toDegrees(follower.getPose().getHeading()));
+        telemetry.update();
+    }
+
+    @Override
+    public void stop() {}
+}`}
+              />
+              <NoteBox type="info">
+                Pedro uses iterative <strong>OpMode</strong>, not{" "}
+                <strong>LinearOpMode</strong>. The <code>loop()</code> method
+                runs at ~30 Hz. <code>follower.update()</code> <em>must</em>{" "}
+                be called every iteration — without it the follower never
+                advances.
+              </NoteBox>
+              <NoteBox type="tip">
+                <code>follower.followPath(path, holdEnd)</code> — when{" "}
+                <code>holdEnd = true</code>, Pedro continues correcting the
+                robot&apos;s position at the endpoint after the path is
+                complete. This is useful at scoring positions where you want
+                the robot to stay precisely on target while mechanisms operate.
+              </NoteBox>
+            </Prose>
+          ),
+        },
+        {
+          id: "path-transitions",
+          title: "Path Transitions & Callbacks",
+          content: (
+            <Prose>
+              <p>
+                The FSM above checks <code>!follower.isBusy()</code> between
+                paths. But you can also trigger mechanisms <em>during</em> a
+                path using parametric callbacks — they fire at a specific
+                fractional progress (0.0–1.0) along the path segment:
+              </p>
+              <CodeBlock
+                filename="ParametricCallback.java"
+                code={`// addParametricCallback(t, runnable):
+// fires when follower's progress on that segment reaches t (0 = start, 1 = end)
+
+PathChain scoringRun = follower.pathBuilder()
+    .addPath(new BezierLine(pickupPose, scorePose))
+    .setLinearHeadingInterpolation(
+        pickupPose.getHeading(), scorePose.getHeading())
+    .addParametricCallback(0.6, () -> {
+        // At 60% of the path: start raising the arm in anticipation of scoring
+        arm.goToHigh();
+    })
+    .addParametricCallback(0.95, () -> {
+        // At 95%: open claw just before arrival
+        claw.open();
+    })
+    .build();`}
+              />
+              <p>
+                You can also check conditions beyond just <code>isBusy()</code>
+                in the FSM switch cases:
+              </p>
+              <CodeBlock
+                filename="ConditionChecks.java"
+                code={`// Time-based: transition after 1.5 seconds regardless of follower state
+if (pathTimer.getElapsedTimeSeconds() > 1.5) { ... }
+
+// Position-based: transition when robot is within 2 inches of target
+if (follower.getPose().getX() > 55) { ... }
+
+// Standard: wait for follower to finish
+if (!follower.isBusy()) { ... }
+
+// Combined: wait for follower OR time out after 3 seconds
+if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() > 3.0) { ... }`}
+              />
+              <NoteBox type="tip">
+                The time-out condition (<code>pathTimer &gt; 3.0</code>) is
+                important for competition reliability — if something goes wrong
+                and the robot gets stuck, the FSM will still advance to the
+                next state rather than hanging indefinitely.
+              </NoteBox>
+            </Prose>
+          ),
+        },
+        {
+          id: "follower-api",
+          title: "Follower API Reference",
+          content: (
+            <Prose>
+              <SpecTable
+                rows={[
+                  { label: "Constants.createFollower(hwMap)", value: "Create follower — call once in init()" },
+                  { label: "follower.setStartingPose(pose)", value: "Set initial position before start()" },
+                  { label: "follower.followPath(path)", value: "Start following a Path" },
+                  { label: "follower.followPath(path, true)", value: "Follow path + hold at endpoint when done" },
+                  { label: "follower.followPath(chain)", value: "Follow a PathChain (multi-segment)" },
+                  { label: "follower.update()", value: "Advance the follower — MUST call every loop" },
+                  { label: "follower.isBusy()", value: "Returns true while actively following" },
+                  { label: "follower.getPose()", value: "Returns current estimated Pose (x, y, heading)" },
+                  { label: "follower.breakFollowing()", value: "Immediately stop following and hold position" },
+                ]}
+              />
+              <CodeBlock
+                filename="FollowerApi.java"
+                code={`// ── The Pose class ────────────────────────────────────────────────────────
+Pose current = follower.getPose();
+double x       = current.getX();        // inches, 0–144
+double y       = current.getY();        // inches, 0–144
+double heading = current.getHeading();  // radians — use Math.toDegrees() to display
+
+// ── Creating poses ────────────────────────────────────────────────────────
+Pose examplePose = new Pose(60, 85, Math.toRadians(135));
+
+// ── TeleOp: maintain a field-centric position ─────────────────────────────
+// In your teleop loop, you can call followPath with a live target pose
+// to implement point-to-point or heading lock behaviors`}
+              />
+            </Prose>
+          ),
+        },
+        {
+          id: "teleop",
+          title: "TeleOp with Pedro",
+          content: (
+            <Prose>
+              <p>
+                Pedro&apos;s follower can also be used in TeleOp to implement
+                heading lock or point-to-point movements. Set{" "}
+                <code>follower.setTeleOpMovementVectors()</code> each loop
+                with the driver&apos;s raw joystick inputs:
+              </p>
+              <CodeBlock
+                filename="PedroTeleOp.java"
+                code={`@TeleOp(name = "Pedro TeleOp")
+public class PedroTeleOp extends OpMode {
 
     private Follower follower;
 
     @Override
     public void init() {
-        // ── Create the follower — pass hardwareMap to let it find motors ─────
-        follower = new Follower(hardwareMap);
-
-        // ── Set the robot's starting pose (x, y, heading in radians) ─────────
-        // Origin is typically the center of the field.
-        // X increases to the right; Y increases upward.
-        Pose startPose = new Pose(9, -63, Math.toRadians(90));
-        follower.setStartingPose(startPose);
-
-        telemetry.addData("Status", "Initialized");
-        telemetry.update();
+        follower = Constants.createFollower(hardwareMap);
     }
 
     @Override
     public void loop() {
-        follower.update(); // ← Must be called every loop iteration
+        // Standard field-centric drive using Pedro
+        follower.setTeleOpMovementVectors(
+            -gamepad1.left_stick_y,   // forward/back (negated — stick up = positive)
+             gamepad1.left_stick_x,   // strafe
+             gamepad1.right_stick_x,  // rotate
+            true                      // true = field-centric
+        );
 
-        Pose current = follower.getPose();
-        telemetry.addData("X",       "%.2f", current.getX());
-        telemetry.addData("Y",       "%.2f", current.getY());
-        telemetry.addData("Heading", "%.1f°", Math.toDegrees(current.getHeading()));
-        telemetry.addData("Busy",    follower.isBusy());
+        follower.update();
+
+        telemetry.addData("X",       "%.1f", follower.getPose().getX());
+        telemetry.addData("Y",       "%.1f", follower.getPose().getY());
+        telemetry.addData("Heading", "%.1f°",
+            Math.toDegrees(follower.getPose().getHeading()));
         telemetry.update();
     }
 }`}
               />
               <NoteBox type="info">
-                Pedro uses <strong>OpMode</strong> (iterative), not{" "}
-                <strong>LinearOpMode</strong>. The <code>loop()</code> method
-                runs continuously at the robot loop rate (~30 Hz). Call{" "}
-                <code>follower.update()</code> every iteration — without it, the
-                follower never advances along the path.
-              </NoteBox>
-              <p>
-                <strong>The Pose class</strong> holds three values:
-              </p>
-              <SpecTable
-                rows={[
-                  { label: "getX()", value: "X field position", note: "Inches from field origin" },
-                  { label: "getY()", value: "Y field position", note: "Inches from field origin" },
-                  { label: "getHeading()", value: "Robot heading in radians", note: "Use Math.toDegrees() for display" },
-                ]}
-              />
-            </Prose>
-          ),
-        },
-        {
-          id: "path-chains",
-          title: "Path Chains",
-          content: (
-            <Prose>
-              <p>
-                A <strong>PathChain</strong> links multiple <code>Path</code>{" "}
-                segments together. Pedro transitions between them automatically
-                using its continuous re-projection algorithm, so there is no
-                stop-and-go between segments. Use{" "}
-                <code>PathBuilder.addPath()</code> to assemble the chain and{" "}
-                <code>addParametricCallback()</code> to fire actions at specific
-                points along the path.
-              </p>
-              <CodeBlock
-                
-                filename="PedroPathChain.java"
-                code={`// ── Build individual paths ────────────────────────────────────────────────
-
-// BezierLine: straight line from point A to point B
-Path toSpike = new Path(new BezierLine(
-    new Point(9, -63, Point.CARTESIAN),   // start
-    new Point(9, -32, Point.CARTESIAN)    // end
-));
-toSpike.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(90));
-
-// BezierCurve: spline with control points for smooth cornering
-Path toBackdrop = new Path(new BezierCurve(
-    new Point(9,  -32, Point.CARTESIAN),  // start
-    new Point(24, -32, Point.CARTESIAN),  // control point 1 (pulls the curve)
-    new Point(48, -36, Point.CARTESIAN)   // end
-));
-toBackdrop.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(180));
-
-// BezierLine for the park
-Path toPark = new Path(new BezierLine(
-    new Point(48, -36, Point.CARTESIAN),
-    new Point(60, -60, Point.CARTESIAN)
-));
-toPark.setConstantHeadingInterpolation(Math.toRadians(180));
-
-// ── Chain all paths together ──────────────────────────────────────────────
-PathChain autoChain = follower.pathBuilder()
-    .addPath(toSpike)
-    .addParametricCallback(0.85, () -> {
-        // Fires when ~85% of toSpike is complete
-        // e.g. start lowering arm before arrival
-        arm.setState(ArmState.DEPOSIT);
-    })
-    .addPath(toBackdrop)
-    .addParametricCallback(0.9, () -> {
-        // Fires at 90% of toBackdrop
-        claw.open();
-    })
-    .addPath(toPark)
-    .build();
-
-// ── Follow the chain ─────────────────────────────────────────────────────
-follower.followPath(autoChain, true); // true = hold end position
-
-// In loop():
-while (!follower.isBusy()) {
-    follower.update();
-}`}
-              />
-              <NoteBox type="tip">
-                <code>addParametricCallback(t, fn)</code> fires when the follower&apos;s
-                parametric progress on that segment reaches the threshold
-                (0.0–1.0). Use values of 0.8–0.95 to pre-arm mechanisms so they
-                are ready the instant the robot arrives at the target position.
-              </NoteBox>
-              <NoteBox type="info">
-                <strong>PathChain vs single Path</strong>: a single{" "}
-                <code>Path</code> followed with <code>follower.followPath(path)</code>
-                is fine for one move. Use <code>PathChain</code> whenever you
-                need smooth, stop-free transitions across two or more segments —
-                this is the standard for full autonomous routines.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
-          id: "tuning-constants",
-          title: "Tuning Constants",
-          content: (
-            <Prose>
-              <p>
-                Pedro&apos;s PIDF gains and physical robot constants live in{" "}
-                <code>FollowerConstants.java</code> and{" "}
-                <code>LConstants.java</code>. Tune them in the order listed below
-                — each step depends on the previous one being correct.
-              </p>
-              <StepList
-                steps={[
-                  "Set odometry wheel radius and track width in LConstants.java. Measure with a ruler; you will refine these with the StraightBackAndForth and LocalizationTest OpModes.",
-                  "Run ForwardVelocityTuner to find zeroPowerAccelMultiplier — this controls how aggressively Pedro decelerates when motor power cuts.",
-                  "Tune translationalPIDFCoefficients using TranslationalPIDTuner. Start with P=0.1, I=0, D=0.01 and increase P until the robot tracks a straight line without oscillating.",
-                  "Tune headingPIDFCoefficients using TurnTuner. Start with P=1.0, I=0, D=0.1.",
-                  "Tune drivePIDFCoefficients last — this controls how fast the follower's parametric t advances along the path. Increase P until the robot reaches targets quickly without overshooting.",
-                ]}
-              />
-              <CodeBlock
-                
-                filename="FollowerConstantsTuning.java"
-                code={`// ── FollowerConstants.java — starting values, tune for your robot ────────
-
-// How aggressively the robot brakes when power cuts (run ForwardVelocityTuner)
-public static double zeroPowerAccelMultiplier = 4.0;
-
-// XY position error PIDF — run TranslationalPIDTuner
-public static CustomFilteredPIDFCoefficients translationalPIDFCoefficients =
-    new CustomFilteredPIDFCoefficients(0.15, 0, 0.012, 0, 0);
-
-// Secondary (slow-speed) translational PID kicks in near path end
-public static boolean useSecondaryTranslationalPID = true;
-public static CustomFilteredPIDFCoefficients secondaryTranslationalPIDFCoefficients =
-    new CustomFilteredPIDFCoefficients(0.1, 0, 0.01, 0, 0);
-
-// Heading PIDF — run TurnTuner
-public static CustomFilteredPIDFCoefficients headingPIDFCoefficients =
-    new CustomFilteredPIDFCoefficients(1.2, 0, 0.09, 0, 0);
-
-// Path parametric t PIDF — how fast the follower advances along the path
-public static CustomFilteredPIDFCoefficients drivePIDFCoefficients =
-    new CustomFilteredPIDFCoefficients(0.025, 0, 0.00001, 0.6, 0);
-
-// Tolerance for declaring a path segment complete
-public static double pathEndTranslationalConstraint = 0.1;  // inches
-public static double pathEndHeadingConstraint       = 0.007; // radians (~0.4°)
-public static double pathEndTimeoutConstraint       = 500;   // ms`}
-              />
-              <NoteBox type="warning">
-                Do not tune <code>drivePIDFCoefficients</code> until{" "}
-                <code>translationalPIDFCoefficients</code> and{" "}
-                <code>headingPIDFCoefficients</code> are stable. The drive PIDF
-                pushes the robot forward along the path — if heading is
-                oscillating, the robot will spiral rather than follow the curve.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
-          id: "follower-config",
-          title: "Follower Configuration",
-          content: (
-            <Prose>
-              <p>
-                The follower&apos;s PIDF gains and correction parameters are
-                configured in <code>FollowerConstants.java</code>. Tune these
-                after verifying your odometry constants are correct.
-              </p>
-              <SpecTable
-                rows={[
-                  { label: "translationalPIDFCoefficients", value: "PIDF for XY error" },
-                  { label: "headingPIDFCoefficients", value: "PIDF for heading error" },
-                  { label: "drivePIDFCoefficients", value: "PIDF for path parametric t" },
-                  { label: "zeroPowerAccelMultiplier", value: "Braking decel multiplier" },
-                  { label: "pathEndTimeoutConstraint", value: "Max ms to hold path end" },
-                  { label: "useSecondaryTranslationalPID", value: "Extra PID near path end" },
-                ]}
-              />
-              <CodeBlock
-                filename="FollowerConstants.java"
-                code={`// Inside FollowerConstants.java — these are starting values, tune for your robot
-public static CustomFilteredPIDFCoefficients translationalPIDFCoefficients =
-    new CustomFilteredPIDFCoefficients(0.1, 0, 0.01, 0, 0);
-
-public static CustomFilteredPIDFCoefficients headingPIDFCoefficients =
-    new CustomFilteredPIDFCoefficients(1, 0, 0.1, 0, 0);
-
-// Drive PIDF controls how fast robot "catches up" to the parametric t value
-public static CustomFilteredPIDFCoefficients drivePIDFCoefficients =
-    new CustomFilteredPIDFCoefficients(0.025, 0, 0.00001, 0.6, 0);
-
-// How aggressively the robot decelerates when power cuts
-public static double zeroPowerAccelMultiplier = 4;
-
-// ms to wait holding at path end before declaring "done"
-public static double pathEndTimeoutConstraint = 500;`}
-              />
-              <NoteBox type="tip">
-                Use <strong>FTC Dashboard</strong> with Pedro&apos;s built-in
-                telemetry to visualize the robot&apos;s path in real-time during
-                tuning. Connect to <code>http://192.168.43.1:8080/dash</code> and
-                enable the <em>Field</em> widget to see the field overlay.
+                Field-centric drive means the robot&apos;s forward direction is
+                always relative to the field, not its own heading. The driver
+                pushes the stick forward and the robot moves toward the
+                field&apos;s positive X direction regardless of which way the
+                robot is facing.
               </NoteBox>
             </Prose>
           ),

@@ -12,11 +12,11 @@ export default function RoadRunnerPage() {
         { label: "Docs", href: "/docs/road-runner" },
         { label: "Road Runner" },
       ]}
-      title="Road Runner"
-      description="Road Runner is a motion-planning library for FTC that generates smooth, constraint-respecting motion profiles along Bézier spline paths. Learn setup, tuning, trajectories, and followTrajectorySequence."
+      title="Road Runner 1.0"
+      description="Road Runner is a motion-planning library for FTC that generates smooth, constraint-respecting motion profiles along Bézier spline paths. This guide covers the full RR 1.0 setup, tuning sequence, Actions API, and trajectory building."
       badge="Autonomous"
       badgeColor="violet"
-      readingTime="18 min"
+      readingTime="20 min"
       sections={[
         {
           id: "what-is-road-runner",
@@ -25,143 +25,194 @@ export default function RoadRunnerPage() {
             <Prose>
               <p>
                 Road Runner (RR) is a motion-planning library that computes{" "}
-                <strong>trapezoidal velocity profiles</strong> along Bézier spline
-                paths. Unlike simple encoder-based moves, RR respects real
-                physical constraints: max velocity, max acceleration, and maximum
-                centripetal acceleration through curves.
+                <strong>trapezoidal velocity profiles</strong> along Bézier
+                spline paths. Unlike simple encoder-based moves, RR respects
+                real physical constraints — max velocity, max acceleration, and
+                centripetal acceleration through curves — and uses combined
+                feedforward + feedback control to follow them accurately.
               </p>
               <InfoGrid
                 items={[
-                  { label: "Version", value: "1.0.x", sub: "Latest stable" },
+                  { label: "Version", value: "1.0.1", sub: "ftc:0.1.25" },
                   { label: "Path Type", value: "Bézier Splines", sub: "C2 continuous" },
-                  { label: "Control", value: "Feedforward + PIDF", sub: "Full state control" },
-                  { label: "Odometry", value: "Dead wheels / Drive enc.", sub: "Both supported" },
+                  { label: "Control", value: "FF + Feedback", sub: "Gain-based PID" },
+                  { label: "Odometry", value: "4 localizers", sub: "Drive enc / dead wheels / Pinpoint / OTOS" },
                 ]}
               />
               <NoteBox type="warning">
-                Road Runner 1.0 introduced <strong>breaking changes</strong> from
-                0.5.x. If you are migrating an older robot, the{" "}
-                <code>TrajectoryBuilder</code> and{" "}
-                <code>TrajectorySequenceBuilder</code> APIs are replaced by{" "}
-                <code>ActionBuilder</code>. Review the{" "}
-                <a
-                  href="https://rr.brott.dev"
-                  className="text-violet-400 hover:text-violet-300 underline underline-offset-2"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  official migration guide
-                </a>{" "}
-                before porting.
+                Road Runner 1.0 has <strong>breaking changes</strong> from
+                0.5.x. The old <code>TrajectorySequenceBuilder</code> and{" "}
+                <code>DriveConstants.java</code> no longer exist. RR 1.0 is
+                not backwards-compatible — start from the new quickstart rather
+                than migrating old code.
               </NoteBox>
             </Prose>
           ),
         },
         {
           id: "installation",
-          title: "Installation & Setup",
+          title: "Installation",
           content: (
             <Prose>
               <p>
-                The easiest way to start is with the{" "}
-                <strong>Road Runner Quickstart</strong> repository — a
-                pre-configured FTC project with all dependencies and tuning
-                OpModes included.
+                The easiest way to start is the{" "}
+                <strong>Road Runner Quickstart</strong> — a full Android Studio
+                project with Road Runner, FTC Dashboard, and all tuning OpModes
+                pre-installed.
               </p>
               <StepList
                 steps={[
-                  "Clone the Road Runner Quickstart from GitHub: acmerobotics/road-runner-ftc.",
-                  "Open in Android Studio and let Gradle sync.",
-                  "In TeamCode, find and open DriveConstants.java.",
-                  "Fill in your robot's physical measurements (see DriveConstants section below).",
-                  "Run the tuning OpModes in order to calibrate feedforward and PID.",
+                  "Clone the quickstart: git clone https://github.com/acmerobotics/road-runner-quickstart.git",
+                  "Open the folder as an FTC project in Android Studio and let Gradle sync.",
+                  "Navigate to TeamCode/src/main/java/org/firstinspires/ftc/teamcode/ — your OpModes go here.",
+                  "Proceed to Drive Classes setup before running any tuning OpModes.",
                 ]}
               />
               <p>
-                Alternatively, add the Gradle dependency manually to an existing
-                project:
+                If you are adding RR to an <strong>existing project</strong>,
+                add these dependencies to <code>TeamCode/build.gradle</code>:
               </p>
               <CodeBlock
-                filename="build.gradle"
-                lang="groovy"
-                code={`// In TeamCode/build.gradle (or your module's build.gradle)
-dependencies {
-    implementation 'com.acmerobotics.roadrunner:core:1.0.0'
-    implementation 'com.acmerobotics.roadrunner:actions:1.0.0'
-
-    // FTC Dashboard for real-time tuning graphs (strongly recommended)
-    implementation 'com.acmerobotics.dashboard:dashboard:0.4.16'
+                filename="TeamCode/build.gradle"
+                code={`repositories {
+    maven { url = 'https://maven.brott.dev/' }
 }
 
-repositories {
-    maven { url = 'https://maven.brott.dev/' }
+dependencies {
+    // Core Road Runner library
+    implementation "com.acmerobotics.roadrunner:ftc:0.1.25"
+    implementation "com.acmerobotics.roadrunner:core:1.0.1"
+    implementation "com.acmerobotics.roadrunner:actions:1.0.1"
+
+    // FTC Dashboard — required for all tuning steps
+    implementation "com.acmerobotics.dashboard:dashboard:0.5.1"
 }`}
               />
+              <p>
+                Then download the quickstart and copy the entire contents of
+                its <code>teamcode</code> folder (including the{" "}
+                <code>messages/</code> and <code>tuning/</code> subfolders)
+                into your project&apos;s <code>teamcode</code> folder.
+              </p>
+              <NoteBox type="info">
+                Always check{" "}
+                <code>TeamCode/build.gradle</code> for the latest library
+                version number — it changes with each release. The version
+                shown above was current at time of writing.
+              </NoteBox>
             </Prose>
           ),
         },
         {
-          id: "drive-constants",
-          title: "DriveConstants Configuration",
+          id: "drive-classes",
+          title: "Drive Classes & Localizer Setup",
           content: (
             <Prose>
               <p>
-                <code>DriveConstants.java</code> is the single source of truth for
-                your robot&apos;s physical parameters. Accurate values here are the
-                foundation of all RR accuracy.
+                Open <code>MecanumDrive.java</code> (or <code>TankDrive.java</code>)
+                from the quickstart. This file is your robot&apos;s central
+                configuration — motor names, IMU orientation, localizer choice,
+                and all tuning parameters live here.
+              </p>
+              <p>
+                <strong>Motor names</strong> — by default <code>MecanumDrive</code>{" "}
+                expects four motors named <code>"leftFront"</code>,{" "}
+                <code>"leftBack"</code>, <code>"rightBack"</code>, and{" "}
+                <code>"rightFront"</code>, plus an IMU named <code>"imu"</code>.
+                Change these strings in <code>Params</code> to match your
+                Driver Station config.
+              </p>
+              <p>
+                <strong>IMU orientation</strong> — set{" "}
+                <code>logoFacingDirection</code> and{" "}
+                <code>usbFacingDirection</code> based on how the Control Hub is
+                physically mounted on your robot.
+              </p>
+              <p>
+                <strong>Localizer</strong> — Road Runner 1.0 supports four
+                built-in localizer options. Change the{" "}
+                <code>localizer = </code> line in <code>MecanumDrive.java</code>:
               </p>
               <SpecTable
                 rows={[
-                  { label: "TICKS_PER_REV", value: "537.7", note: "goBILDA 19.2:1" },
-                  { label: "MAX_RPM", value: "312", note: "Motor free speed" },
-                  { label: "WHEEL_RADIUS", value: "1.89 in", note: "48 mm goBILDA mecanum" },
-                  { label: "GEAR_RATIO", value: "1.0", note: "Motor output to wheel" },
-                  { label: "TRACK_WIDTH", value: "Measure!", note: "Wheel center to center" },
+                  {
+                    label: "Drive Encoders (default)",
+                    value: "new DriveLocalizer(...)",
+                    note: "Uses motor encoders + IMU for heading",
+                  },
+                  {
+                    label: "Two Dead Wheels",
+                    value: "new TwoDeadWheelLocalizer(...)",
+                    note: "par + perp encoder names",
+                  },
+                  {
+                    label: "Three Dead Wheels",
+                    value: "new ThreeDeadWheelLocalizer(...)",
+                    note: "par0, par1, perp encoder names",
+                  },
+                  {
+                    label: "Pinpoint",
+                    value: "new PinpointLocalizer(...)",
+                    note: "Device configured as \"pinpoint\"",
+                  },
+                  {
+                    label: "SparkFun OTOS",
+                    value: "new OTOSLocalizer(...)",
+                    note: "Device configured as \"sensor_otos\"",
+                  },
                 ]}
               />
-              <CodeBlock
-                filename="DriveConstants.java"
-                code={`public class DriveConstants {
-
-    /*
-     * Measure TRACK_WIDTH physically on your robot using a ruler.
-     * Run the WheelVelocityTuner to verify/refine with encoders.
-     */
-    public static final double TICKS_PER_REV  = 537.7;  // goBILDA 5202-0002-0019
-    public static final double MAX_RPM        = 312;
-    public static final double WHEEL_RADIUS   = 1.89;   // inches (96mm goBILDA wheel)
-    public static final double GEAR_RATIO     = 1;      // output : wheel
-    public static final double TRACK_WIDTH    = 14.2;   // MEASURE THIS — inches
-
-    // ── Feedforward parameters ──────────────────────────────────────────────
-    // Start with kV = 1/maxVelocity, then tune with ForwardRampLogger
-    public static double kV      = 1.0 / rpmToVelocity(MAX_RPM);
-    public static double kA      = 0;
-    public static double kStatic = 0;
-
-    // ── Velocity and acceleration limits ────────────────────────────────────
-    // Be conservative at first — increase after initial tuning
-    public static double MAX_VEL         = 40;                      // in/s
-    public static double MAX_ACCEL       = 35;                      // in/s²
-    public static double MAX_ANG_VEL     = Math.toRadians(180);     // rad/s
-    public static double MAX_ANG_ACCEL   = Math.toRadians(180);     // rad/s²
-
-    // ── Unit conversions ─────────────────────────────────────────────────────
-    public static double encoderTicksToInches(double ticks) {
-        return WHEEL_RADIUS * 2 * Math.PI * GEAR_RATIO * ticks / TICKS_PER_REV;
-    }
-
-    public static double rpmToVelocity(double rpm) {
-        return rpm * GEAR_RATIO * 2 * Math.PI * WHEEL_RADIUS / 60.0;
-    }
-}`}
-              />
               <NoteBox type="tip">
-                Measure <code>TRACK_WIDTH</code> by driving your robot in a full
-                360° circle using only rotation (no translation) and comparing the
-                theoretical arc length to the encoder readings. Iterate until
-                the robot turns exactly 360° with RR commands.
+                Dead wheel encoder ports 0 and 3 on REV hubs are more accurate
+                at high speeds due to hardware quadrature decoding. Use those
+                for your parallel (forward) dead wheels.
               </NoteBox>
+              <CodeBlock
+                filename="MecanumDrive.java (setup)"
+                code={`// ── Motor names — change to match your Driver Station config ─────────────
+public static class Params {
+    public String leftFront  = "leftFront";
+    public String leftBack   = "leftBack";
+    public String rightBack  = "rightBack";
+    public String rightFront = "rightFront";
+}
+
+// ── IMU orientation — match how your Control Hub is mounted ──────────────
+lazyImu = new LazyImu(hardwareMap, "imu", new RevHubOrientationOnRobot(
+    RevHubOrientationOnRobot.LogoFacingDirection.UP,
+    RevHubOrientationOnRobot.UsbFacingDirection.FORWARD
+));
+
+// ── Localizer — pick one and change this line ─────────────────────────────
+// Drive encoders (default):
+localizer = new DriveLocalizer(hardwareMap, PARAMS.inPerTick, pose, leftMotors, rightMotors);
+
+// Two dead wheels (encoders named "par" and "perp"):
+// localizer = new TwoDeadWheelLocalizer(hardwareMap, lazyImu.get(), PARAMS.inPerTick, pose);
+
+// Three dead wheels (encoders named "par0", "par1", "perp"):
+// localizer = new ThreeDeadWheelLocalizer(hardwareMap, PARAMS.inPerTick, pose);
+
+// goBILDA Pinpoint (device named "pinpoint"):
+// localizer = new PinpointLocalizer(hardwareMap, PARAMS.inPerTick, pose);
+
+// SparkFun OTOS (device named "sensor_otos"):
+// localizer = new OTOSLocalizer(hardwareMap, pose);`}
+              />
+              <p>
+                After setting up motor names and localizer, run{" "}
+                <code>MecanumDirectionDebugger</code> to verify every motor
+                spins in the correct direction. Positive power on all wheels
+                should move the robot forward:
+              </p>
+              <SpecTable
+                rows={[
+                  { label: "X / ▢ (Xbox/PS4)", value: "Front Left motor" },
+                  { label: "Y / △", value: "Front Right motor" },
+                  { label: "B / O", value: "Rear Right motor" },
+                  { label: "A / X", value: "Rear Left motor" },
+                ]}
+              />
             </Prose>
           ),
         },
@@ -171,62 +222,149 @@ repositories {
           content: (
             <Prose>
               <p>
-                Tuning is the most critical step in Road Runner setup. Run each
-                OpMode <strong>in order</strong> — later steps depend on earlier
-                ones being correct.
+                Tuning is the most critical step. Run every OpMode{" "}
+                <strong>in order</strong> — later steps depend on earlier
+                ones. The full process takes 1–3 hours but only needs to be
+                repeated when hardware changes. Connect your computer to the
+                robot&apos;s Wi-Fi and open{" "}
+                <code>http://192.168.43.1:8080/dash</code> for FTC Dashboard
+                before starting.
               </p>
               <StepList
                 steps={[
-                  "ForwardPushTest — Push robot 60 in, verify encoder ticks match.",
-                  "ForwardRampLogger — Slowly accelerate; FTC Dashboard plots kV and kA.",
-                  "LateralRampLogger — Strafe version of above for mecanum correction.",
-                  "ManualFeedforwardTuner — Fine-tune kV/kA/kStatic with live graph.",
-                  "ManualFeedbackTuner — Tune translational and heading PIDF gains.",
-                  "SplineTest — Drive a spline; verify accuracy visually and with telemetry.",
+                  "ForwardPushTest — Push the robot forward ~40 in by hand (motors free-spinning). Record ticks from telemetry and the actual distance. Set inPerTick = distance_inches / ticks.",
+                  "LateralPushTest (mecanum + drive encoders only) — Same as above but push left. Set lateralInPerTick = distance / ticks.",
+                  "ForwardRampLogger (dead wheels only) — Robot accelerates forward automatically. After stopping, open http://192.168.43.1:8080/tuning/forward-ramp.html, click Latest, exclude outliers, and copy kS and kV into MecanumDrive.Params.",
+                  "LateralRampLogger (mecanum + dead wheels only) — Strafe version. Open http://192.168.43.1:8080/tuning/lateral-ramp.html and copy lateralInPerTick.",
+                  "AngularRampLogger — Spins in place. For drive encoders: open /tuning/drive-encoder-angular-ramp.html and copy kS, kV, and trackWidthTicks. For dead wheels: open /tuning/dead-wheel-angular-ramp.html and copy trackWidthTicks and wheel positions.",
+                  "ManualFeedforwardTuner — Robot drives forward/back repeatedly. In FTC Dashboard graph vref vs v0. Increase kA from 0.0000001 by 10× until it affects the plot, then match the lines. Press Y/△ to pause and reset robot position.",
+                  "ManualFeedbackTuner — Same back-and-forth but with feedback active. Tune axialGain, lateralGain, headingGain. Start at 1 and nudge the robot to observe correction.",
+                  "SplineTest — Drives a basic spline to verify everything. The robot should follow it accurately with no visible drift.",
                 ]}
               />
               <NoteBox type="info">
-                Install{" "}
-                <strong>FTC Dashboard</strong> and connect your phone/computer to
-                the robot Wi-Fi network. Open{" "}
-                <code>http://192.168.43.1:8080/dash</code> during tuning to see
-                live position plots and adjust constants in real time.
+                The tuning web UI at <code>192.168.43.1:8080/tuning/</code>{" "}
+                is your primary analysis tool during ramp logging. Click and
+                drag to select outlier points, then press <strong>E</strong> to
+                exclude them before reading off the final coefficient values.
+                Press <strong>I</strong> to re-include a point if you exclude
+                too many.
+              </NoteBox>
+              <NoteBox type="tip">
+                Using a <strong>Pinpoint</strong> localizer? Tuning is the same
+                as two dead wheels — skip the ForwardRampLogger and go straight
+                to AngularRampLogger using the dead-wheel analysis URL.
+              </NoteBox>
+            </Prose>
+          ),
+        },
+        {
+          id: "rr1-params",
+          title: "MecanumDrive.Params Reference",
+          content: (
+            <Prose>
+              <p>
+                In Road Runner 1.0, all physical robot parameters live in the{" "}
+                <code>Params</code> static class inside{" "}
+                <code>MecanumDrive.java</code>. There is no separate{" "}
+                <code>DriveConstants.java</code>.
+              </p>
+              <SpecTable
+                rows={[
+                  { label: "inPerTick", value: "Inches per encoder tick", note: "From ForwardPushTest" },
+                  { label: "lateralInPerTick", value: "Lateral in/tick", note: "From LateralPushTest or LateralRampLogger" },
+                  { label: "trackWidthTicks", value: "Track width in ticks", note: "From AngularRampLogger" },
+                  { label: "kS", value: "Static feedforward", note: "From ForwardRampLogger / AngularRampLogger" },
+                  { label: "kV", value: "Velocity feedforward", note: "From ForwardRampLogger" },
+                  { label: "kA", value: "Acceleration feedforward", note: "From ManualFeedforwardTuner" },
+                  { label: "maxWheelVel", value: "Max wheel velocity (in/s)", note: "~80% of measured top speed" },
+                  { label: "minProfileAccel", value: "Max decel (negative, in/s²)", note: "Braking limit" },
+                  { label: "maxProfileAccel", value: "Max accel (in/s²)", note: "Start at 25, tune up" },
+                  { label: "axialGain", value: "Forward position gain", note: "From ManualFeedbackTuner" },
+                  { label: "lateralGain", value: "Lateral position gain", note: "From ManualFeedbackTuner" },
+                  { label: "headingGain", value: "Heading gain", note: "From ManualFeedbackTuner" },
+                ]}
+              />
+              <CodeBlock
+                filename="MecanumDrive.java (Params)"
+                code={`public static class Params {
+    // ── Filled in by push tests ───────────────────────────────────────────
+    public double inPerTick         = 0;    // ForwardPushTest
+    public double lateralInPerTick  = 1;    // LateralPushTest
+    public double trackWidthTicks   = 0;    // AngularRampLogger
+
+    // ── Filled in by ramp loggers ─────────────────────────────────────────
+    public double kS = 0;
+    public double kV = 0;
+    public double kA = 0;
+
+    // ── Motion constraints ────────────────────────────────────────────────
+    public double maxWheelVel     =  50;   // in/s
+    public double minProfileAccel = -30;   // in/s² (braking)
+    public double maxProfileAccel =  50;   // in/s² (acceleration)
+    public double maxAngVel       = Math.PI;    // rad/s
+    public double maxAngAccel     = Math.PI;    // rad/s²
+
+    // ── Feedback gains — filled in by ManualFeedbackTuner ─────────────────
+    public double axialGain    = 0;
+    public double lateralGain  = 0;
+    public double headingGain  = 0;
+    public double axialVelGain    = 0;
+    public double lateralVelGain  = 0;
+    public double headingVelGain  = 0;
+
+    // ── Motor names (match Driver Station config) ─────────────────────────
+    public String leftFront  = "leftFront";
+    public String leftBack   = "leftBack";
+    public String rightBack  = "rightBack";
+    public String rightFront = "rightFront";
+}`}
+              />
+              <NoteBox type="info">
+                RR 1.0 measures distances in <strong>inches per tick</strong>{" "}
+                rather than ticks per revolution. Run the push tests first —
+                they give the most accurate values without needing motor spec
+                sheets, and they account for real-world friction and wheel slip
+                automatically.
               </NoteBox>
             </Prose>
           ),
         },
         {
           id: "creating-trajectories",
-          title: "Creating Trajectories",
+          title: "Building Trajectories",
           content: (
             <Prose>
               <p>
                 In Road Runner 1.0, trajectories are built with{" "}
-                <code>drive.actionBuilder(startPose)</code>. The builder provides
-                a fluent API for chaining movement segments.
+                <code>drive.actionBuilder(startPose)</code>. The builder
+                provides a fluent API for chaining movement segments and returns
+                an <code>Action</code> that you run with{" "}
+                <code>Actions.runBlocking()</code>.
               </p>
               <CodeBlock
                 filename="AutonomousOp.java"
-                code={`@Autonomous(name = "Score Specimen Auto")
-public class ScoreSpecimenAuto extends LinearOpMode {
+                code={`@Autonomous(name = "Full Auto")
+public class FullAuto extends LinearOpMode {
 
     @Override
     public void runOpMode() throws InterruptedException {
-        // MecanumDrive is the Road Runner 1.0 drive class (from quickstart)
-        MecanumDrive drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
+        // Start pose: robot at (0,0) facing right (0 radians)
+        Pose2d startPose = new Pose2d(0, 0, 0);
+        MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
 
-        // ── Build the full autonomous as a sequence of Actions ──────────────
-        Action auto = drive.actionBuilder(new Pose2d(0, 0, 0))
+        // Build the entire autonomous as one chained Action
+        Action auto = drive.actionBuilder(startPose)
 
-            // Spline to spike mark (smooth curve)
+            // Smooth spline to spike mark — heading follows the path tangent
             .splineTo(new Vector2d(24, 24), Math.PI / 2)
-            .waitSeconds(0.5)  // pause for mechanism
+            .waitSeconds(0.5)
 
-            // Drive straight to backdrop
+            // Drive straight to backdrop with heading change
             .lineToLinearHeading(new Pose2d(48, 36, Math.PI))
             .waitSeconds(0.75)
 
-            // Spline back to stack with tangent heading
+            // Spline to pixel stack keeping constant heading
             .splineToConstantHeading(new Vector2d(60, 10), 0)
             .waitSeconds(0.5)
 
@@ -237,306 +375,223 @@ public class ScoreSpecimenAuto extends LinearOpMode {
 
         waitForStart();
 
-        // Run the entire action — blocks until complete
+        // Runs the entire action — blocks until complete or stop is pressed
         Actions.runBlocking(auto);
     }
 }`}
               />
+              <p>Key builder methods:</p>
+              <SpecTable
+                rows={[
+                  { label: "splineTo(vec, endTangent)", value: "Smooth spline, heading follows tangent" },
+                  { label: "splineToConstantHeading(vec, tangent)", value: "Spline, heading stays fixed" },
+                  { label: "splineToLinearHeading(pose, tangent)", value: "Spline + linear heading change" },
+                  { label: "lineToX(x) / lineToY(y)", value: "Straight along one axis" },
+                  { label: "lineToLinearHeading(pose)", value: "Straight line + heading change" },
+                  { label: "strafeToLinearHeading(vec, heading)", value: "Strafe with heading change" },
+                  { label: "turn(angle)", value: "Pure rotation in place" },
+                  { label: "waitSeconds(t)", value: "Hold position for t seconds" },
+                ]}
+              />
+              <NoteBox type="tip">
+                All coordinates are in <strong>inches</strong> and all angles
+                are in <strong>radians</strong>. Use{" "}
+                <code>Math.toRadians(degrees)</code> to convert. The field
+                origin is wherever you place the robot at the start — there is
+                no fixed field coordinate system unless you set one.
+              </NoteBox>
+            </Prose>
+          ),
+        },
+        {
+          id: "actions",
+          title: "Actions API",
+          content: (
+            <Prose>
               <p>
-                Key builder methods and what they do:
+                Road Runner 1.0 uses an <strong>Actions</strong> system to
+                compose autonomous behaviors. An <code>Action</code> is a
+                long-running segment of code that runs in small steps each loop
+                iteration — this lets two actions run in{" "}
+                <strong>parallel without threads</strong>.
               </p>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Method</th>
-                    <th>Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    ["splineTo(vec, endTangent)", "Smooth spline curve, heading follows tangent"],
-                    ["lineToX(x) / lineToY(y)", "Straight line along one axis"],
-                    ["strafeToLinearHeading(pose)", "Strafe with linear heading interpolation"],
-                    ["lineToLinearHeading(pose)", "Forward + linear heading change"],
-                    ["turn(angle)", "Pure rotation in place"],
-                    ["waitSeconds(t)", "Hold position for t seconds"],
-                  ].map(([m, d]) => (
-                    <tr key={m}>
-                      <td>{m}</td>
-                      <td style={{ fontFamily: "inherit", color: "rgb(100 116 139)", fontSize: "0.75rem" }}>{d}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <SpecTable
+                rows={[
+                  { label: "Actions.runBlocking(a)", value: "Runs action until complete", note: "Safe to interrupt with stop button" },
+                  { label: "SequentialAction(a, b, …)", value: "Runs actions one after another" },
+                  { label: "ParallelAction(a, b, …)", value: "Runs actions simultaneously, waits for all" },
+                  { label: "SleepAction(seconds)", value: "Waits for a duration" },
+                  { label: "action.run(packet)", value: "Single step — returns false when done" },
+                ]}
+              />
+              <CodeBlock
+                filename="ActionsExample.java"
+                code={`// ── Combine drive + mechanism using ParallelAction ────────────────────────
+// Raise the arm while driving to the backdrop — saves ~0.8 s
+
+Action driveToBackdrop = drive.actionBuilder(spikeMarkPose)
+    .lineToLinearHeading(backdropPose)
+    .build();
+
+// Custom mechanism action — returns false when complete (see below)
+Action raiseArm = arm.goToHeight(ArmSystem.HIGH_BASKET);
+
+// Both run simultaneously; waits for the SLOWER one to finish
+Actions.runBlocking(new ParallelAction(driveToBackdrop, raiseArm));
+
+// ── SequentialAction: turn then drive ─────────────────────────────────────
+Actions.runBlocking(new SequentialAction(
+    drive.actionBuilder(startPose).turn(Math.PI / 2).build(),
+    drive.actionBuilder(turnedPose).lineToX(48).build()
+));
+
+// ── SleepAction: wait 0.5 s between two moves ─────────────────────────────
+Actions.runBlocking(new SequentialAction(
+    drive.actionBuilder(startPose).splineTo(new Vector2d(24, 24), 0).build(),
+    new SleepAction(0.5),
+    drive.actionBuilder(midPose).lineToX(48).build()
+));`}
+              />
+              <p>
+                To create a <strong>custom Action</strong> for a mechanism,
+                implement the <code>Action</code> interface. The{" "}
+                <code>run()</code> method is called repeatedly — return{" "}
+                <code>true</code> to keep running, <code>false</code> when done:
+              </p>
+              <CodeBlock
+                filename="CustomAction.java"
+                code={`public class Lift {
+    private DcMotorEx motor;
+
+    public Lift(HardwareMap hardwareMap) {
+        motor = hardwareMap.get(DcMotorEx.class, "lift_motor");
+        motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    }
+
+    public Action liftUp(int targetTicks) {
+        return new Action() {
+            private boolean initialized = false;
+
+            @Override
+            public boolean run(@NonNull TelemetryPacket packet) {
+                if (!initialized) {
+                    motor.setTargetPosition(targetTicks);
+                    motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                    motor.setPower(0.8);
+                    initialized = true;
+                }
+
+                int pos = motor.getCurrentPosition();
+                packet.put("liftPos", pos);
+
+                // Return true (keep running) while motor is still moving
+                return motor.isBusy();
+            }
+        };
+    }
+}
+
+// Usage in autonomous:
+Lift lift = new Lift(hardwareMap);
+Actions.runBlocking(new ParallelAction(
+    drive.actionBuilder(startPose).lineToX(48).build(),
+    lift.liftUp(1500)
+));`}
+              />
+              <NoteBox type="warning">
+                Keep each <code>run()</code> call short — avoid{" "}
+                <code>Thread.sleep()</code> or blocking <code>while</code>{" "}
+                loops inside actions. If one action stalls, all parallel
+                actions are starved. Use <code>SleepAction</code> for delays
+                instead.
+              </NoteBox>
             </Prose>
           ),
         },
         {
           id: "parallel-actions",
-          title: "Parallel Actions",
+          title: "Async Following Pattern",
           content: (
             <Prose>
               <p>
-                RR 1.0 uses an <strong>Actions</strong> system. You can run
-                mechanism actions in parallel with driving using{" "}
-                <code>ParallelAction</code> — this saves precious autonomous
-                seconds.
+                For cases where you need fine-grained control over the loop
+                (e.g. checking sensor values mid-trajectory), you can drive
+                an action manually instead of using{" "}
+                <code>Actions.runBlocking()</code>:
               </p>
               <CodeBlock
-                filename="ParallelActionsExample.java"
-                code={`// Raise the arm while driving to the backdrop (saves ~0.8 s)
-Action driveToBackdrop = drive.actionBuilder(spikeMarkPose)
-    .lineToLinearHeading(backdropPose)
-    .build();
-
-Action raiseArm = new SequentialAction(
-    arm.goToHeight(ArmSystem.HIGH_BASKET),
-    claw.open()
-);
-
-// Both actions run simultaneously; waits for the SLOWER one to finish
-Action combined = new ParallelAction(driveToBackdrop, raiseArm);
-
-Actions.runBlocking(combined);`}
-              />
-              <NoteBox type="tip">
-                Prefer <code>ParallelAction</code> over spinning up threads
-                manually. RR&apos;s action scheduler handles timing and ensures
-                the OpMode loop frequency stays high.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
-          id: "pid-tuning",
-          title: "PID Tuning & DriveConstants",
-          content: (
-            <Prose>
-              <p>
-                All physical robot parameters and PID gains live in{" "}
-                <code>DriveConstants.java</code>. Getting these right is the most
-                important step in Road Runner setup — incorrect constants produce
-                trajectory drift even if your code is perfect.
-              </p>
-              <SpecTable
-                rows={[
-                  { label: "TICKS_PER_REV", value: "Motor encoder PPR", note: "e.g. 537.6 for goBILDA 19.2:1" },
-                  { label: "MAX_RPM", value: "Motor free-run RPM", note: "e.g. 312 for 19.2:1" },
-                  { label: "WHEEL_RADIUS", value: "Wheel radius in inches", note: "Mecanum wheel = 1.9725 in" },
-                  { label: "GEAR_RATIO", value: "Output/input ratio", note: "1.0 if direct drive" },
-                  { label: "TRACK_WIDTH", value: "Lateral wheel-to-wheel", note: "Measured center-to-center" },
-                  { label: "MAX_VEL", value: "Max linear velocity (in/s)", note: "Measure empirically" },
-                  { label: "MAX_ACCEL", value: "Max acceleration (in/s²)", note: "Start at 30, tune up" },
-                  { label: "MAX_ANG_VEL", value: "Max angular velocity (rad/s)", note: "Derived from TRACK_WIDTH" },
-                ]}
-              />
-              <CodeBlock
-                
-                filename="DriveConstants.java"
-                code={`// ── DriveConstants.java — tune every value for YOUR robot ───────────────
-
-public static final double TICKS_PER_REV  = 537.6;  // goBILDA 19.2:1
-public static final double MAX_RPM        = 312;
-
-public static final boolean RUN_USING_ENCODER = true;
-// If true, motor velocity is controlled by SDK PIDF during trajectories.
-// If false, feedforward only — set MOTOR_VELO_PID to null.
-
-public static final double WHEEL_RADIUS  = 1.9725; // inches (96mm mecanum)
-public static final double GEAR_RATIO    = 1;       // direct drive
-public static final double TRACK_WIDTH   = 14.25;  // inches — measure carefully!
-
-// ── Velocity & acceleration limits ───────────────────────────────────────
-// Set MAX_VEL to ~80% of your measured top speed for reliable following.
-public static final double MAX_VEL   = 48;   // in/s
-public static final double MAX_ACCEL = 35;   // in/s²
-public static final double MAX_ANG_VEL = Math.toRadians(185);
-public static final double MAX_ANG_ACCEL = Math.toRadians(185);
-
-// ── Feedforward coefficients (kV, kA, kStatic) ───────────────────────────
-// Run the ManualFeedforwardTuner OpMode to find these values.
-public static double kV      = 1.0 / rpmToVelocity(MAX_RPM);
-public static double kA      = 0;
-public static double kStatic = 0;
-
-// ── Translational PID ─────────────────────────────────────────────────────
-// Run TranslationalPIDTuner then HeadingPIDTuner OpModes in sequence.
-public static PIDCoefficients TRANSLATIONAL_PID = new PIDCoefficients(8, 0, 0);
-public static PIDCoefficients HEADING_PID        = new PIDCoefficients(8, 0, 0);`}
-              />
-              <NoteBox type="tip">
-                Measure <code>TRACK_WIDTH</code> empirically using the{" "}
-                <strong>TrackWidthTuner</strong> OpMode — the physical ruler
-                measurement is almost always wrong by 5–15% due to wheel
-                compliance. Run the tuner on a full battery.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
-          id: "async-following",
-          title: "Async Following",
-          content: (
-            <Prose>
-              <p>
-                <code>followTrajectorySequenceAsync()</code> starts the trajectory
-                and returns immediately, letting your OpMode run other code (e.g.
-                update a vision pipeline, move a mechanism) on every loop
-                iteration. You must call <code>drive.update()</code> every loop
-                for the follower to make progress.
-              </p>
-              <CodeBlock
-                
-                filename="AsyncFollowing.java"
-                code={`// ── Build the sequence (blocking version first, for reference) ─────────
-TrajectorySequence seq = drive.trajectorySequenceBuilder(startPose)
-    .splineTo(new Vector2d(24, 0), 0)
-    .waitSeconds(0.5)
+                filename="AsyncLoop.java"
+                code={`Action driveAction = drive.actionBuilder(startPose)
     .splineTo(new Vector2d(48, 0), 0)
     .build();
 
-// ── Start async — returns immediately ────────────────────────────────────
-drive.followTrajectorySequenceAsync(seq);
+TelemetryPacket packet = new TelemetryPacket();
+boolean running = true;
 
-// ── OpMode loop — drive.update() must be called every iteration ──────────
-while (opModeIsActive() && drive.isBusy()) {
-    // Anything here runs in parallel with the trajectory:
-    arm.update();          // e.g. move arm to scoring position
-    intake.update();       // e.g. run intake logic
-    vision.processFrame(); // e.g. AprilTag detection
+while (opModeIsActive() && running) {
+    // Advance the trajectory one step; returns false when complete
+    running = driveAction.run(packet);
 
-    drive.update();        // ← REQUIRED every loop or robot stops moving
+    // Your own code runs every loop alongside the trajectory:
+    if (colorSensor.red() > RED_THRESHOLD) {
+        intake.setPower(0);
+    }
 
-    telemetry.addData("Following", drive.isBusy());
-    Pose2d poseEst = drive.getPoseEstimate();
-    telemetry.addData("X", "%.1f", poseEst.getX());
-    telemetry.addData("Y", "%.1f", poseEst.getY());
-    telemetry.addData("Heading", "%.1f°", Math.toDegrees(poseEst.getHeading()));
+    FtcDashboard.getInstance().sendTelemetryPacket(packet);
     telemetry.update();
-}
-
-// ── Cancel early (e.g. on a button press) ────────────────────────────────
-// drive.breakFollowing(); // Stops the active trajectory and halts the robot`}
-              />
-              <NoteBox type="warning">
-                Forgetting <code>drive.update()</code> inside the loop is the
-                most common async bug. The robot will freeze in place after the
-                first tick because the follower never advances its internal state.
-              </NoteBox>
-              <NoteBox type="tip">
-                Use <code>drive.isBusy()</code> as the loop condition so the loop
-                exits cleanly when the sequence completes, rather than needing a
-                separate boolean flag.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
-          id: "constraints",
-          title: "Per-Segment Constraints",
-          content: (
-            <Prose>
-              <p>
-                Global <code>DriveConstants</code> limits apply to the entire
-                trajectory, but you can override velocity and acceleration for
-                individual segments using{" "}
-                <code>setVelConstraint()</code> and{" "}
-                <code>setAccelConstraint()</code>. This is essential for precise
-                scoring actions that need to happen at low speed.
-              </p>
-              <CodeBlock
-                
-                filename="SegmentConstraints.java"
-                code={`import com.acmerobotics.roadrunner.trajectory.constraints.MinVelocityConstraint;
-import com.acmerobotics.roadrunner.trajectory.constraints.ProfileAccelerationConstraint;
-import com.acmerobotics.roadrunner.trajectory.constraints.TranslationalVelocityConstraint;
-import com.acmerobotics.roadrunner.trajectory.constraints.AngularVelocityConstraint;
-
-// ── Helper: combined constraint at a given speed ──────────────────────────
-TrajectoryVelocityConstraint slowConstraint = new MinVelocityConstraint(Arrays.asList(
-    new TranslationalVelocityConstraint(15),   // 15 in/s max linear
-    new AngularVelocityConstraint(Math.toRadians(90)) // 90°/s max angular
-));
-TrajectoryAccelerationConstraint slowAccel =
-    new ProfileAccelerationConstraint(15);     // 15 in/s² decel
-
-// ── Build with per-segment overrides ─────────────────────────────────────
-TrajectorySequence seq = drive.trajectorySequenceBuilder(startPose)
-
-    // Full-speed approach
-    .splineTo(new Vector2d(36, 0), 0)
-
-    // Slow down to deposit precisely — setVelConstraint applies to this segment only
-    .setVelConstraint(slowConstraint)
-    .setAccelConstraint(slowAccel)
-    .lineTo(new Vector2d(48, 0))          // Slow approach to backdrop
-    .waitSeconds(0.4)                      // Deposit action time
-
-    // Resume normal speed for parking
-    .resetVelConstraint()
-    .resetAccelConstraint()
-    .splineTo(new Vector2d(60, -12), Math.toRadians(270))
-
-    .build();
-
-drive.followTrajectorySequence(seq);`}
-              />
-              <SpecTable
-                rows={[
-                  { label: "setVelConstraint(c)", value: "Override max velocity for subsequent segments" },
-                  { label: "setAccelConstraint(c)", value: "Override max acceleration for subsequent segments" },
-                  { label: "resetVelConstraint()", value: "Restore global MAX_VEL from DriveConstants" },
-                  { label: "resetAccelConstraint()", value: "Restore global MAX_ACCEL from DriveConstants" },
-                ]}
+}`}
               />
               <NoteBox type="tip">
-                Constraints are sticky — they apply to all segments after the call
-                until you call <code>resetVelConstraint()</code>. Always reset
-                after the slow section to avoid unintentionally limiting the rest
-                of the path.
+                For most routines, <code>ParallelAction</code> is cleaner than
+                a manual loop — define each mechanism as an <code>Action</code>{" "}
+                and let the scheduler compose them. Reserve the manual loop
+                for sensor-reactive behavior that needs to interrupt or branch
+                mid-trajectory.
               </NoteBox>
             </Prose>
           ),
         },
         {
           id: "follow-trajectory-sequence",
-          title: "followTrajectorySequence (0.5.x)",
+          title: "Road Runner 0.5.x (Legacy)",
           content: (
             <Prose>
               <p>
-                If your team is running <strong>Road Runner 0.5.x</strong> (the
-                previous version), you will use{" "}
-                <code>TrajectorySequenceBuilder</code> and{" "}
+                If your team is still running <strong>Road Runner 0.5.x</strong>,
+                you will use <code>TrajectorySequenceBuilder</code> and{" "}
                 <code>drive.followTrajectorySequence()</code>. This API is still
-                widely used in active FTC code bases.
+                in use on many active robots but is no longer maintained.
               </p>
               <CodeBlock
-                filename="TrajectorySequenceExample.java"
-                code={`Pose2d startPose = new Pose2d(12, -63, Math.toRadians(90));
+                filename="TrajectorySequence_05x.java"
+                code={`// ── Road Runner 0.5.x only — not compatible with RR 1.0 ─────────────────
+
+Pose2d startPose = new Pose2d(12, -63, Math.toRadians(90));
 drive.setPoseEstimate(startPose);
 
-TrajectorySequence autoSequence = drive.trajectorySequenceBuilder(startPose)
-
-    // Drive to spike mark
+TrajectorySequence autoSeq = drive.trajectorySequenceBuilder(startPose)
     .splineTo(new Vector2d(12, -30), Math.toRadians(90))
     .waitSeconds(0.5)
-
-    // Temporal marker: fires at exactly t = 2.0 s into sequence
+    // Temporal marker: fires at t = 2.0 s into the sequence
     .addTemporalMarker(2.0, () -> claw.setPosition(CLAW_OPEN))
-
-    // Drive to backdrop on the other side
     .lineToLinearHeading(new Pose2d(50, -36, Math.toRadians(180)))
     .waitSeconds(0.75)
-
-    // Displacement marker: fires when robot crosses x = 35
+    // Displacement marker: fires when total path distance crosses this value
     .addDisplacementMarker(() -> arm.goToHigh())
-
-    // Park in corner
     .splineTo(new Vector2d(60, -60), Math.toRadians(315))
     .build();
 
-// Blocking call — waits until sequence is fully complete
-drive.followTrajectorySequence(autoSequence);`}
+// Blocking — waits until complete
+drive.followTrajectorySequence(autoSeq);
+
+// Async version — call drive.update() every loop
+drive.followTrajectorySequenceAsync(autoSeq);
+while (opModeIsActive() && drive.isBusy()) {
+    drive.update(); // REQUIRED every iteration
+    telemetry.update();
+}`}
               />
               <SpecTable
                 rows={[
@@ -544,7 +599,6 @@ drive.followTrajectorySequence(autoSequence);`}
                   { label: "addDisplacementMarker(fn)", value: "Fires at current path distance" },
                   { label: "addSpatialMarker(pos, fn)", value: "Fires when robot is near position" },
                   { label: "waitSeconds(t)", value: "Stop and wait for t seconds" },
-                  { label: "UNSTABLE_addTemporalMarkerOffset(dt, fn)", value: "Offset from previous marker" },
                 ]}
               />
             </Prose>

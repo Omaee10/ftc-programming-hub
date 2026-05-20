@@ -60,7 +60,7 @@ export default function GoBILDAPage() {
                 rows={[
                   { label: "Wheelbase", value: "≈ 216 mm", note: "center-to-center" },
                   { label: "Track Width", value: "≈ 295 mm", note: "center-to-center" },
-                  { label: "Motor Gear Ratio", value: "19.2 : 1", note: "Yellow Jacket" },
+                  { label: "Motor Part", value: "5202-2402-0019", note: "19.2:1 Yellow Jacket" },
                   { label: "Free Speed", value: "312 RPM", note: "at 12 V" },
                   { label: "Encoder CPR", value: "537.7 CPR", note: "output shaft" },
                   { label: "Wheel Diameter", value: "96 mm (3.78 in)", note: "goBILDA mecanum" },
@@ -307,160 +307,6 @@ public class ViperSlideOp extends LinearOpMode {
           ),
         },
         {
-          id: "servos",
-          title: "2000-Series Servos",
-          content: (
-            <Prose>
-              <p>
-                The <strong>goBILDA 2000-Series Dual-Mode Servo</strong> operates
-                in either standard servo mode (position 0–270°) or continuous
-                rotation mode, switchable via a programming button on the body.
-                In standard mode it behaves like any FTC <code>Servo</code> with a
-                0.0–1.0 range.
-              </p>
-              <SpecTable
-                rows={[
-                  { label: "Torque (5 V)", value: "13 kg·cm", note: "At 0.5 s/60°" },
-                  { label: "Range (servo mode)", value: "270°", note: "Maps to 0.0–1.0" },
-                  { label: "Connector", value: "JST-PH 3-pin", note: "Standard REV servo port" },
-                  { label: "Modes", value: "Servo / CR", note: "Toggle via prog button" },
-                  { label: "Control frequency", value: "50 Hz PWM", note: "SDK default" },
-                ]}
-              />
-              <p>
-                <strong>Servo vs CRServo — which interface to use:</strong>
-              </p>
-              <StepList
-                steps={[
-                  "Use Servo when you need precise position control (0.0–1.0 maps to 0–270°). The servo holds position with its internal gear and motor.",
-                  "Use CRServo when the servo is in continuous rotation mode. Power is set with setPower(-1.0 to 1.0) — there is no position feedback.",
-                  "To switch modes, press and hold the yellow button on the servo body for 3 seconds until the LED changes color.",
-                ]}
-              />
-              <CodeBlock
-                
-                filename="GoBILDAServoExample.java"
-                code={`import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.hardware.CRServo;
-
-// ── Standard (position) mode ─────────────────────────────────────────────
-Servo clawServo = hardwareMap.get(Servo.class, "claw_servo");
-
-// Named position constants — easier to read than raw numbers
-final double CLAW_OPEN   = 0.25;  // ~67°
-final double CLAW_CLOSED = 0.75;  // ~202°
-
-// Clamp positions to a safe sub-range to protect mechanism
-clawServo.scaleRange(0.2, 0.8);   // Now 0.0 = 20% and 1.0 = 80% of 270°
-
-clawServo.setPosition(CLAW_OPEN);    // Open on init
-
-waitForStart();
-
-while (opModeIsActive()) {
-    if (gamepad1.a) clawServo.setPosition(CLAW_OPEN);
-    if (gamepad1.b) clawServo.setPosition(CLAW_CLOSED);
-
-    telemetry.addData("Claw position", "%.2f", clawServo.getPosition());
-    telemetry.update();
-}
-
-// ── Continuous rotation mode (same hardware, different config) ───────────
-CRServo intakeRoller = hardwareMap.get(CRServo.class, "intake_roller");
-
-// Direction reversal for CRServos
-intakeRoller.setDirection(DcMotorSimple.Direction.REVERSE);
-
-while (opModeIsActive()) {
-    if (gamepad1.right_bumper)       intakeRoller.setPower(1.0);   // Intake
-    else if (gamepad1.left_bumper)   intakeRoller.setPower(-1.0);  // Eject
-    else                             intakeRoller.setPower(0.0);   // Stop
-}`}
-              />
-              <NoteBox type="tip">
-                <code>scaleRange(min, max)</code> remaps the 0.0–1.0 input to a
-                sub-range of the physical travel. Use it to prevent the servo
-                from grinding against mechanical hard stops.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
-          id: "encoders",
-          title: "Encoders & Position Control",
-          content: (
-            <Prose>
-              <p>
-                Every goBILDA Yellow Jacket motor has a built-in quadrature
-                encoder on the output shaft. The encoder wires share the same
-                JST-PH 4-pin connector as the motor power; plug it into the
-                matching encoder port on the Control Hub or Expansion Hub.
-              </p>
-              <SpecTable
-                rows={[
-                  { label: "Encoder type", value: "Quadrature (4× decoding)", note: "Built-in, on output shaft" },
-                  { label: "PPR at output (19.2:1)", value: "537.6 PPR", note: "537.6 ticks / revolution" },
-                  { label: "PPR at output (50.9:1)", value: "1425.1 PPR", note: "1425 ticks / revolution" },
-                  { label: "PPR at output (84.1:1)", value: "2786.2 PPR", note: "2786 ticks / revolution" },
-                  { label: "API method", value: "getCurrentPosition()", note: "Returns signed tick count" },
-                ]}
-              />
-              <NoteBox type="info">
-                The SDK performs 4× decoding automatically — you do not need to
-                divide by 4. The PPR values above are already the final decoded
-                ticks per output shaft revolution.
-              </NoteBox>
-              <CodeBlock
-                
-                filename="YellowJacketEncoders.java"
-                code={`import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-
-// Use DcMotorEx for access to velocity-based control
-DcMotorEx liftMotor = hardwareMap.get(DcMotorEx.class, "lift_motor");
-
-// ── Reset encoder on init ────────────────────────────────────────────────
-liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-
-// ── Option A: RUN_USING_ENCODER — velocity-based feedforward control ────
-liftMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-// setPower() now acts as a velocity fraction of MAX_RPM
-liftMotor.setPower(0.6);
-
-// Read the current encoder tick count
-int currentTicks = liftMotor.getCurrentPosition();
-telemetry.addData("Ticks", currentTicks);
-
-// ── Option B: RUN_TO_POSITION — built-in PID position hold ──────────────
-int TARGET_TICKS = 1000; // e.g. ~1.86 rotations on 19.2:1 motor
-
-liftMotor.setTargetPosition(TARGET_TICKS);
-liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-liftMotor.setPower(0.8); // magnitude only — PID sets direction
-
-// Poll until the motor reaches the target
-while (liftMotor.isBusy() && opModeIsActive()) {
-    telemetry.addData("Position", liftMotor.getCurrentPosition());
-    telemetry.addData("Target",   TARGET_TICKS);
-    telemetry.update();
-}
-
-liftMotor.setPower(0.0); // Release — BRAKE holds if ZeroPowerBehavior is set
-
-// ── Read instantaneous velocity (ticks/second) ───────────────────────────
-double ticksPerSec = liftMotor.getVelocity();
-telemetry.addData("Velocity (ticks/s)", "%.1f", ticksPerSec);`}
-              />
-              <NoteBox type="tip">
-                To convert encoder ticks to real-world distance: divide ticks by
-                the PPR for your gear ratio, then multiply by the mechanism&apos;s
-                circumference or lead. For a 32 mm diameter spool:{" "}
-                <code>mm = (ticks / 537.6) × (π × 32)</code>.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
           id: "sensors",
           title: "Magnetic Limit Switch",
           content: (
@@ -548,11 +394,11 @@ while (opModeIsActive()) {
                 </thead>
                 <tbody>
                   {[
-                    ["5202-0002-0005", "5.2 : 1", "1150 RPM", "0.8 N·m", "Fast intake roller"],
-                    ["5202-0002-0019", "19.2 : 1", "312 RPM", "3.2 N·m", "Mecanum drivetrain"],
-                    ["5202-0002-0027", "26.9 : 1", "223 RPM", "4.2 N·m", "Light arm / slides"],
-                    ["5202-0002-0051", "50.9 : 1", "117 RPM", "7.4 N·m", "Heavy lift / vipers"],
-                    ["5202-0002-0084", "84.1 : 1", "71 RPM", "12 N·m", "Turret / heavy arm"],
+                    ["5202-2402-0005", "5.2 : 1",  "1150 RPM", "7.9 kg·cm",  "Fast intake roller"],
+                    ["5202-2402-0019", "19.2 : 1",  "312 RPM", "24.3 kg·cm", "Mecanum drivetrain"],
+                    ["5202-2402-0027", "26.9 : 1",  "223 RPM", "38 kg·cm",   "Light arm / slides"],
+                    ["5202-2402-0051", "50.9 : 1",  "117 RPM", "68.4 kg·cm", "Heavy lift / vipers"],
+                    ["5202-2402-0071", "71.2 : 1",   "84 RPM", "93.6 kg·cm", "Turret / heavy arm"],
                   ].map(([pn, ratio, rpm, torque, use]) => (
                     <tr key={pn}>
                       <td>{pn}</td>
@@ -570,6 +416,356 @@ while (opModeIsActive()) {
                 mecanum wheels — fast enough for competitive play while retaining
                 encoder resolution for odometry.
               </NoteBox>
+            </Prose>
+          ),
+        },
+        {
+          id: "led-lights",
+          title: "LED Lights",
+          content: (
+            <Prose>
+              <p>
+                goBILDA LED lights are controlled through the standard{" "}
+                <code>Servo</code> interface — plug the LED into any servo port
+                on the Control Hub or Expansion Hub and retrieve it with{" "}
+                <code>Servo.class</code>. Different <code>setPosition()</code>{" "}
+                values select different colors. There is no separate LED driver
+                class; the PWM signal that would normally move a servo instead
+                selects the LED state.
+              </p>
+              <SpecTable
+                rows={[
+                  {
+                    label: "Interface",
+                    value: "Servo port (PWM)",
+                    note: "Control Hub / Expansion Hub servo port",
+                  },
+                  {
+                    label: "SDK class",
+                    value: "Servo",
+                    note: "Same as any position servo",
+                  },
+                  {
+                    label: "Control method",
+                    value: "setPosition(0.0 – 1.0)",
+                    note: "Each value = a different color",
+                  },
+                ]}
+              />
+              <NoteBox type="warning">
+                Do <strong>not</strong> use <code>CRServo</code> or any LED
+                driver class for goBILDA LEDs. Always retrieve them as{" "}
+                <code>Servo.class</code> and command them with{" "}
+                <code>setPosition()</code>.
+              </NoteBox>
+              <p>
+                Define named constants for each color position so your code
+                stays readable. The exact position-to-color mapping depends on
+                your specific LED model — run a calibration loop to discover
+                the values for your hardware:
+              </p>
+              <CodeBlock
+                filename="GoBILDALED.java"
+                code={`Servo indicatorLED = hardwareMap.get(Servo.class, "indicator_led");
+
+// Color position constants — tune these values for your specific LED model
+final double LED_OFF    = 0.0;
+final double LED_RED    = 0.3;
+final double LED_BLUE   = 0.6;
+final double LED_GREEN  = 0.75;
+final double LED_WHITE  = 1.0;
+
+// Set a color during init to confirm wiring
+indicatorLED.setPosition(LED_WHITE);
+
+waitForStart();
+
+while (opModeIsActive()) {
+    if (gamepad1.a) {
+        indicatorLED.setPosition(LED_GREEN); // e.g. intake captured
+    } else if (gamepad1.b) {
+        indicatorLED.setPosition(LED_RED);   // e.g. arm at limit
+    } else if (gamepad1.x) {
+        indicatorLED.setPosition(LED_BLUE);  // e.g. scoring ready
+    } else {
+        indicatorLED.setPosition(LED_OFF);
+    }
+}`}
+              />
+              <NoteBox type="tip">
+                To find the exact position values for your LED model, add a
+                calibration OpMode that increments the position by 0.05 each
+                time you press a button and logs the current value on telemetry.
+                Record which value produces each color, then define your
+                constants from those results.
+              </NoteBox>
+              <p>
+                For autonomous routines, use the LED as a state indicator so
+                you can debug from across the field without reading telemetry:
+              </p>
+              <CodeBlock
+                filename="AutoLEDStates.java"
+                code={`indicatorLED.setPosition(LED_WHITE);  // INIT — ready
+waitForStart();
+
+indicatorLED.setPosition(LED_BLUE);   // DRIVING
+driveForward(1000);
+
+indicatorLED.setPosition(LED_RED);    // SCORING
+depositSample();
+
+indicatorLED.setPosition(LED_GREEN);  // DONE`}
+              />
+            </Prose>
+          ),
+        },
+        {
+          id: "imu",
+          title: "IMU",
+          content: (
+            <Prose>
+              <p>
+                goBILDA robots use the <strong>BHI260AP IMU</strong> built into
+                the REV Control Hub. The IMU reports yaw (heading), pitch, and
+                roll. The critical setup step is telling the SDK how the Control
+                Hub is physically oriented on your robot — if you skip this, the
+                heading will be wrong regardless of which way the robot is
+                facing.
+              </p>
+              <SpecTable
+                rows={[
+                  {
+                    label: "SDK class",
+                    value: "IMU",
+                    note: "com.qualcomm.robotcore.hardware",
+                  },
+                  {
+                    label: "Config name",
+                    value: "imu",
+                    note: "Built-in — always present",
+                  },
+                  {
+                    label: "Orientation class",
+                    value: "RevHubOrientationOnRobot",
+                    note: "Describe logo & USB direction",
+                  },
+                  {
+                    label: "Heading range",
+                    value: "-180° to +180°",
+                    note: "Yaw angle from reset point",
+                  },
+                ]}
+              />
+              <NoteBox type="info">
+                Look at where the REV Control Hub is mounted on your goBILDA
+                chassis and note two things: which direction the{" "}
+                <strong>REV logo</strong> faces and which direction the{" "}
+                <strong>USB port</strong> faces. Pass those as{" "}
+                <code>LogoFacingDirection</code> and{" "}
+                <code>UsbFacingDirection</code> into{" "}
+                <code>RevHubOrientationOnRobot</code>.
+              </NoteBox>
+              <CodeBlock
+                filename="GoBILDAImu.java"
+                code={`import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.hardware.IMU;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+
+@TeleOp(name = "IMU Demo", group = "TeleOp")
+public class IMUDemo extends LinearOpMode {
+
+    private IMU imu;
+
+    @Override
+    public void runOpMode() {
+        imu = hardwareMap.get(IMU.class, "imu");
+
+        // Tell the SDK how the Control Hub is mounted on the goBILDA chassis.
+        // Adjust LogoFacingDirection and UsbFacingDirection to match your robot.
+        imu.initialize(new IMU.Parameters(
+            new RevHubOrientationOnRobot(
+                RevHubOrientationOnRobot.LogoFacingDirection.UP,
+                RevHubOrientationOnRobot.UsbFacingDirection.FORWARD
+            )
+        ));
+
+        waitForStart();
+
+        // Zero the heading at the start of the match
+        imu.resetYaw();
+
+        while (opModeIsActive()) {
+            double heading = imu.getRobotYawPitchRollAngles()
+                               .getYaw(AngleUnit.DEGREES);
+            double pitch   = imu.getRobotYawPitchRollAngles()
+                               .getPitch(AngleUnit.DEGREES);
+            double roll    = imu.getRobotYawPitchRollAngles()
+                               .getRoll(AngleUnit.DEGREES);
+
+            telemetry.addData("Heading (yaw)",  "%.1f°", heading);
+            telemetry.addData("Pitch",          "%.1f°", pitch);
+            telemetry.addData("Roll",           "%.1f°", roll);
+            telemetry.update();
+        }
+    }
+}`}
+              />
+              <NoteBox type="tip">
+                Call <code>imu.resetYaw()</code> immediately after{" "}
+                <code>waitForStart()</code>, not during init. This zeros the
+                heading relative to your robot&apos;s starting field position
+                at the exact moment the match begins.
+              </NoteBox>
+            </Prose>
+          ),
+        },
+        {
+          id: "odometry-pods",
+          title: "Odometry Pods & Pinpoint",
+          content: (
+            <Prose>
+              <p>
+                goBILDA&apos;s <strong>Pinpoint Odometry Computer</strong> is
+                a standalone I²C device that combines two dead-wheel encoder
+                inputs with a built-in IMU to track the robot&apos;s X, Y, and
+                heading continuously. It removes the need to wire dead-wheel
+                encoders directly into motor ports and handles all the math
+                internally — your code simply calls <code>update()</code> and
+                reads the resulting pose.
+              </p>
+              <SpecTable
+                rows={[
+                  {
+                    label: "Interface",
+                    value: "I²C",
+                    note: "Any I²C port on Control Hub",
+                  },
+                  {
+                    label: "SDK class",
+                    value: "GoBildaPinpointDriver",
+                    note: "Included in FTC SDK",
+                  },
+                  {
+                    label: "Encoder inputs",
+                    value: "2 dead-wheel pods",
+                    note: "X (forward) and Y (strafe)",
+                  },
+                  {
+                    label: "Integrated IMU",
+                    value: "Yes",
+                    note: "Fuses with encoders for heading",
+                  },
+                  {
+                    label: "Output",
+                    value: "Pose2D (x, y, heading)",
+                    note: "Millimeters and degrees",
+                  },
+                  {
+                    label: "Encoder resolution",
+                    value: "2000 ticks/rev",
+                    note: "goBILDA odometry pods",
+                  },
+                ]}
+              />
+              <NoteBox type="info">
+                You must tell the Pinpoint the physical offset of each pod from
+                the robot&apos;s center of rotation (in mm), and the encoder
+                resolution of the pods you are using. Measure these carefully
+                from your CAD or physical robot — an incorrect offset produces
+                a consistent drift error in autonomous.
+              </NoteBox>
+              <CodeBlock
+                filename="PinpointOdometry.java"
+                code={`import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+
+// GoBildaPinpointDriver is part of the FTC SDK — no extra library needed
+GoBildaPinpointDriver pinpoint =
+    hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+
+// ── Configure pod offsets (mm from robot center of rotation) ─────────────
+// xOffset: forward pod distance from center (positive = forward of center)
+// yOffset: strafe pod distance from center (positive = left of center)
+pinpoint.setOffsets(-84.0, -168.0); // tune for your robot's mounting
+
+// Set the encoder resolution of your pods (ticks per mm)
+// Use the built-in constant for goBILDA 4-Bar pods (32 mm wheel, 2000 CPR → 19.89 ticks/mm)
+pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+
+// Set encoder directions — reverse if the pod reads negative when driving forward/right
+pinpoint.setEncoderDirections(
+    GoBildaPinpointDriver.EncoderDirection.FORWARD,
+    GoBildaPinpointDriver.EncoderDirection.FORWARD
+);
+
+// Zero the position and IMU heading at the starting position
+pinpoint.resetPosAndIMU();
+
+telemetry.addData("Pinpoint", "Initialized");
+telemetry.update();
+
+waitForStart();
+
+while (opModeIsActive()) {
+    // Must call update() every loop to refresh the pose estimate
+    pinpoint.update();
+
+    Pose2D pose = pinpoint.getPosition();
+
+    double x       = pose.getX(DistanceUnit.MM);
+    double y       = pose.getY(DistanceUnit.MM);
+    double heading = pose.getHeading(AngleUnit.DEGREES);
+
+    telemetry.addData("X (mm)",      "%.1f", x);
+    telemetry.addData("Y (mm)",      "%.1f", y);
+    telemetry.addData("Heading (°)", "%.1f", heading);
+    telemetry.addData("Velocity",    pinpoint.getVelocity().toString());
+    telemetry.update();
+}`}
+              />
+              <NoteBox type="tip">
+                To drive to a target position in autonomous, compare the
+                current pose from <code>getPosition()</code> against your
+                target coordinates and feed the error into a PID controller for
+                each axis. Road Runner and Pedro Pathing both support the
+                Pinpoint as a localizer — see their respective doc pages for
+                drop-in integration.
+              </NoteBox>
+              <p>
+                If you are not using the Pinpoint, individual goBILDA odometry
+                pods can be wired directly into unused motor encoder ports and
+                read as standard <code>DcMotor</code> instances in{" "}
+                <code>RUN_WITHOUT_ENCODER</code> mode:
+              </p>
+              <CodeBlock
+                filename="DeadWheelPods.java"
+                code={`// Wire pods into motor encoder ports — no motor attached to these slots
+DcMotor podForward = hardwareMap.get(DcMotor.class, "pod_forward");
+DcMotor podStrafe  = hardwareMap.get(DcMotor.class, "pod_strafe");
+
+podForward.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+podStrafe.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+// RUN_WITHOUT_ENCODER = read ticks only, no motor output
+podForward.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+podStrafe.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
+while (opModeIsActive()) {
+    int forwardTicks = podForward.getCurrentPosition();
+    int strafeTicks  = podStrafe.getCurrentPosition();
+
+    // Convert ticks to mm: goBILDA 4-Bar pod = 2000 CPR, 32 mm diameter wheel
+    // circumference = π × 32 = 100.53 mm → 19.89 ticks/mm
+    double forwardMM = (forwardTicks / 2000.0) * (Math.PI * 32);
+    double strafeMM  = (strafeTicks  / 2000.0) * (Math.PI * 32);
+
+    telemetry.addData("Forward (mm)", "%.1f", forwardMM);
+    telemetry.addData("Strafe (mm)",  "%.1f", strafeMM);
+    telemetry.update();
+}`}
+              />
             </Prose>
           ),
         },

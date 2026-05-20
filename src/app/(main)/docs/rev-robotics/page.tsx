@@ -320,144 +320,6 @@ public class IMUHeadingLock extends LinearOpMode {
           ),
         },
         {
-          id: "motors",
-          title: "REV Motors",
-          content: (
-            <Prose>
-              <p>
-                REV produces two brushed DC motors for FTC: the{" "}
-                <strong>HD Hex Motor</strong> and the <strong>Core Hex Motor</strong>.
-                Both plug directly into Control Hub or Expansion Hub motor ports via
-                XT30, and both include built-in quadrature encoders with JST-PH
-                connectors.
-              </p>
-              <SpecTable
-                rows={[
-                  { label: "HD Hex Motor free speed", value: "6000 RPM (bare shaft)", note: "~150 RPM at 40:1 output" },
-                  { label: "HD Hex Motor stall torque", value: "3.2 N·m (at 40:1)", note: "Most common ratio" },
-                  { label: "HD Hex encoder PPR (at output)", value: "1120 PPR (40:1)", note: "28 PPR × 40 gear stages" },
-                  { label: "Core Hex Motor free speed", value: "125 RPM output", note: "72:1 integrated gearbox" },
-                  { label: "Core Hex Motor stall torque", value: "3.6 N·m", note: "At nominal voltage" },
-                  { label: "Core Hex encoder PPR", value: "288 PPR", note: "4 counts × 72:1 ratio" },
-                ]}
-              />
-              <p>
-                Use <code>DcMotorEx</code> (instead of <code>DcMotor</code>) to
-                unlock velocity-based control and PIDF tuning via{" "}
-                <code>setVelocity()</code>:
-              </p>
-              <CodeBlock
-                
-                filename="REVMotorExample.java"
-                code={`import com.qualcomm.robotcore.hardware.DcMotorEx;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-
-// ── Init ─────────────────────────────────────────────────────────────────
-DcMotorEx hdHexMotor = hardwareMap.get(DcMotorEx.class, "hd_hex");
-
-hdHexMotor.setDirection(DcMotorSimple.Direction.FORWARD);
-hdHexMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-hdHexMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-hdHexMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-// ── setVelocity — run at exact ticks/second ───────────────────────────────
-// HD Hex at 40:1 → 1120 PPR, 150 RPM max = 150 × 1120 / 60 = 2800 ticks/s
-double targetRPM    = 100;
-double ticksPerRev  = 1120;
-double ticksPerSec  = targetRPM * ticksPerRev / 60.0;
-
-hdHexMotor.setVelocity(ticksPerSec);   // in ticks/s
-// Or pass directly in RPM using AngleUnit.DEGREES per second:
-// hdHexMotor.setVelocity(100 * 360.0 / 60.0, AngleUnit.DEGREES);
-
-// ── Read actual velocity ──────────────────────────────────────────────────
-double actualVel = hdHexMotor.getVelocity(); // ticks/s
-double actualRPM = actualVel * 60.0 / ticksPerRev;
-telemetry.addData("Motor RPM", "%.1f", actualRPM);
-
-// ── PIDF tuning (optional, for better velocity tracking) ─────────────────
-// PIDFCoefficients pidf = hdHexMotor.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
-// pidf.p = 12; pidf.i = 3; pidf.d = 0; pidf.f = 12;
-// hdHexMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);`}
-              />
-              <NoteBox type="tip">
-                <code>DcMotorEx.setVelocity()</code> uses the SDK&apos;s built-in
-                velocity PIDF controller. If the motor struggles to hit its target
-                speed, increase the <strong>F</strong> (feedforward) coefficient
-                first — it compensates for friction and back-EMF before the PID
-                even kicks in.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
-          id: "rev-servos",
-          title: "REV Smart Robot Servo",
-          content: (
-            <Prose>
-              <p>
-                The <strong>REV Smart Robot Servo (SRS)</strong> is a high-torque
-                metal-gear servo available in standard and continuous rotation
-                variants. It ships in <em>Servo mode</em> by default; use the{" "}
-                <strong>REV SRS Programmer</strong> tool to switch modes and
-                configure the PWM range.
-              </p>
-              <SpecTable
-                rows={[
-                  { label: "Torque (6 V)", value: "13.5 kg·cm", note: "Metal gear" },
-                  { label: "Range (servo mode)", value: "270°", note: "Default: 0.0–1.0" },
-                  { label: "Dead-band", value: "4 µs", note: "Minimum command change" },
-                  { label: "Modes", value: "Servo / CR / Multi-Turn", note: "Set via SRS Programmer" },
-                  { label: "Connector", value: "JST-PH 3-pin", note: "Standard REV servo port" },
-                ]}
-              />
-              <CodeBlock
-                
-                filename="REVSmartServo.java"
-                code={`import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.hardware.ServoController;
-
-// ── Basic position control ────────────────────────────────────────────────
-Servo wristServo = hardwareMap.get(Servo.class, "wrist");
-
-// REVERSE flips 0.0 and 1.0 without changing the physical PWM range
-wristServo.setDirection(Servo.Direction.REVERSE);
-
-// scaleRange limits travel to protect mechanism — here 10%–90% of 270°
-wristServo.scaleRange(0.1, 0.9);
-
-final double WRIST_NEUTRAL = 0.5;
-final double WRIST_PICKUP  = 0.1;
-final double WRIST_DEPOSIT = 0.9;
-
-wristServo.setPosition(WRIST_NEUTRAL);
-
-waitForStart();
-
-while (opModeIsActive()) {
-    if      (gamepad2.dpad_down) wristServo.setPosition(WRIST_PICKUP);
-    else if (gamepad2.dpad_up)   wristServo.setPosition(WRIST_DEPOSIT);
-    else if (gamepad2.dpad_left) wristServo.setPosition(WRIST_NEUTRAL);
-
-    // getPwmRange() — inspect the raw microsecond bounds the SDK is sending
-    // Servo.PwmControl pwm = ((ServoControllerEx) wristServo.getController())
-    //     .getServoRegisters(wristServo.getPortNumber());
-
-    telemetry.addData("Wrist position", "%.2f", wristServo.getPosition());
-    telemetry.update();
-}`}
-              />
-              <NoteBox type="info">
-                Servo commands are <strong>fire-and-forget</strong> — the SDK
-                sends the PWM signal and the servo moves on its own. There is no
-                <code>isBusy()</code> for servos. Use <code>sleep()</code> or a
-                state machine with an <code>ElapsedTime</code> to wait for the
-                servo to finish traveling before commanding the next action.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
           id: "sensors-deep-dive",
           title: "Sensors Deep-Dive",
           content: (
@@ -574,37 +436,37 @@ while (opModeIsActive()) {
 }`}
               />
               <p>
-                <strong>IMU (BNO055)</strong> — integrated in the Control Hub;
-                returns robot heading, pitch, and roll.
+                <strong>IMU (BHI260AP)</strong> — integrated in the Control Hub;
+                use the modern <code>IMU</code> interface (available since SDK
+                8.0). The legacy <code>BNO055IMU</code> API is deprecated and
+                should not be used in new code.
               </p>
               <CodeBlock
-                
                 filename="REVImu.java"
-                code={`import com.qualcomm.hardware.bosch.BNO055IMU;
+                code={`import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.hardware.IMU;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
-import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
-import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 
 // ── Init ─────────────────────────────────────────────────────────────────
-BNO055IMU imu = hardwareMap.get(BNO055IMU.class, "imu");
+IMU imu = hardwareMap.get(IMU.class, "imu");
 
-BNO055IMU.Parameters params = new BNO055IMU.Parameters();
-params.angleUnit = BNO055IMU.AngleUnit.DEGREES;
-params.accelUnit = BNO055IMU.AccelUnit.METERS_PERSEC_PERSEC;
-imu.initialize(params);
+// Describe how the Control Hub is physically mounted on the robot.
+// Adjust LogoFacingDirection and UsbFacingDirection to match yours.
+imu.initialize(new IMU.Parameters(
+    new RevHubOrientationOnRobot(
+        RevHubOrientationOnRobot.LogoFacingDirection.UP,
+        RevHubOrientationOnRobot.UsbFacingDirection.FORWARD
+    )
+));
+
+// ── At match start — zero the heading ────────────────────────────────────
+imu.resetYaw();
 
 // ── In loop ──────────────────────────────────────────────────────────────
 while (opModeIsActive()) {
-    Orientation angles = imu.getAngularOrientation(
-        AxesReference.INTRINSIC,
-        AxesOrder.ZYX,
-        AngleUnit.DEGREES
-    );
-
-    double heading = angles.firstAngle;   // Yaw  — robot heading (-180 to 180)
-    double pitch   = angles.secondAngle;  // Pitch — front/back tilt
-    double roll    = angles.thirdAngle;   // Roll  — side tilt
+    double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+    double pitch   = imu.getRobotYawPitchRollAngles().getPitch(AngleUnit.DEGREES);
+    double roll    = imu.getRobotYawPitchRollAngles().getRoll(AngleUnit.DEGREES);
 
     telemetry.addData("Heading", "%.1f°", heading);
     telemetry.addData("Pitch",   "%.1f°", pitch);
@@ -613,136 +475,9 @@ while (opModeIsActive()) {
 }`}
               />
               <NoteBox type="warning">
-                The IMU takes ~1 second to initialize. Call{" "}
-                <code>imu.initialize(params)</code> during <code>init()</code> or
-                early in <code>runOpMode()</code>, well before{" "}
-                <code>waitForStart()</code>, so the sensor is ready when the match
-                begins.
-              </NoteBox>
-            </Prose>
-          ),
-        },
-        {
-          id: "encoders",
-          title: "Encoders",
-          content: (
-            <Prose>
-              <p>
-                The Control Hub has <strong>4 built-in encoder ports</strong> (one
-                per motor slot). The Expansion Hub adds 4 more. External
-                through-bore encoders (e.g. REV Through-Bore Encoder) connect to
-                the same JST-PH 4-pin ports and appear as additional motors in
-                the config — even if no motor is attached to that slot.
-              </p>
-              <SpecTable
-                rows={[
-                  { label: "Control Hub encoder ports", value: "4 (motor ports 0–3)", note: "Also used for through-bore" },
-                  { label: "Expansion Hub encoder ports", value: "4 (motor ports 0–3)", note: "Add via RS485" },
-                  { label: "REV Through-Bore PPR", value: "8192 PPR", note: "High resolution odometry" },
-                  { label: "REV HD Hex (40:1) PPR", value: "1120 PPR", note: "28 base × 40 stages" },
-                  { label: "Encoding type", value: "Quadrature (4×)", note: "SDK decodes automatically" },
-                ]}
-              />
-              <NoteBox type="info">
-                Through-bore encoders used for odometry should be configured as{" "}
-                <strong>motors</strong> in the Driver Station config, with a dummy
-                name like <code>left_dead_wheel</code>. Set their run mode to{" "}
-                <code>RUN_WITHOUT_ENCODER</code> and read position with{" "}
-                <code>getCurrentPosition()</code>.
-              </NoteBox>
-              <CodeBlock
-                
-                filename="EncoderRunModes.java"
-                code={`import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-
-DcMotorEx driveMotor = hardwareMap.get(DcMotorEx.class, "front_left");
-
-// ── RunMode state machine ─────────────────────────────────────────────────
-
-// STOP_AND_RESET_ENCODER: zeroes the tick count; motor output is cut.
-// Always call this first, then immediately set the desired run mode.
-driveMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-
-// RUN_WITHOUT_ENCODER: power maps directly to voltage (0.0–1.0).
-// Encoder ticks are still readable — the SDK just does not use them for
-// feedback. Use for drivetrain TeleOp or when you manage PID yourself.
-driveMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-
-// RUN_USING_ENCODER: SDK's velocity PIDF governs output.
-// setPower() becomes a fraction of max velocity. More consistent speed
-// across changing battery levels. Preferred for autonomous straight moves.
-driveMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-// RUN_TO_POSITION: SDK drives to a tick target and holds.
-// Must set target BEFORE switching to this mode.
-driveMotor.setTargetPosition(2800);
-driveMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-driveMotor.setPower(0.7);
-
-while (driveMotor.isBusy() && opModeIsActive()) {
-    telemetry.addData("Pos", driveMotor.getCurrentPosition());
-    telemetry.addData("Target", driveMotor.getTargetPosition());
-    telemetry.update();
-}
-driveMotor.setPower(0);
-
-// ── Through-bore odometry wheel (read-only) ───────────────────────────────
-DcMotor leftOdo = hardwareMap.get(DcMotor.class, "left_dead_wheel");
-leftOdo.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-leftOdo.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-
-// Read in loop — no motor output, purely for position tracking
-int odoPodTicks = leftOdo.getCurrentPosition();`}
-              />
-            </Prose>
-          ),
-        },
-        {
-          id: "servo-programming",
-          title: "Servo Programming",
-          content: (
-            <Prose>
-              <p>
-                REV Smart Robot Servos (SRS) and goBILDA 2000-Series Dual Mode
-                servos are controlled the same way via the <code>Servo</code>{" "}
-                interface. Positions range from <code>0.0</code> (0°) to{" "}
-                <code>1.0</code> (180° for standard servos).
-              </p>
-              <CodeBlock
-                filename="ServoExample.java"
-                code={`// In your OpMode's runOpMode():
-
-// Declare servos
-Servo clawServo    = hardwareMap.get(Servo.class, "claw");
-Servo wristServo   = hardwareMap.get(Servo.class, "wrist");
-
-// Define named positions
-final double CLAW_OPEN   = 0.2;
-final double CLAW_CLOSED = 0.7;
-final double WRIST_DOWN  = 0.1;
-final double WRIST_UP    = 0.9;
-
-waitForStart();
-
-while (opModeIsActive()) {
-    // Toggle claw with A/B buttons
-    if (gamepad1.a) clawServo.setPosition(CLAW_OPEN);
-    if (gamepad1.b) clawServo.setPosition(CLAW_CLOSED);
-
-    // Wrist control with bumpers
-    if (gamepad1.left_bumper)  wristServo.setPosition(WRIST_DOWN);
-    if (gamepad1.right_bumper) wristServo.setPosition(WRIST_UP);
-
-    telemetry.addData("Claw",  clawServo.getPosition());
-    telemetry.addData("Wrist", wristServo.getPosition());
-    telemetry.update();
-}`}
-              />
-              <NoteBox type="info">
-                Use <code>CRServo</code> instead of <code>Servo</code> for
-                continuous-rotation servos. Power is controlled with{" "}
-                <code>setPower(-1.0 to 1.0)</code> rather than position.
+                Call <code>imu.resetYaw()</code> after <code>waitForStart()</code>,
+                not during init, so the heading is zeroed at the exact moment
+                your match begins rather than during the pre-match setup period.
               </NoteBox>
             </Prose>
           ),

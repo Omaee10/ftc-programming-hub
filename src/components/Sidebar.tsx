@@ -18,6 +18,9 @@ import {
   Archive,
   Rocket,
   Shield,
+  MonitorSmartphone,
+  ScanEye,
+  GraduationCap,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 
@@ -59,8 +62,12 @@ const navigation: NavSection[] = [
         label: "Documentation Hub",
         icon: BookOpen,
         children: [
+          { label: "Java Basics", href: "/docs/java-basics", icon: GraduationCap, badge: "Start Here" },
           { label: "goBILDA", href: "/docs/gobilda", icon: Cpu },
           { label: "REV Robotics", href: "/docs/rev-robotics", icon: Zap },
+          { label: "Motors & Servos", href: "/docs/motors-servos", icon: Cpu },
+          { label: "Android Studio", href: "/docs/android-studio", icon: MonitorSmartphone },
+          { label: "Limelight 3A", href: "/docs/limelight", icon: ScanEye },
           { label: "Road Runner", href: "/docs/road-runner", icon: GitBranch },
           { label: "Pedro Pathing", href: "/docs/pedro-pathing", icon: Navigation },
           {
