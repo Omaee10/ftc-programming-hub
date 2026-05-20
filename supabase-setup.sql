@@ -53,10 +53,13 @@ CREATE TABLE IF NOT EXISTS challenges (
 );
 
 -- Student progress
+-- NOTE: challenge_id is a plain integer with NO foreign key constraint so that
+-- both static challenges (IDs 1–999) and DB-created challenges (IDs 1000+) can
+-- be stored here without a FK violation.
 CREATE TABLE IF NOT EXISTS student_challenge_progress (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id    uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  challenge_id  integer NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+  challenge_id  integer NOT NULL,
   completed     boolean NOT NULL DEFAULT false,
   code_snapshot text,
   updated_at    timestamptz DEFAULT now(),
@@ -101,4 +104,10 @@ ALTER TABLE students                   DISABLE ROW LEVEL SECURITY;
 ALTER TABLE challenges                 DISABLE ROW LEVEL SECURITY;
 ALTER TABLE student_challenge_progress DISABLE ROW LEVEL SECURITY;
 ALTER TABLE challenge_submissions      DISABLE ROW LEVEL SECURITY;
+
+-- ─── Migration: drop FK on challenge_id so static challenges (IDs 1–999) ────
+-- can be stored alongside DB-created challenges (IDs 1000+).
+-- Run this in the Supabase SQL Editor if the table already exists:
+-- ALTER TABLE student_challenge_progress
+--   DROP CONSTRAINT IF EXISTS student_challenge_progress_challenge_id_fkey;
 
