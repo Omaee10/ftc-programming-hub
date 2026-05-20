@@ -21,6 +21,9 @@ import {
   MonitorSmartphone,
   ScanEye,
   GraduationCap,
+  Gamepad2,
+  MoveRight,
+  ActivitySquare,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 
@@ -63,10 +66,13 @@ const navigation: NavSection[] = [
         icon: BookOpen,
         children: [
           { label: "Java Basics", href: "/docs/java-basics", icon: GraduationCap, badge: "Start Here" },
+          { label: "Android Studio", href: "/docs/android-studio", icon: MonitorSmartphone },
+          { label: "Motors & Servos", href: "/docs/motors-servos", icon: Cpu },
+          { label: "Mecanum Drive", href: "/docs/mecanum-drive", icon: MoveRight },
+          { label: "Gamepad & Telemetry", href: "/docs/gamepad", icon: Gamepad2 },
+          { label: "PID & Control Loops", href: "/docs/pid-control", icon: ActivitySquare },
           { label: "goBILDA", href: "/docs/gobilda", icon: Cpu },
           { label: "REV Robotics", href: "/docs/rev-robotics", icon: Zap },
-          { label: "Motors & Servos", href: "/docs/motors-servos", icon: Cpu },
-          { label: "Android Studio", href: "/docs/android-studio", icon: MonitorSmartphone },
           { label: "Limelight 3A", href: "/docs/limelight", icon: ScanEye },
           { label: "Road Runner", href: "/docs/road-runner", icon: GitBranch },
           { label: "Pedro Pathing", href: "/docs/pedro-pathing", icon: Navigation },

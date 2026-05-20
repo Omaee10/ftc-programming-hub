@@ -146,6 +146,12 @@ export default function DashboardClient({ name }: { name?: string }) {
   useEffect(() => {
     const session = getSession();
     if (!session || session.role !== "student") {
+      // No student session — show first challenge as default Up Next
+      setNextChallenge({
+        id: staticChallenges[0].id,
+        title: staticChallenges[0].title,
+        description: staticChallenges[0].description,
+      });
       setLoading(false);
       return;
     }
@@ -193,10 +199,9 @@ export default function DashboardClient({ name }: { name?: string }) {
       setActivity(recentItems);
 
       // ── Next challenge: first static challenge not yet completed ──────────
-      const next = staticChallenges.find((c) => !completedIds.has(c.id));
-      if (next) {
-        setNextChallenge({ id: next.id, title: next.title, description: next.description });
-      }
+      const next = staticChallenges.find((c) => !completedIds.has(c.id))
+                ?? staticChallenges[0]; // fallback to first if all somehow marked done
+      setNextChallenge({ id: next.id, title: next.title, description: next.description });
 
       setLoading(false);
     })();
