@@ -300,10 +300,11 @@ export default function DashboardClient({ name }: { name?: string }) {
 
   const streak = hydrated ? calcStreak(completedDates) : 0;
 
-  // Last 5 completions sorted by date descending
+  // Last 5 completions — only show ones with a known timestamp
   const recentActivity = hydrated
     ? completedIds
         .map((id) => ({ id, date: progress[id] }))
+        .filter((x): x is { id: number; date: string } => !!x.date)
         .sort((a, b) => (a.date > b.date ? -1 : 1))
         .slice(0, 5)
         .map(({ id, date }) => {

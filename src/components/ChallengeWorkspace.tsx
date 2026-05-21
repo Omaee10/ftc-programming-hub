@@ -820,6 +820,9 @@ export default function ChallengeWorkspace({
   // ── Left panel section toggles ─────────────────────────────────────────
   const [showObjectives, setShowObjectives] = useState(true);
 
+  // ── LEFT PANEL TABS — delete `leftTab` state + the tab bar JSX below to revert ──
+  const [leftTab, setLeftTab] = useState<"task" | "checks" | "hints">("task");
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div
@@ -902,186 +905,186 @@ export default function ChallengeWorkspace({
           className="flex flex-col overflow-hidden border-r border-slate-800"
           style={{ width: `${leftPct}%` }}
         >
-          <div className="flex h-9 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-900/80 px-4">
-            <Target className="h-3.5 w-3.5 text-zinc-100" />
-            <span className="text-xs font-semibold text-slate-300">
-              Instructions
-            </span>
-            <span className="ml-auto flex items-center gap-1 text-[10px] text-slate-600">
+          {/* ── TAB BAR — delete this block + leftTab state above to revert ── */}
+          <div className="flex shrink-0 items-end gap-1 border-b border-slate-800 bg-slate-950 px-3 pt-2">
+            {(["task", "checks", "hints"] as const).map((tab) => {
+              const labels = { task: "Task", checks: "Checks", hints: "Hints" };
+              const isActive = leftTab === tab;
+              const errorBadge = tab === "checks" && failedErrors.length > 0;
+              const warnBadge  = tab === "checks" && failedErrors.length === 0 && failedImprovements.length > 0;
+              const passBadge  = tab === "checks" && Object.keys(checkStatuses).length > 0 && failedErrors.length === 0 && failedImprovements.length === 0;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setLeftTab(tab)}
+                  className={`relative flex items-center gap-1.5 rounded-t-md px-3 py-1.5 text-xs font-mono font-medium transition-colors ${
+                    isActive
+                      ? "bg-slate-900 text-slate-100 border border-b-0 border-slate-700"
+                      : "text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {labels[tab]}
+                  {errorBadge && <span className="h-1.5 w-1.5 rounded-full bg-red-400" />}
+                  {warnBadge  && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />}
+                  {passBadge  && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+                </button>
+              );
+            })}
+            <span className="ml-auto flex items-center gap-1 pb-1.5 text-[10px] text-slate-600 font-mono">
               <Clock className="h-3 w-3" />
               {challenge.estimatedTime}
             </span>
           </div>
+          {/* ── END TAB BAR ─────────────────────────────────────────────── */}
 
           <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5">
-            {/* Description */}
-            <p className="text-sm leading-relaxed text-slate-400">
-              {challenge.description}
-            </p>
 
-            {/* Objectives */}
-            <div>
-              <button
-                onClick={() => setShowObjectives((v) => !v)}
-                className="flex w-full items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors mb-2"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Objectives
-                {showObjectives ? (
-                  <ChevronUp className="h-3 w-3 ml-auto" />
-                ) : (
-                  <ChevronDown className="h-3 w-3 ml-auto" />
-                )}
-              </button>
-              {showObjectives && (
-                <ul className="space-y-1.5">
-                  {challenge.objectives.map((obj, i) => (
-                    <li
-                      key={i}
-                      className="flex items-start gap-2.5 rounded-lg bg-slate-900/60 border border-slate-800/50 px-3 py-2"
-                    >
-                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-[9px] font-bold text-slate-500 mt-0.5">
-                        {i + 1}
-                      </span>
-                      <span className="text-xs text-slate-400 leading-relaxed">
-                        {obj}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Instructions */}
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Problem Statement
-              </p>
-              <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-4">
-                <InstructionBlock text={challenge.instructions} />
-              </div>
-            </div>
-
-            {/* Live requirements feedback */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Code2 className="h-3.5 w-3.5 text-blue-400" />
-                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                  Code Requirements
+            {/* ── TASK TAB ───────────────────────────────────────────────── */}
+            {leftTab === "task" && (
+              <>
+                {/* Description */}
+                <p className="text-sm leading-relaxed text-slate-400">
+                  {challenge.description}
                 </p>
-                {Object.keys(checkStatuses).length > 0 && (
-                  <span className="ml-auto text-[10px] text-slate-600">
-                    live feedback
-                  </span>
-                )}
-              </div>
 
-              {Object.keys(checkStatuses).length === 0 ? (
-                /* Before any submission — show objectives as a guide */
-                <ul className="space-y-1.5">
-                  {challenge.objectives.map((obj, i) => (
-                    <RequirementItem key={i} label={obj} status="pending" />
-                  ))}
-                </ul>
-              ) : failedErrors.length === 0 && failedImprovements.length === 0 ? (
-                /* All checks passed */
-                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-3 text-center">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400 mx-auto mb-1" />
-                  <p className="text-xs font-medium text-emerald-300">All checks passed!</p>
-                </div>
-              ) : (
-                /* Post-submission: only show what needs attention */
-                <div className="space-y-3">
-                  {failedErrors.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <XCircle className="h-3 w-3 text-red-400" />
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-red-400">
-                          Errors · {failedErrors.length}
-                        </p>
-                      </div>
-                      <ul className="space-y-1.5">
-                        {failedErrors.map((item, i) => (
-                          <li
-                            key={i}
-                            className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2"
-                          >
-                            <p className="text-[11px] font-semibold text-red-300 leading-snug">
-                              {item.label}
-                            </p>
-                            {item.tip && (
-                              <p className="mt-0.5 text-[10px] text-red-400/70 leading-relaxed">
-                                {item.tip}
-                              </p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {failedImprovements.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <AlertTriangle className="h-3 w-3 text-amber-400" />
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">
-                          Suggestions · {failedImprovements.length}
-                        </p>
-                      </div>
-                      <ul className="space-y-1.5">
-                        {failedImprovements.map((item, i) => (
-                          <li
-                            key={i}
-                            className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2"
-                          >
-                            <p className="text-[11px] font-semibold text-amber-300 leading-snug">
-                              {item.label}
-                            </p>
-                            {item.tip && (
-                              <p className="mt-0.5 text-[10px] text-amber-400/70 leading-relaxed">
-                                {item.tip}
-                              </p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Concepts */}
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Concepts Covered
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {challenge.conceptsCovered.map((c) => (
-                  <span
-                    key={c}
-                    className="rounded-md border border-blue-500/20 bg-blue-500/5 px-2 py-1 text-[10px] font-medium text-blue-400"
+                {/* Objectives */}
+                <div>
+                  <button
+                    onClick={() => setShowObjectives((v) => !v)}
+                    className="flex w-full items-center gap-2 mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
                   >
-                    {c}
-                  </span>
-                ))}
-              </div>
-            </div>
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Objectives
+                    {showObjectives ? (
+                      <ChevronUp className="h-3 w-3 ml-auto" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3 ml-auto" />
+                    )}
+                  </button>
+                  {showObjectives && (
+                    <ul className="space-y-1.5">
+                      {challenge.objectives.map((obj, i) => (
+                        <li
+                          key={i}
+                          className="flex items-start gap-2.5 rounded-lg bg-slate-900/60 border border-slate-800/50 px-3 py-2"
+                        >
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-[9px] font-bold font-mono text-slate-500 mt-0.5">
+                            {i + 1}
+                          </span>
+                          <span className="text-xs text-slate-400 leading-relaxed">
+                            {obj}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
 
-            {/* Hints */}
-            <HintsAccordion hints={challenge.hints} />
+                {/* Instructions */}
+                <div>
+                  <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                    Problem Statement
+                  </p>
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-4">
+                    <InstructionBlock text={challenge.instructions} />
+                  </div>
+                </div>
 
-            {/* Mark complete */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-              <p className="mb-3 text-xs font-semibold text-slate-400">
-                Mark as complete when done
-              </p>
-              <MarkCompleteButton
-                challengeId={challenge.id}
-                xp={challenge.xp}
-                lastGrade={lastGrade}
-              />
-            </div>
+                {/* Concepts */}
+                <div>
+                  <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                    Concepts Covered
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {challenge.conceptsCovered.map((c) => (
+                      <span
+                        key={c}
+                        className="rounded-md border border-blue-500/20 bg-blue-500/5 px-2 py-1 text-[10px] font-mono font-medium text-blue-400"
+                      >
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── CHECKS TAB ─────────────────────────────────────────────── */}
+            {leftTab === "checks" && (
+              <>
+                {Object.keys(checkStatuses).length === 0 ? (
+                  <div>
+                    <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                      Requirements
+                    </p>
+                    <ul className="space-y-1.5">
+                      {challenge.objectives.map((obj, i) => (
+                        <RequirementItem key={i} label={obj} status="pending" />
+                      ))}
+                    </ul>
+                    <p className="mt-4 text-xs text-slate-600 font-mono">
+                      Submit your code to see live results.
+                    </p>
+                  </div>
+                ) : failedErrors.length === 0 && failedImprovements.length === 0 ? (
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-4 text-center">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 mx-auto mb-1.5" />
+                    <p className="text-xs font-mono font-medium text-emerald-300">All checks passed</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {failedErrors.length > 0 && (
+                      <div>
+                        <p className="mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-red-400 flex items-center gap-1.5">
+                          <XCircle className="h-3 w-3" /> Errors · {failedErrors.length}
+                        </p>
+                        <ul className="space-y-1.5">
+                          {failedErrors.map((item, i) => (
+                            <li key={i} className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
+                              <p className="text-[11px] font-semibold text-red-300 leading-snug">{item.label}</p>
+                              {item.tip && <p className="mt-0.5 text-[10px] text-red-400/70 leading-relaxed">{item.tip}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {failedImprovements.length > 0 && (
+                      <div>
+                        <p className="mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
+                          <AlertTriangle className="h-3 w-3" /> Suggestions · {failedImprovements.length}
+                        </p>
+                        <ul className="space-y-1.5">
+                          {failedImprovements.map((item, i) => (
+                            <li key={i} className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                              <p className="text-[11px] font-semibold text-amber-300 leading-snug">{item.label}</p>
+                              {item.tip && <p className="mt-0.5 text-[10px] text-amber-400/70 leading-relaxed">{item.tip}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── HINTS TAB ──────────────────────────────────────────────── */}
+            {leftTab === "hints" && (
+              <>
+                <HintsAccordion hints={challenge.hints} />
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                    Mark Complete
+                  </p>
+                  <MarkCompleteButton
+                    challengeId={challenge.id}
+                    xp={challenge.xp}
+                    lastGrade={lastGrade}
+                  />
+                </div>
+              </>
+            )}
+
           </div>
         </aside>
 
