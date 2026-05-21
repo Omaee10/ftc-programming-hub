@@ -17,7 +17,6 @@ import {
   Trophy,
   Archive,
   Rocket,
-  Shield,
   MonitorSmartphone,
   ScanEye,
   GraduationCap,
@@ -25,8 +24,6 @@ import {
   MoveRight,
   ActivitySquare,
 } from "lucide-react";
-import { getSession } from "@/lib/auth";
-
 interface NavChild {
   label: string;
   href: string;
@@ -203,16 +200,11 @@ function DocsGroup({ onLinkClick }: { onLinkClick?: () => void }) {
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const [isMentor, setIsMentor] = useState(false);
 
   useEffect(() => {
     onClose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
-
-  useEffect(() => {
-    setIsMentor(getSession()?.role === "mentor");
-  }, []);
 
   return (
     <>
@@ -282,29 +274,6 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           ))}
         </nav>
 
-        {/* Mentor section */}
-        {isMentor && (
-          <div className="shrink-0 border-t border-slate-800/80 px-3 py-3">
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
-              Manage
-            </p>
-            <Link
-              href="/mentor/dashboard"
-              onClick={onClose}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
-                pathname.startsWith("/mentor")
-                  ? "bg-white/8 text-zinc-100 border border-white/15"
-                  : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-transparent"
-              }`}
-            >
-              <Shield className={`h-4 w-4 shrink-0 ${pathname.startsWith("/mentor") ? "text-zinc-100" : "text-slate-500"}`} />
-              <span className="flex-1">Mentor Dashboard</span>
-              {pathname.startsWith("/mentor") && (
-                <span className="h-1.5 w-1.5 rounded-full bg-zinc-100 shrink-0" />
-              )}
-            </Link>
-          </div>
-        )}
 
         {/* Footer */}
         <div className="shrink-0 border-t border-slate-800/80 px-4 py-3">

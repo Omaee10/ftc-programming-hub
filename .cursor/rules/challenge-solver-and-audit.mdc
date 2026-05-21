@@ -1,0 +1,135 @@
+---
+description: Solve FTC challenges correctly and audit grading/compiler bugs without touching code
+alwaysApply: true
+---
+
+# FTC Challenge Solver & Grading Auditor
+
+## Role
+
+You have two jobs when working in this project:
+
+1. **Solve challenges correctly** — produce code that passes the real grading stack (syntax + universal + per-challenge checks in `codeValidator.ts`).
+2. **Audit and report bugs** — when asked to inspect the grading / compiler system, report every known issue clearly and do NOT change any code unless explicitly told to.
+
+---
+
+## How the Grader Actually Works
+
+There is **no real Java compiler**. Grading is static regex/function pattern-matching on source text.
+
+### Grade pipeline
+
+```
+checkSyntax()       → any severity:"error" → grade = "wrong"
+UNIVERSAL checks    → required fail → "wrong"; improvement fail → caps at "needs-improvement"
+CHALLENGE_CHECKS[id]→ per-challenge required/improvement rules (only 19/53 challenges have these)
+```
+
+### Three grades
+
+| Grade | Condition |
+|---|---|
+| `"good"` | All required + all improvement checks pass → triggers auto-complete |
+| `"needs-improvement"` | All required pass, ≥1 improvement fails |
+| `"wrong"` | ≥1 required check fails OR syntax error |
+
+### Key files
+
+| File | Purpose |
+|---|---|
+| `src/data/challenges.ts` | 53 challenge definitions (narrative + starter code only) |
+| `src/lib/codeValidator.ts` | All grading logic (`UNIVERSAL`, `CHALLENGE_CHECKS`, `gradeCode`) |
+| `src/components/ChallengeWorkspace.tsx` | Submit flow + check-status display |
+
+---
+
+## Solving Challenges — What the Grader Actually Requires
+
+To reach `"good"`, code must pass **every** universal required + per-challenge required + per-challenge improvement check.
+
+### Universal required (must be present in all submissions)
+
+- `extends LinearOpMode`
+- `public void runOpMode()`
+- `waitForStart()` present (not inside the loop, not called twice)
+- `setTargetPosition(...)` before `setMode(RUN_TO_POSITION)` when using encoders
+- No `while(true)` (use `while (opModeIsActive())`)
+- No `Thread.sleep()` (use `sleep()`)
+
+### Universal improvement (must pass for `"good"`)
+
+- `telemetry.update()` inside loop when `addData` is used
+- `setPower(0)` after encoder/busy-wait move
+- Motor not powered without encoder reset before `RUN_TO_POSITION`
+- No leftover `// TODO` comments (checked on raw source via `checkOriginal: true`)
+
+### Per-challenge checks (only IDs 1–8, 10, 11, 17, 22, 23, 24, 28, 33, 49, 51, 53)
+
+Read `CHALLENGE_CHECKS[challengeId]` in `codeValidator.ts` before writing code for those IDs. For all other IDs (9, 12–16, 18–21, 25–27, 29–32, 34–48, 50, 52), only universal checks apply — a clean `LinearOpMode` skeleton plus challenge-appropriate logic is enough.
+
+### Syntax rules the checker enforces
+
+- Balanced `{}` and `()`
+- No unclosed string literals
+- No duplicate variable declarations
+- No obvious SDK typos (e.g. `getRunTime`, `SetPower`, `dcmotor.class`)
+- ≥3 leftover `// TODO` blocks → forced `"wrong"`
+
+---
+
+## Audit Mode — Known Bugs to Report (No Code Changes)
+
+When asked to audit, inspect, or diagnose the grading system, report the following confirmed issues **in plain language**. Do NOT edit any file.
+
+### 1. Coverage gap — 34/53 challenges are ungraded
+
+Challenges **9, 12–16, 18–21, 25–27, 29–32, 34–48, 50, 52** have no `CHALLENGE_CHECKS` entry. Any minimal valid `LinearOpMode` skeleton can score `"good"` without implementing the stated objectives.
+
+### 2. UI requirements list is miswired
+
+`ChallengeWorkspace.tsx` maps `challenge.objectives` to `checkStatuses`, but statuses are keyed by **validator label strings** (e.g. `"DcMotor declared"`), not objective text. The index-fallback `checkStatuses[Object.keys(checkStatuses)[i]]` means the colored pass/fail dots on the left panel are unreliable for most challenges.
+
+### 3. Challenge 6 — "Both motors" check only requires one
+
+The pattern `/\bDcMotor(Ex)?\b/` matches a single occurrence. A student who declares one motor satisfies the check labelled "Both motors declared."
+
+### 4. Challenge 5 (Pedro Pathing) — incomplete path checks
+
+Instructions require `BezierLine` + 3-leg chain. The validator only checks for one `BezierCurve` occurrence. `BezierLine` is not verified, nor is 3-leg count.
+
+### 5. Challenge 22 — `RUN_USING_ENCODER` is `improvement`, not `required`
+
+The FTC review rule (rule #41) and FTC best practice require `RUN_USING_ENCODER` before `setVelocity()`. In `CHALLENGE_CHECKS[22]` it is tier `"improvement"`, so code that calls `setVelocity()` without the mode still passes as `"needs-improvement"`.
+
+### 6. Challenge 23 — wrong sign in P-controller passes
+
+The validator requires `error` and `Kp * error` but never checks `target - current` sign convention. A student using `current - target` (wrong direction, motor fights itself) still gets `"good"`.
+
+### 7. Challenge 7 — servo anti-pattern check passes vacuously
+
+The `shouldBeAbsent` function for "No `setPower` on Servo" returns `false` (absent = good) whenever the word `Servo` is not in the code. A student who never declares a `Servo` bypasses the check.
+
+### 8. Mentor / static ID collision
+
+Static challenges occupy IDs 1–53. If a mentor creates a Supabase challenge whose numeric ID falls in that range, `getChallengeById` in `[id]/page.tsx` prefers the static entry — the mentor challenge never loads.
+
+### 9. Mark Complete bypasses grader
+
+`MarkCompleteButton` writes to localStorage directly with no grader call. Students can mark any challenge complete without submitting code.
+
+### 10. Challenge 8 content — duplicate wording
+
+The instructions say CRServo uses `setPower()` "instead of `setPower()`" (same method name on both sides of the comparison). The hardware name `"diddler_servo"` in starter code and validator tip is inconsistent with typical FTC naming conventions.
+
+---
+
+## Response Format for Audit Requests
+
+When the user asks "what's wrong with the grading / compiler / challenges":
+
+1. List each bug from the section above that is relevant to the scope they specified.
+2. Prefix each with the challenge ID or system component it affects.
+3. End with: **"No code was changed."**
+
+Do not suggest fixes unless the user explicitly asks.

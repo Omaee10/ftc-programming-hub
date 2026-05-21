@@ -80,15 +80,22 @@ export default function MecanumDrivePage() {
               </p>
               <CodeBlock
                 filename="RobotCentricMecanumTeleOp.java"
-                code={`@TeleOp(name = "Robot-Centric Mecanum")
+                code={`import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
+@TeleOp(name = "Robot-Centric Mecanum")
 public class RobotCentricMecanum extends LinearOpMode {
 
+    private DcMotor frontLeft, backLeft, frontRight, backRight;
+
     @Override
-    public void runOpMode() throws InterruptedException {
-        DcMotor frontLeft  = hardwareMap.dcMotor.get("frontLeftMotor");
-        DcMotor backLeft   = hardwareMap.dcMotor.get("backLeftMotor");
-        DcMotor frontRight = hardwareMap.dcMotor.get("frontRightMotor");
-        DcMotor backRight  = hardwareMap.dcMotor.get("backRightMotor");
+    public void runOpMode() {
+        frontLeft  = hardwareMap.get(DcMotor.class, "front_left");
+        backLeft   = hardwareMap.get(DcMotor.class, "back_left");
+        frontRight = hardwareMap.get(DcMotor.class, "front_right");
+        backRight  = hardwareMap.get(DcMotor.class, "back_right");
 
         // Reverse the right side so all motors drive forward at positive power
         frontRight.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -97,7 +104,7 @@ public class RobotCentricMecanum extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
-            double y  = -gamepad1.left_stick_y;  // Y axis is inverted on gamepads — negate it
+            double y  = -gamepad1.left_stick_y;       // Y axis is inverted — negate it
             double x  =  gamepad1.left_stick_x * 1.1; // × 1.1 counteracts strafing inefficiency
             double rx =  gamepad1.right_stick_x;
 
@@ -116,6 +123,10 @@ public class RobotCentricMecanum extends LinearOpMode {
             backLeft.setPower(backLeftPower);
             frontRight.setPower(frontRightPower);
             backRight.setPower(backRightPower);
+
+            telemetry.addData("FL / FR", "%.2f / %.2f", frontLeftPower, frontRightPower);
+            telemetry.addData("BL / BR", "%.2f / %.2f", backLeftPower,  backRightPower);
+            telemetry.update();
         }
     }
 }`}
@@ -194,15 +205,25 @@ double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1);
               />
               <CodeBlock
                 filename="FieldCentricMecanumTeleOp.java"
-                code={`@TeleOp(name = "Field-Centric Mecanum")
+                code={`import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+
+@TeleOp(name = "Field-Centric Mecanum")
 public class FieldCentricMecanum extends LinearOpMode {
 
+    private DcMotor frontLeft, backLeft, frontRight, backRight;
+
     @Override
-    public void runOpMode() throws InterruptedException {
-        DcMotor frontLeft  = hardwareMap.dcMotor.get("frontLeftMotor");
-        DcMotor backLeft   = hardwareMap.dcMotor.get("backLeftMotor");
-        DcMotor frontRight = hardwareMap.dcMotor.get("frontRightMotor");
-        DcMotor backRight  = hardwareMap.dcMotor.get("backRightMotor");
+    public void runOpMode() {
+        frontLeft  = hardwareMap.get(DcMotor.class, "front_left");
+        backLeft   = hardwareMap.get(DcMotor.class, "back_left");
+        frontRight = hardwareMap.get(DcMotor.class, "front_right");
+        backRight  = hardwareMap.get(DcMotor.class, "back_right");
 
         frontRight.setDirection(DcMotorSimple.Direction.REVERSE);
         backRight.setDirection(DcMotorSimple.Direction.REVERSE);

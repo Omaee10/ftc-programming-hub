@@ -7,6 +7,7 @@ import {
   useCallback,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+import { useTheme } from "next-themes";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Monaco } from "@monaco-editor/react";
@@ -52,13 +53,13 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   loading: () => <EditorSkeleton />,
 });
 
-// ─── Custom FTC dark theme ─────────────────────────────────────────────────
-function defineTheme(monaco: Monaco) {
+// ─── Custom FTC editor themes ──────────────────────────────────────────────
+function defineThemes(monaco: Monaco) {
   monaco.editor.defineTheme("ftc-dark", {
     base: "vs-dark",
     inherit: true,
     rules: [
-      { token: "comment", foreground: "475569", fontStyle: "italic" },
+      { token: "comment", foreground: "52525b", fontStyle: "italic" },
       { token: "keyword", foreground: "818cf8" },
       { token: "keyword.control", foreground: "c084fc" },
       { token: "string", foreground: "4ade80" },
@@ -67,31 +68,71 @@ function defineTheme(monaco: Monaco) {
       { token: "type", foreground: "38bdf8" },
       { token: "type.identifier", foreground: "7dd3fc" },
       { token: "annotation", foreground: "fbbf24" },
-      { token: "delimiter", foreground: "64748b" },
+      { token: "delimiter", foreground: "52525b" },
     ],
     colors: {
-      "editor.background": "#020617",
-      "editor.foreground": "#cbd5e1",
-      "editor.lineHighlightBackground": "#0f172a80",
+      "editor.background": "#09090b",
+      "editor.foreground": "#e4e4e7",
+      "editor.lineHighlightBackground": "#18181b80",
       "editor.selectionBackground": "#1e3a5f",
-      "editor.inactiveSelectionBackground": "#1e293b",
-      "editorLineNumber.foreground": "#334155",
-      "editorLineNumber.activeForeground": "#64748b",
+      "editor.inactiveSelectionBackground": "#27272a",
+      "editorLineNumber.foreground": "#3f3f46",
+      "editorLineNumber.activeForeground": "#71717a",
       "editorCursor.foreground": "#f59e0b",
-      "editorCursor.background": "#020617",
-      "editorIndentGuide.background1": "#1e293b",
-      "editorIndentGuide.activeBackground1": "#334155",
-      "editorGutter.background": "#020617",
-      "editorWidget.background": "#0f172a",
-      "editorWidget.border": "#1e293b",
-      "editorSuggestWidget.background": "#0f172a",
-      "editorSuggestWidget.border": "#1e293b",
-      "editorSuggestWidget.selectedBackground": "#1e293b",
+      "editorCursor.background": "#09090b",
+      "editorIndentGuide.background1": "#27272a",
+      "editorIndentGuide.activeBackground1": "#3f3f46",
+      "editorGutter.background": "#09090b",
+      "editorWidget.background": "#18181b",
+      "editorWidget.border": "#27272a",
+      "editorSuggestWidget.background": "#18181b",
+      "editorSuggestWidget.border": "#27272a",
+      "editorSuggestWidget.selectedBackground": "#27272a",
       "scrollbar.shadow": "#00000000",
-      "scrollbarSlider.background": "#1e293b80",
-      "scrollbarSlider.hoverBackground": "#334155",
-      "scrollbarSlider.activeBackground": "#475569",
-      "editor.wordHighlightBackground": "#1e293b",
+      "scrollbarSlider.background": "#27272a80",
+      "scrollbarSlider.hoverBackground": "#3f3f46",
+      "scrollbarSlider.activeBackground": "#52525b",
+      "editor.wordHighlightBackground": "#27272a",
+    },
+  });
+
+  monaco.editor.defineTheme("ftc-light", {
+    base: "vs",
+    inherit: true,
+    rules: [
+      { token: "comment", foreground: "6b7280", fontStyle: "italic" },
+      { token: "keyword", foreground: "4338ca" },
+      { token: "keyword.control", foreground: "7c3aed" },
+      { token: "string", foreground: "16a34a" },
+      { token: "string.escape", foreground: "15803d" },
+      { token: "number", foreground: "ea580c" },
+      { token: "type", foreground: "0284c7" },
+      { token: "type.identifier", foreground: "0369a1" },
+      { token: "annotation", foreground: "d97706" },
+      { token: "delimiter", foreground: "9ca3af" },
+    ],
+    colors: {
+      "editor.background": "#ffffff",
+      "editor.foreground": "#1c1c1e",
+      "editor.lineHighlightBackground": "#f3f4f680",
+      "editor.selectionBackground": "#add6ff",
+      "editor.inactiveSelectionBackground": "#e5e7eb",
+      "editorLineNumber.foreground": "#9ca3af",
+      "editorLineNumber.activeForeground": "#6b7280",
+      "editorCursor.foreground": "#f59e0b",
+      "editorIndentGuide.background1": "#e5e7eb",
+      "editorIndentGuide.activeBackground1": "#9ca3af",
+      "editorGutter.background": "#ffffff",
+      "editorWidget.background": "#f9fafb",
+      "editorWidget.border": "#e5e7eb",
+      "editorSuggestWidget.background": "#ffffff",
+      "editorSuggestWidget.border": "#e5e7eb",
+      "editorSuggestWidget.selectedBackground": "#f3f4f6",
+      "scrollbar.shadow": "#00000000",
+      "scrollbarSlider.background": "#d1d5db80",
+      "scrollbarSlider.hoverBackground": "#9ca3af",
+      "scrollbarSlider.activeBackground": "#6b7280",
+      "editor.wordHighlightBackground": "#fef9c3",
     },
   });
 }
@@ -142,9 +183,9 @@ function fmtLines(lines: number[] | undefined): string {
 
 function EditorSkeleton() {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-[#020617]">
+    <div className="flex h-full w-full items-center justify-center bg-white dark:bg-[#09090b]">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-100" />
+        <Loader2 className="h-6 w-6 animate-spin text-slate-400 dark:text-zinc-100" />
         <span className="text-xs text-slate-500">Loading editor…</span>
       </div>
     </div>
@@ -407,6 +448,9 @@ export default function ChallengeWorkspace({
 }: {
   challenge: Challenge;
 }) {
+  const { resolvedTheme } = useTheme();
+  const monacoTheme = resolvedTheme === "light" ? "ftc-light" : "ftc-dark";
+
   const diff = difficultyConfig[challenge.difficulty];
   const prevChallenge = getChallengeById(challenge.id - 1);
   const nextChallenge = getChallengeById(challenge.id + 1);
@@ -471,6 +515,12 @@ export default function ChallengeWorkspace({
       NonNullable<React.ComponentProps<typeof MonacoEditor>["onMount"]>
     >[0] | null
   >(null);
+  const monacoRef = useRef<Monaco | null>(null);
+
+  // Sync Monaco theme whenever the app theme changes
+  useEffect(() => {
+    monacoRef.current?.editor.setTheme(monacoTheme);
+  }, [monacoTheme]);
 
   const resetCode = useCallback(() => {
     setCode(challenge.starterCode);
@@ -563,6 +613,16 @@ export default function ChallengeWorkspace({
   const [checkStatuses, setCheckStatuses] = useState<
     Record<string, "pass" | "fail" | "warn">
   >({});
+
+  /** Checks that flat-out fail (required tier) — shown as errors in the left panel. */
+  const [failedErrors, setFailedErrors] = useState<
+    Array<{ label: string; tip?: string }>
+  >([]);
+
+  /** Checks that are optional improvements — shown as suggestions. */
+  const [failedImprovements, setFailedImprovements] = useState<
+    Array<{ label: string; tip?: string }>
+  >([]);
 
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
@@ -725,6 +785,34 @@ export default function ChallengeWorkspace({
       statuses[r.label] = r.pass ? "pass" : "warn";
     });
     setCheckStatuses(statuses);
+
+    // Build focused error / improvement lists for the left panel.
+    // Mirror the grader's own tier split: universal required-tier → errors,
+    // universal improvement/style-tier → suggestions (same as challenge checks).
+    const syntaxErrors = result.syntaxIssues
+      .filter((s) => s.severity === "error")
+      .map((s) => ({ label: s.message }));
+
+    const universalRequiredFails = result.universalResults
+      .filter((r) => !r.pass && r.tier === "required")
+      .map((r) => ({ label: r.label, tip: r.tip }));
+
+    const universalSoftFails = result.universalResults
+      .filter((r) => !r.pass && r.tier !== "required")
+      .map((r) => ({ label: r.label, tip: r.tip }));
+
+    const challengeRequiredFails = result.requiredResults
+      .filter((r) => !r.pass)
+      .map((r) => ({ label: r.label, tip: r.tip }));
+
+    setFailedErrors([...syntaxErrors, ...universalRequiredFails, ...challengeRequiredFails]);
+
+    const improveFails = [
+      ...universalSoftFails,
+      ...result.improvementResults.filter((r) => !r.pass).map((r) => ({ label: r.label, tip: r.tip })),
+      ...result.styleResults.filter((r) => !r.pass).map((r) => ({ label: r.label, tip: r.tip })),
+    ];
+    setFailedImprovements(improveFails);
     setLastGrade(grade);
     setIsRunning(false);
   }, [code, challenge, isRunning, appendEntry, markComplete]);
@@ -874,7 +962,7 @@ export default function ChallengeWorkspace({
               </div>
             </div>
 
-            {/* Live requirements checklist */}
+            {/* Live requirements feedback */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Code2 className="h-3.5 w-3.5 text-blue-400" />
@@ -887,15 +975,80 @@ export default function ChallengeWorkspace({
                   </span>
                 )}
               </div>
-              <ul className="space-y-1.5">
-                {challenge.objectives.map((obj, i) => {
-                  const status = checkStatuses[obj]
-                    ?? (checkStatuses[Object.keys(checkStatuses)[i]] ?? "pending");
-                  return (
-                    <RequirementItem key={i} label={obj} status={status as "pending" | "pass" | "fail" | "warn"} />
-                  );
-                })}
-              </ul>
+
+              {Object.keys(checkStatuses).length === 0 ? (
+                /* Before any submission — show objectives as a guide */
+                <ul className="space-y-1.5">
+                  {challenge.objectives.map((obj, i) => (
+                    <RequirementItem key={i} label={obj} status="pending" />
+                  ))}
+                </ul>
+              ) : failedErrors.length === 0 && failedImprovements.length === 0 ? (
+                /* All checks passed */
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-3 text-center">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 mx-auto mb-1" />
+                  <p className="text-xs font-medium text-emerald-300">All checks passed!</p>
+                </div>
+              ) : (
+                /* Post-submission: only show what needs attention */
+                <div className="space-y-3">
+                  {failedErrors.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <XCircle className="h-3 w-3 text-red-400" />
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-red-400">
+                          Errors · {failedErrors.length}
+                        </p>
+                      </div>
+                      <ul className="space-y-1.5">
+                        {failedErrors.map((item, i) => (
+                          <li
+                            key={i}
+                            className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2"
+                          >
+                            <p className="text-[11px] font-semibold text-red-300 leading-snug">
+                              {item.label}
+                            </p>
+                            {item.tip && (
+                              <p className="mt-0.5 text-[10px] text-red-400/70 leading-relaxed">
+                                {item.tip}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {failedImprovements.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <AlertTriangle className="h-3 w-3 text-amber-400" />
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">
+                          Suggestions · {failedImprovements.length}
+                        </p>
+                      </div>
+                      <ul className="space-y-1.5">
+                        {failedImprovements.map((item, i) => (
+                          <li
+                            key={i}
+                            className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2"
+                          >
+                            <p className="text-[11px] font-semibold text-amber-300 leading-snug">
+                              {item.label}
+                            </p>
+                            {item.tip && (
+                              <p className="mt-0.5 text-[10px] text-amber-400/70 leading-relaxed">
+                                {item.tip}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Concepts */}
@@ -926,6 +1079,7 @@ export default function ChallengeWorkspace({
               <MarkCompleteButton
                 challengeId={challenge.id}
                 xp={challenge.xp}
+                lastGrade={lastGrade}
               />
             </div>
           </div>
@@ -970,7 +1124,7 @@ export default function ChallengeWorkspace({
             <MonacoEditor
               height="100%"
               language="java"
-              theme="ftc-dark"
+              theme={monacoTheme}
               value={code}
               onChange={(val) => {
                 const next = val ?? "";
@@ -983,8 +1137,9 @@ export default function ChallengeWorkspace({
               }}
               onMount={(editor, monaco) => {
                 editorRef.current = editor;
-                defineTheme(monaco);
-                monaco.editor.setTheme("ftc-dark");
+                monacoRef.current = monaco;
+                defineThemes(monaco);
+                monaco.editor.setTheme(monacoTheme);
               }}
               options={{
                 fontSize: 13,

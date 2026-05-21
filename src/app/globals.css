@@ -8,8 +8,19 @@
 }
 
 /* ─── Dark mode (default) ─────────────────────────────────────── */
+/* Override slate (blue-tinted) with zinc (neutral black) values   */
 :root {
   color-scheme: dark;
+  --color-slate-950: #09090b;
+  --color-slate-900: #18181b;
+  --color-slate-800: #27272a;
+  --color-slate-700: #3f3f46;
+  --color-slate-600: #52525b;
+  --color-slate-500: #71717a;
+  --color-slate-400: #a1a1aa;
+  --color-slate-300: #d4d4d8;
+  --color-slate-200: #e4e4e7;
+  --color-slate-100: #f4f4f5;
 }
 
 /* ─── Light mode overrides — inverts the slate scale ─────────────
@@ -144,14 +155,14 @@ body {
   color: rgb(148 163 184);
   font-weight: 600;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgb(30 41 59);
+  border-bottom: 1px solid rgb(39 39 42);
   white-space: nowrap;
 }
 
 .doc-content td {
   color: rgb(100 116 139);
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgb(30 41 59 / 0.5);
+  border-bottom: 1px solid rgb(39 39 42 / 0.5);
   vertical-align: top;
 }
 
@@ -169,7 +180,7 @@ body {
 /* ─── Smooth scrollbar for sidebar ───────────────────────────── */
 .sidebar-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #334155 transparent;
+  scrollbar-color: #3f3f46 transparent;
 }
 
 .sidebar-scroll::-webkit-scrollbar {
@@ -181,6 +192,6 @@ body {
 }
 
 .sidebar-scroll::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #3f3f46;
   border-radius: 9999px;
 }

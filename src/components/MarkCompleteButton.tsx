@@ -7,11 +7,14 @@ import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 interface MarkCompleteButtonProps {
   challengeId: number;
   xp: number;
+  /** The last grade returned by the grader, or null if code hasn't been submitted yet. */
+  lastGrade?: "good" | "needs-improvement" | "wrong" | null;
 }
 
 export default function MarkCompleteButton({
   challengeId,
   xp,
+  lastGrade,
 }: MarkCompleteButtonProps) {
   const { isCompleted, markComplete, markIncomplete, hydrated } =
     useChallengeProgress();
@@ -64,12 +67,22 @@ export default function MarkCompleteButton({
     );
   }
 
+  const handleMarkComplete = () => {
+    if (lastGrade !== "good") {
+      const confirmed = window.confirm(
+        lastGrade == null
+          ? "You haven't submitted your code to the grader yet. Mark this challenge complete anyway?"
+          : "Your code hasn't passed all checks yet. Mark this challenge complete anyway?"
+      );
+      if (!confirmed) return;
+    }
+    markComplete(challengeId);
+    setJustCompleted(true);
+  };
+
   return (
     <button
-      onClick={() => {
-        markComplete(challengeId);
-        setJustCompleted(true);
-      }}
+      onClick={handleMarkComplete}
       className={`group relative flex items-center gap-3 overflow-hidden rounded-xl border px-6 py-3.5 text-sm font-semibold transition-all duration-200 ${
         justCompleted
           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"

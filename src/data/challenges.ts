@@ -44,7 +44,13 @@ export const challenges: Challenge[] = [
 - The motor should stop (power = 0) when the stick is released to center.
 
 **Key insight:** FTC gamepad Y-axes are inverted — pushing the stick fully forward returns **−1.0**, not +1.0. You must negate the value before passing it to setPower().`,
-    starterCode: `@TeleOp(name = "Basic TeleOp", group = "Challenge 1")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@TeleOp(name = "Basic TeleOp", group = "Challenge 1")
 public class BasicTeleOp extends LinearOpMode {
 
     // TODO 1: Declare a DcMotor variable named "leftMotor"
@@ -118,7 +124,13 @@ public class BasicTeleOp extends LinearOpMode {
 **Encoder tick math (for reference):**
 \`ticks_per_inch = (537.7 CPR × gear_ratio) / (wheel_circumference)\`
 For a 19.2:1 motor with 3.78-inch wheels: ≈ 71.7 ticks/inch.`,
-    starterCode: `@Autonomous(name = "Encoder Target", group = "Challenge 2")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@Autonomous(name = "Encoder Target", group = "Challenge 2")
 public class EncoderTarget extends LinearOpMode {
 
     private DcMotor driveMotor;
@@ -147,9 +159,9 @@ public class EncoderTarget extends LinearOpMode {
         // TODO 4: Apply motor power to start moving
         //   driveMotor.setPower(???);
 
-        // TODO 5: Wait until the motor reaches its target
-        //   Hint: use a while loop checking driveMotor.isBusy() && opModeIsActive()
-        while (/* ??? && */ opModeIsActive()) {
+        // TODO 5: Replace the condition below — add driveMotor.isBusy() &&
+        while (opModeIsActive()) {
+            // TODO 5b: Update condition above to: while (driveMotor.isBusy() && opModeIsActive())
             telemetry.addData("Current Ticks", driveMotor.getCurrentPosition());
             telemetry.addData("Target Ticks",  driveMotor.getTargetPosition());
             telemetry.update();
@@ -207,7 +219,15 @@ public class EncoderTarget extends LinearOpMode {
 
 **Why use ElapsedTime instead of sleep()?**
 Using \`sleep(2000)\` blocks the entire thread — you can't read sensors, update telemetry, or check stop conditions. \`ElapsedTime\` lets the loop keep running so the robot can react while driving.`,
-    starterCode: `@Autonomous(name = "Timer Drive", group = "Challenge 3")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+@Autonomous(name = "Timer Drive", group = "Challenge 3")
 public class TimerDrive extends LinearOpMode {
 
     private DcMotor leftMotor;
@@ -298,7 +318,17 @@ public class TimerDrive extends LinearOpMode {
 **Prerequisites:** Road Runner 1.0 must be installed (see the Road Runner docs page). The \`MecanumDrive\` class and \`Actions\` class come from the RR quickstart.
 
 **Coordinate system:** X = forward, Y = left, angles in radians (use Math.PI / 2 for 90°).`,
-    starterCode: `@Autonomous(name = "RR Spline Auto", group = "Challenge 4")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import org.firstinspires.ftc.teamcode.MecanumDrive;
+import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Vector2d;
+import com.acmerobotics.roadrunner.Action;
+import com.acmerobotics.roadrunner.ftc.Actions;
+
+@Autonomous(name = "RR Spline Auto", group = "Challenge 4")
 public class RRSplineAuto extends LinearOpMode {
 
     @Override
@@ -378,7 +408,18 @@ public class RRSplineAuto extends LinearOpMode {
 **Leg 3 (Bézier Curve):** Curve back to origin \`(0, 0)\` with control point \`(36, -15)\`. Interpolate heading from **90°** back to **0°**.
 
 **Prerequisites:** Pedro Pathing Quickstart must be installed. \`Follower\`, \`PathChain\`, \`BezierCurve\`, \`BezierLine\`, \`Point\`, and \`Pose\` classes come from the Pedro library.`,
-    starterCode: `@Autonomous(name = "Pedro Chain Auto", group = "Challenge 5")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.pathgen.PathChain;
+import com.pedropathing.pathgen.BezierCurve;
+import com.pedropathing.pathgen.BezierLine;
+import com.pedropathing.pathgen.Point;
+import com.pedropathing.localization.Pose;
+
+@Autonomous(name = "Pedro Chain Auto", group = "Challenge 5")
 public class PedroChainAuto extends LinearOpMode {
 
     private Follower follower;
@@ -493,7 +534,14 @@ public class PedroChainAuto extends LinearOpMode {
 - Hardware names: \`"left_drive"\` and \`"right_drive"\`
 - Use \`ZeroPowerBehavior.BRAKE\` on both motors — the robot stops cleanly when sticks return to center instead of coasting.
 - Always negate both Y-axis values: pushing the stick fully forward returns **−1.0** in the FTC SDK.`,
-    starterCode: `@TeleOp(name = "Dual Motor TeleOp", group = "Challenge 6")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
+@TeleOp(name = "Dual Motor TeleOp", group = "Challenge 6")
 public class DualMotorTeleOp extends LinearOpMode {
 
     // TODO 1: Declare two DcMotor fields: leftDrive and rightDrive
@@ -574,7 +622,13 @@ public class DualMotorTeleOp extends LinearOpMode {
 - Display the servo's current position each loop using \`servo.getPosition()\`.
 
 **Key behaviour:** Unlike motors, you don't need to call \`setPosition()\` every loop iteration — the servo holds the last commanded position. Only call it again when a button is pressed to change position.`,
-    starterCode: `@TeleOp(name = "Servo Control", group = "Challenge 7")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.Servo;
+
+@TeleOp(name = "Servo Control", group = "Challenge 7")
 public class ServoControl extends LinearOpMode {
 
     // TODO 1: Declare a Servo field named "blockerServo"
@@ -650,14 +704,20 @@ public class ServoControl extends LinearOpMode {
     instructions: `A **CRServo** (Continuous Rotation Servo) works like a motor but uses the \`Servo\` API. Instead of \`setPower()\`, you call \`setPower()\` with values from **-1.0** (full reverse) to **+1.0** (full forward). Setting 0.0 stops it.
 
 **Requirements:**
-- Hardware name: \`"diddler_servo"\`
+- Hardware name: \`"intake_servo"\`
 - **Right trigger** → forward power equal to \`gamepad1.right_trigger\` (range 0.0–1.0 automatically)
 - **Left trigger** → reverse power (negate the trigger value)
 - When **neither trigger** is pressed, set power to \`0.0\`
 - Print the current power to telemetry each loop.
 
 **Priority rule:** if both triggers are pressed simultaneously, the right trigger takes priority (handle right trigger first in your if-else chain).`,
-    starterCode: `@TeleOp(name = "CRServo Intake", group = "Challenge 8")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.CRServo;
+
+@TeleOp(name = "CRServo Intake", group = "Challenge 8")
 public class CRServoIntake extends LinearOpMode {
 
     // TODO 1: Declare a CRServo field named "intakeServo"
@@ -667,7 +727,7 @@ public class CRServoIntake extends LinearOpMode {
     public void runOpMode() {
 
         // TODO 2: Initialize intakeServo from hardwareMap
-        //   intakeServo = hardwareMap.get(CRServo.class, "diddler_servo");
+        //   intakeServo = hardwareMap.get(CRServo.class, "intake_servo");
 
         telemetry.addData("Status", "RT=intake  LT=reverse");
         telemetry.update();
@@ -693,7 +753,7 @@ public class CRServoIntake extends LinearOpMode {
     }
 }`,
     hints: [
-      "Retrieve with `intakeServo = hardwareMap.get(CRServo.class, \"diddler_servo\");` — note `CRServo.class`, not `Servo.class`.",
+      "Retrieve with `intakeServo = hardwareMap.get(CRServo.class, \"intake_servo\");` — note `CRServo.class`, not `Servo.class`.",
       "Trigger values are floats from 0.0 to 1.0. Use `if (gamepad1.right_trigger > 0.05) { intakePower = gamepad1.right_trigger; }` to ignore stick drift.",
       "For reverse, use `intakePower = -gamepad1.left_trigger;` — negating the trigger value gives you a negative power (reverse direction).",
     ],
@@ -742,7 +802,14 @@ public class CRServoIntake extends LinearOpMode {
 \`\`\`
 
 Use \`telemetry.addLine()\` for the \`=== SECTION ===\` headers and \`telemetry.addData()\` for each key-value pair. Call \`telemetry.update()\` **exactly once** per loop cycle — calling it multiple times per loop causes flickering.`,
-    starterCode: `@TeleOp(name = "Telemetry Dashboard", group = "Challenge 9")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+@TeleOp(name = "Telemetry Dashboard", group = "Challenge 9")
 public class TelemetryDashboard extends LinearOpMode {
 
     private DcMotor driveMotor;
@@ -826,11 +893,17 @@ lastAButton = gamepad1.a; // update for next tick
 \`\`\`
 
 **Requirements:**
-- Hardware name: \`"diddler_servo"\` (CRServo)
+- Hardware name: \`"intake_servo"\` (CRServo)
 - Toggle starts OFF (\`intakeRunning = false\`)
 - When ON: run intake at power \`1.0\`
 - When OFF: stop intake at power \`0.0\``,
-    starterCode: `@TeleOp(name = "Button Debounce", group = "Challenge 10")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.CRServo;
+
+@TeleOp(name = "Button Debounce", group = "Challenge 10")
 public class ButtonDebounce extends LinearOpMode {
 
     private CRServo intakeServo;
@@ -838,7 +911,7 @@ public class ButtonDebounce extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        intakeServo = hardwareMap.get(CRServo.class, "diddler_servo");
+        intakeServo = hardwareMap.get(CRServo.class, "intake_servo");
 
         // TODO 1: Declare boolean lastAButton = false
         // TODO 2: Declare boolean intakeRunning = false
@@ -918,7 +991,14 @@ while (timer.seconds() < 1.0 && opModeIsActive()) {
 3. Stop motor, display "Done"
 
 The \`opModeIsActive()\` guard in every while condition lets the referee stop the robot instantly during any timed segment.`,
-    starterCode: `@Autonomous(name = "ElapsedTime Demo", group = "Challenge 11")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+@Autonomous(name = "ElapsedTime Demo", group = "Challenge 11")
 public class ElapsedTimeDemo extends LinearOpMode {
 
     private DcMotor driveMotor;
@@ -1004,7 +1084,13 @@ For competition robots, BRAKE is almost always preferred — it keeps the robot 
 - **X button** (debounced) toggles between BRAKE and FLOAT
 - Display the current mode and current motor power in telemetry
 - Start in BRAKE mode`,
-    starterCode: `@TeleOp(name = "Zero Power Behavior", group = "Challenge 12")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@TeleOp(name = "Zero Power Behavior", group = "Challenge 12")
 public class ZeroPowerBehaviorDemo extends LinearOpMode {
 
     private DcMotor driveMotor;
@@ -1095,7 +1181,12 @@ This loop runs continuously, showing live feedback on the Driver Station, until 
 - X button → BLUE alliance (\`isRedAlliance = false\`)
 - Display: alliance name (RED/BLUE), target AprilTag ID (RED=24, BLUE=20)
 - After \`waitForStart()\`, log the selected alliance to telemetry and stop`,
-    starterCode: `@Autonomous(name = "Alliance Select", group = "Challenge 13")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@Autonomous(name = "Alliance Select", group = "Challenge 13")
 public class AllianceSelect extends LinearOpMode {
 
     @Override
@@ -1172,7 +1263,13 @@ public class AllianceSelect extends LinearOpMode {
 7. \`RUN_USING_ENCODER\` — return to velocity-feedback mode
 
 **Why switch back to RUN_USING_ENCODER?** Leaving the motor in RUN_TO_POSITION after arrival makes it fight any external load applied to the shaft. Switching to RUN_USING_ENCODER releases that hold.`,
-    starterCode: `@Autonomous(name = "Encoder Distance", group = "Challenge 14")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@Autonomous(name = "Encoder Distance", group = "Challenge 14")
 public class EncoderDistance extends LinearOpMode {
 
     private DcMotor driveMotor;
@@ -1265,7 +1362,16 @@ for (LynxModule hub : hubs) hub.clearBulkCache(); // ONE transaction for all rea
 \`\`\`
 
 **Requirements:** Display loop Hz in telemetry. Motor power controlled by left stick Y as usual.`,
-    starterCode: `@TeleOp(name = "Bulk Cache Demo", group = "Challenge 15")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.hardware.lynx.LynxModule;
+import java.util.List;
+
+@TeleOp(name = "Bulk Cache Demo", group = "Challenge 15")
 public class BulkCacheDemo extends LinearOpMode {
 
     private DcMotor driveMotor;
@@ -1361,7 +1467,14 @@ public class BulkCacheDemo extends LinearOpMode {
 **Key detail:** Use a slow homing speed (≤ 0.2 power) to reduce impact when the mechanism hits the switch. Too fast and the mechanism may bounce off or damage the switch.
 
 **Hardware names:** motor = \`"turret_motor"\`, sensor = \`"touch_sensor"\``,
-    starterCode: `@Autonomous(name = "Touch Sensor Homing", group = "Challenge 16")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.TouchSensor;
+
+@Autonomous(name = "Touch Sensor Homing", group = "Challenge 16")
 public class TouchSensorHoming extends LinearOpMode {
 
     private DcMotor  turretMotor;
@@ -1453,7 +1566,15 @@ backRight  = drive + strafe - rotate
 
 **Hardware names:** \`"front_left"\`, \`"front_right"\`, \`"back_left"\`, \`"back_right"\`
 **Reverse:** frontLeft and backLeft (left side is mirrored).`,
-    starterCode: `@TeleOp(name = "Mecanum Drive", group = "Challenge 17")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import org.firstinspires.ftc.teamcode.MecanumDrive;
+
+@TeleOp(name = "Mecanum Drive", group = "Challenge 17")
 public class MecanumDrive extends LinearOpMode {
 
     // TODO 1: Declare four DcMotor fields: frontLeft, frontRight, backLeft, backRight
@@ -1546,7 +1667,14 @@ private double[] normalize(double fl, double fr, double bl, double br) {
 \`\`\`
 
 Implement this helper and verify it in telemetry by printing the raw and normalized values for a diagonal-strafing command.`,
-    starterCode: `@TeleOp(name = "Normalize Demo", group = "Challenge 18")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
+@TeleOp(name = "Normalize Demo", group = "Challenge 18")
 public class NormalizeDemo extends LinearOpMode {
 
     private DcMotor frontLeft, frontRight, backLeft, backRight;
@@ -1634,7 +1762,15 @@ double rotStrafe = drive  * Math.sin(-heading) + strafe * Math.cos(-heading);
 Use the **negative** heading to un-rotate the driver's input back to field coordinates. This is identical to what the team's \`mecanumDriveWithBraking()\` does internally.
 
 For this challenge, simulate the heading with a running variable that you update with the right stick X (pretend it's an IMU — add \`rotate * 0.01\` to the heading each loop). In a real robot you'd read \`imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS)\`.`,
-    starterCode: `@TeleOp(name = "Field Relative Drive", group = "Challenge 19")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.IMU;
+
+@TeleOp(name = "Field Relative Drive", group = "Challenge 19")
 public class FieldRelativeDrive extends LinearOpMode {
 
     private DcMotor frontLeft, frontRight, backLeft, backRight;
@@ -1732,7 +1868,14 @@ If your robot drives diagonally instead of sideways, check two things: (1) the d
 3. Stop all motors
 
 The robot should return to approximately its starting position if the field is flat.`,
-    starterCode: `@Autonomous(name = "Strafe Test", group = "Challenge 20")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+@Autonomous(name = "Strafe Test", group = "Challenge 20")
 public class StrafeTest extends LinearOpMode {
 
     private DcMotor frontLeft, frontRight, backLeft, backRight;
@@ -1823,7 +1966,14 @@ This is better than independent per-axis deadbands because it handles diagonal s
 - Full four-motor mecanum drive using this magnitude check
 - When below deadband: all four wheels get 0.0 power
 - Display magnitude and "ACTIVE" / "DEADBAND" status in telemetry`,
-    starterCode: `@TeleOp(name = "Magnitude Braking", group = "Challenge 21")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
+@TeleOp(name = "Magnitude Braking", group = "Challenge 21")
 public class MagnitudeBraking extends LinearOpMode {
 
     private DcMotor frontLeft, frontRight, backLeft, backRight;
@@ -1913,7 +2063,14 @@ double actual = shooter.getVelocity(); // reads current TPS
 \`\`\`
 
 **Requirements:** A button toggles between velocity mode (1400 TPS) and power mode (0.8). Display both target and actual TPS in telemetry.`,
-    starterCode: `@TeleOp(name = "Velocity Control", group = "Challenge 22")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+
+@TeleOp(name = "Velocity Control", group = "Challenge 22")
 public class VelocityControl extends LinearOpMode {
 
     // TODO 1: Declare a DcMotorEx (not DcMotor) named "shooterMotor"
@@ -2004,7 +2161,13 @@ With \`Kp = 0.003\` and a target of 1000 ticks:
 **Clamping:** Without a clamp, large errors would command power > 1.0 which the SDK silently clips, but we lose predictability. Always clamp: \`power = Math.max(-0.8, Math.min(0.8, rawPower))\`
 
 **Requirements:** Hardware name \`"turret_motor"\`. Target set by Dpad (Up +100 ticks, Down -100 ticks with debounce). Display error and power each loop.`,
-    starterCode: `@TeleOp(name = "P Controller", group = "Challenge 23")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@TeleOp(name = "P Controller", group = "Challenge 23")
 public class PController extends LinearOpMode {
 
     private DcMotor turretMotor;
@@ -2099,7 +2262,13 @@ For a goBILDA motor with 537.7 ticks/revolution and a 2:1 external gear reductio
 **Verification test:** move the turret by hand one full rotation (1075.4 ticks) and confirm telemetry reads ~360°. Half a rotation (537.7 ticks) should read ~180°.
 
 Implement \`ticksToDegrees()\` as a helper method, then also implement the inverse \`degreesToTicks(double degrees)\` as a bonus.`,
-    starterCode: `@TeleOp(name = "Ticks to Degrees", group = "Challenge 24")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@TeleOp(name = "Ticks to Degrees", group = "Challenge 24")
 public class TicksToDegrees extends LinearOpMode {
 
     private DcMotor turretMotor;
@@ -2196,7 +2365,12 @@ Implement \`interpolateTPS(double distanceInches)\`:
 - If \`distance ≤ 30\`, return 1200 (clamp to minimum)
 - If \`distance ≥ 60\`, return 1650 (clamp to maximum)
 - Otherwise, find the bracketing pair and linearly interpolate`,
-    starterCode: `@TeleOp(name = "TPS Calibration", group = "Challenge 25")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@TeleOp(name = "TPS Calibration", group = "Challenge 25")
 public class TPSCalibration extends LinearOpMode {
 
     // Calibration table — parallel arrays
@@ -2289,7 +2463,15 @@ public class TPSCalibration extends LinearOpMode {
 **Constants:** \`Kp=0.001, Ki=0.0002, Kd=0.0003, Kf=0.00055, WINDUP=200\`
 
 Use DcMotorEx to read \`getVelocity()\`. Target is 1400 TPS, toggled with A.`,
-    starterCode: `@TeleOp(name = "PIDF Velocity", group = "Challenge 26")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+@TeleOp(name = "PIDF Velocity", group = "Challenge 26")
 public class PIDFVelocity extends LinearOpMode {
 
     private DcMotorEx shooterMotor;
@@ -2403,7 +2585,14 @@ if (loopTimer.seconds() >= 1.0) {
 \`\`\`
 
 A well-optimized FTC OpMode with bulk reads achieves **200–300 Hz**. Without bulk reads, expect **50–100 Hz**. Add bulk reads (see Challenge 15) and compare.`,
-    starterCode: `@TeleOp(name = "Loop Hz Meter", group = "Challenge 27")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+@TeleOp(name = "Loop Hz Meter", group = "Challenge 27")
 public class LoopHzMeter extends LinearOpMode {
 
     private DcMotor driveMotor;
@@ -2499,7 +2688,13 @@ boolean feeding = shootButtonPressed && shootingLatched;
 - Simulate flywheel TPS ramping up: increment by 50 each loop when A is held, decrement otherwise
 - Target TPS = 1400, tolerance = ±100
 - feeder motor at power 1.0 when feeding, 0 otherwise`,
-    starterCode: `@TeleOp(name = "Shoot Latch", group = "Challenge 28")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@TeleOp(name = "Shoot Latch", group = "Challenge 28")
 public class ShootLatch extends LinearOpMode {
 
     private DcMotor feederMotor;
@@ -2609,7 +2804,14 @@ switch (state) {
 \`\`\`
 
 While zeroing, show "ZEROING" in telemetry and block other turret commands.`,
-    starterCode: `@TeleOp(name = "Turret State Machine", group = "Challenge 29")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.TouchSensor;
+
+@TeleOp(name = "Turret State Machine", group = "Challenge 29")
 public class TurretStateMachine extends LinearOpMode {
 
     private DcMotor     turretMotor;
@@ -2695,7 +2897,15 @@ if (state == State.DRIVE_TO_SHOOT && stateTimer.seconds() > 1.5) {
     stateTimer.reset(); // reset for the next state's timing
 }
 \`\`\``,
-    starterCode: `@Autonomous(name = "State Machine Auto", group = "Challenge 30")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+@Autonomous(name = "State Machine Auto", group = "Challenge 30")
 public class StateMachineAuto extends LinearOpMode {
 
     private DcMotor leftDrive, rightDrive, flywheel;
@@ -2780,7 +2990,15 @@ remainingCycles = cycleCount;
 \`\`\`
 
 After each SHOOT, decrement \`remainingCycles\`. When it reaches 0, transition to LEAVE instead of back to TO_HUMAN.`,
-    starterCode: `@Autonomous(name = "Multi-Shot Auto", group = "Challenge 31")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+@Autonomous(name = "Multi-Shot Auto", group = "Challenge 31")
 public class MultiShotAuto extends LinearOpMode {
 
     private DcMotor leftDrive, rightDrive, flywheel;
@@ -2883,7 +3101,14 @@ rightDrive.setPower(rightPower * scale);
 \`\`\`
 
 Display \`"** SAFE MODE **"\` prominently in telemetry (addLine at the top) when active, so the driver can see it at a glance. In normal mode, display \`"NORMAL"\` instead.`,
-    starterCode: `@TeleOp(name = "Mode Switch", group = "Challenge 32")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
+@TeleOp(name = "Mode Switch", group = "Challenge 32")
 public class ModeSwitchTeleOp extends LinearOpMode {
 
     private DcMotor leftDrive, rightDrive;
@@ -2968,7 +3193,12 @@ Java provides \`Math.hypot(dx, dy)\` which computes this directly and handles nu
 At the shot point, the distance to goal should be approximately **1694 mm (66.7 in)**.
 
 Implement \`distanceToGoal()\` and verify this result using the known coordinates.`,
-    starterCode: `@TeleOp(name = "Distance to Goal", group = "Challenge 33")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@TeleOp(name = "Distance to Goal", group = "Challenge 33")
 public class DistanceToGoal extends LinearOpMode {
 
     // Goal position in mm (72 in × 25.4 mm/in)
@@ -3060,7 +3290,12 @@ while (turretAngle < -180) turretAngle += 360;
 - dx = 25.5 in → 647.7 mm, dy = 61.5 in → 1562.1 mm
 - fieldBearing ≈ 67.5°
 - turretAngle ≈ 67.5 − 180 = −112.5° (robot faces backward, turret must swing left)`,
-    starterCode: `@TeleOp(name = "Turret Bearing", group = "Challenge 34")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@TeleOp(name = "Turret Bearing", group = "Challenge 34")
 public class TurretBearing extends LinearOpMode {
 
     private static final double GOAL_X = 72 * 25.4; // mm
@@ -3147,7 +3382,12 @@ This reflects a point across the field center (at \`FIELD_MM / 2\` = 1828.8 mm):
 - RED shot point: \`x = 3657.6 - 1181.1 = 2476.5 mm\`
 
 The Y axis stays the same for both alliances (near wall is always Y = 0).`,
-    starterCode: `@TeleOp(name = "Coordinate Mirror", group = "Challenge 35")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@TeleOp(name = "Coordinate Mirror", group = "Challenge 35")
 public class CoordinateMirror extends LinearOpMode {
 
     private static final double FIELD_MM = 144.0 * 25.4; // 3657.6 mm
@@ -3233,7 +3473,12 @@ public class CoordinateMirror extends LinearOpMode {
 | 360°    | 2π ≈ 6.2832   |
 
 **Pedro Pathing usage:** \`new Pose(x, y, toRadians(180))\` for a robot facing backward. The Pose constructor's third argument is always radians.`,
-    starterCode: `@TeleOp(name = "Angle Conversion", group = "Challenge 36")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@TeleOp(name = "Angle Conversion", group = "Challenge 36")
 public class AngleConversion extends LinearOpMode {
 
     @Override
@@ -3315,7 +3560,16 @@ odo.resetPosAndIMU();
 **In the loop:** call \`odo.update()\` first, then read position. The returned \`Pose2D\` has \`getX()\`, \`getY()\`, and \`getHeading(AngleUnit.DEGREES)\` methods.
 
 **Pod offsets** measure where each pod sits relative to the robot's tracking center — these values are robot-specific. Use the team's values: X offset = −84 mm, Y offset = −168 mm.`,
-    starterCode: `@TeleOp(name = "Pinpoint Odometry", group = "Challenge 37")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.IMU;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+
+@TeleOp(name = "Pinpoint Odometry", group = "Challenge 37")
 public class PinpointOdometry extends LinearOpMode {
 
     private GoBildaPinpointDriver odo;
@@ -3403,7 +3657,15 @@ odo.setPosition(new Pose2D(DistanceUnit.MM, 72*25.4, 72*25.4, AngleUnit.DEGREES,
 **The team's pattern:** gamepad1.x resets to the known reset point. This is called a "re-localization anchor" — after the reset, odometry is accurate again even if drift accumulated earlier.
 
 After pressing X, the telemetry should immediately show the robot at \`(1828.8 mm, 1828.8 mm, 0°)\` regardless of where the odometry drifted to.`,
-    starterCode: `@TeleOp(name = "Position Reset", group = "Challenge 38")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+
+@TeleOp(name = "Position Reset", group = "Challenge 38")
 public class PositionReset extends LinearOpMode {
 
     private GoBildaPinpointDriver odo;
@@ -3496,7 +3758,14 @@ if (result != null && result.isValid()) {
 \`\`\`
 
 **tx** is the key value for turret alignment — it's 0° when the target is centered and ±degrees when the camera needs to rotate.`,
-    starterCode: `@TeleOp(name = "Limelight Basic", group = "Challenge 39")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.limelightvision.LLResult;
+
+@TeleOp(name = "Limelight Basic", group = "Challenge 39")
 public class LimelightBasic extends LinearOpMode {
 
     // TODO 1: Declare a Limelight3A field named "limelight"
@@ -3592,7 +3861,14 @@ if (result != null) {
 \`\`\`
 
 A camera is considered "unhealthy" when staleFrames exceeds 5 consecutively. Display a "CAMERA FROZEN" warning when this threshold is exceeded.`,
-    starterCode: `@TeleOp(name = "Stale Frame Detect", group = "Challenge 40")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.limelightvision.LLResult;
+
+@TeleOp(name = "Stale Frame Detect", group = "Challenge 40")
 public class StaleFrameDetect extends LinearOpMode {
 
     private Limelight3A limelight;
@@ -3691,7 +3967,16 @@ for (LLResultTypes.FiducialResult tag : tags) {
 - BLUE alliance goal: Tag ID **20**
 
 When the expected tag is found, display its \`tx\` (horizontal offset in degrees). When not found, display "NO TARGET — scanning".`,
-    starterCode: `@TeleOp(name = "AprilTag Target", group = "Challenge 41")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
+import java.util.List;
+
+@TeleOp(name = "AprilTag Target", group = "Challenge 41")
 public class AprilTagTarget extends LinearOpMode {
 
     private Limelight3A limelight;
@@ -3794,7 +4079,15 @@ turretMotor.setPower(correctionPower);
 **Constants:** \`Kp = 0.02\`, \`ON_TARGET_THRESHOLD = 2.0°\`, max power ±0.4.
 
 When the turret is on-target for 5+ consecutive loops, trigger a "LOCKED" state.`,
-    starterCode: `@TeleOp(name = "Vision Servo Loop", group = "Challenge 42")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.limelightvision.LLResult;
+
+@TeleOp(name = "Vision Servo Loop", group = "Challenge 42")
 public class VisionServoLoop extends LinearOpMode {
 
     private Limelight3A limelight;
@@ -3901,7 +4194,14 @@ limelight.setPollRateHz(rates[rateIdx]);
 \`\`\`
 
 Display the current rate, the latest capture latency, and a running frame count so you can compare rates side by side.`,
-    starterCode: `@TeleOp(name = "Poll Rate Cycle", group = "Challenge 43")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.limelightvision.LLResult;
+
+@TeleOp(name = "Poll Rate Cycle", group = "Challenge 43")
 public class PollRateCycle extends LinearOpMode {
 
     private Limelight3A limelight;
@@ -3992,7 +4292,13 @@ Pose humanStation = new Pose(6.689,  8.874, Math.toRadians(180));
 \`\`\`
 
 In telemetry, display each pose's x, y, and heading in both radians (\`pose.getHeading()\`) and degrees (\`Math.toDegrees(pose.getHeading())\`). Verify the degree display shows 180.0 for all three — confirming your conversion is correct.`,
-    starterCode: `@Autonomous(name = "Pose Construction", group = "Challenge 44")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.pedropathing.localization.Pose;
+
+@Autonomous(name = "Pose Construction", group = "Challenge 44")
 public class PoseConstruction extends LinearOpMode {
 
     @Override
@@ -4079,7 +4385,17 @@ while (opModeIsActive() && follower.isBusy()) {
 \`\`\`
 
 The parametric t value runs from 0.0 (start) to 1.0 (end) as the robot follows the path.`,
-    starterCode: `@Autonomous(name = "BezierLine Follow", group = "Challenge 45")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.pathgen.PathChain;
+import com.pedropathing.pathgen.BezierLine;
+import com.pedropathing.pathgen.Point;
+import com.pedropathing.localization.Pose;
+
+@Autonomous(name = "BezierLine Follow", group = "Challenge 45")
 public class BezierLineFollow extends LinearOpMode {
 
     private Follower follower;
@@ -4179,7 +4495,18 @@ new BezierCurve(
 **Heading interpolation:** Use \`setTangentHeadingInterpolation()\` so the robot's heading follows the curve tangent — the robot faces the direction it's moving rather than a fixed angle.
 
 **Key insight:** Moving the control point's Y value changes the peak height of the arc. At Y=35.864, the robot just grazes the tape height at its maximum.`,
-    starterCode: `@Autonomous(name = "Tape Detour", group = "Challenge 46")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.pathgen.PathChain;
+import com.pedropathing.pathgen.BezierCurve;
+import com.pedropathing.pathgen.BezierLine;
+import com.pedropathing.pathgen.Point;
+import com.pedropathing.localization.Pose;
+
+@Autonomous(name = "Tape Detour", group = "Challenge 46")
 public class TapeDetour extends LinearOpMode {
 
     private Follower follower;
@@ -4278,7 +4605,17 @@ PathChain returnPath = follower.pathBuilder()
     .setLinearHeadingInterpolation(humanStation.getHeading(), shotPose.getHeading())
     .build();
 \`\`\``,
-    starterCode: `@Autonomous(name = "Reversed Path", group = "Challenge 47")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.pathgen.PathChain;
+import com.pedropathing.pathgen.BezierLine;
+import com.pedropathing.pathgen.Point;
+import com.pedropathing.localization.Pose;
+
+@Autonomous(name = "Reversed Path", group = "Challenge 47")
 public class ReversedPath extends LinearOpMode {
 
     private Follower follower;
@@ -4375,7 +4712,15 @@ private PathChain buildPathTo(Pose target, boolean reversed) {
 **Usage:** call \`buildPathTo()\` and immediately \`follower.followPath()\` before the robot moves (the pose is captured at build time). Then wait in a loop until \`!follower.isBusy()\` before building the next segment.
 
 **Waypoints:** A→B→C→A (triangle route using the three team field positions).`,
-    starterCode: `@Autonomous(name = "Dynamic Paths", group = "Challenge 48")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.pathgen.PathChain;
+import com.pedropathing.localization.Pose;
+
+@Autonomous(name = "Dynamic Paths", group = "Challenge 48")
 public class DynamicPaths extends LinearOpMode {
 
     private Follower follower;
@@ -4479,7 +4824,12 @@ double mmToInches(double mm)     { return mm / 25.4; }
 - Center: 72 in = 1828.8 mm
 - Near wall: 0 in = 0 mm
 - Far wall: 144 in = 3657.6 mm`,
-    starterCode: `@TeleOp(name = "Unit Conversion", group = "Challenge 49")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@TeleOp(name = "Unit Conversion", group = "Challenge 49")
 public class UnitConversion extends LinearOpMode {
 
     private static final double FIELD_INCHES = 144.0;
@@ -4556,7 +4906,12 @@ public class UnitConversion extends LinearOpMode {
 **Normalized dot product** (cosine similarity) divides by both magnitudes. If the result is < 0, the robot is moving opposite to the drive command — a signal to enable stronger braking.
 
 Implement \`dot(ax, ay, bx, by)\` and display it for the joystick vector vs. a fixed reference vector (1, 0) while the driver moves the sticks.`,
-    starterCode: `@TeleOp(name = "Dot Product Demo", group = "Challenge 50")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@TeleOp(name = "Dot Product Demo", group = "Challenge 50")
 public class DotProductDemo extends LinearOpMode {
 
     @Override
@@ -4640,7 +4995,14 @@ double power   = lerp(0.0, 1.0, t); // 0→1 over RAMP_DURATION seconds
 **The team's transfer ramp:** uses 250 ms (\`RAMP_DURATION = 0.25\`) to ramp from 0 to full power for the ball transfer mechanism, preventing jerk that knocks the ball off track.
 
 For this challenge, use a 2-second ramp for a drive motor (more visible in telemetry).`,
-    starterCode: `@Autonomous(name = "Lerp Ramp", group = "Challenge 51")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+@Autonomous(name = "Lerp Ramp", group = "Challenge 51")
 public class LerpRamp extends LinearOpMode {
 
     private DcMotor driveMotor;
@@ -4736,7 +5098,12 @@ double dist = 40 + t * (50 - 40); // = 45 in
 \`\`\`
 
 **Verify:** \`tpsToDistance(1425)\` should return 45.0 inches.`,
-    starterCode: `@TeleOp(name = "TPS to Distance", group = "Challenge 52")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@TeleOp(name = "TPS to Distance", group = "Challenge 52")
 public class TpsToDistance extends LinearOpMode {
 
     private static final double[] DIST_TABLE = {30.0, 40.0, 50.0, 60.0};
@@ -4831,7 +5198,13 @@ boolean robotSpeedOk = speed < SPEED_THRESHOLD; // 1000 mm/s
 \`\`\`
 
 **Team context:** the \`robotSpeedOk\` boolean was ANDed with \`shooterReady\` in the latch logic (Challenge 28) to prevent shots during rapid driving maneuvers.`,
-    starterCode: `@TeleOp(name = "Velocity Magnitude", group = "Challenge 53")
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+
+@TeleOp(name = "Velocity Magnitude", group = "Challenge 53")
 public class VelocityMagnitude extends LinearOpMode {
 
     // TODO 1: Declare two DcMotorEx fields: forwardMotor, strafeMotor

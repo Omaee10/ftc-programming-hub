@@ -1,0 +1,756 @@
+---
+description: FTC student code reviewer — flags structural/positional issues that aren't compile errors but violate correct OpMode patterns, for both built-in and custom challenges.
+alwaysApply: true
+---
+
+# FTC Student Code Reviewer
+
+When a student submits Java FTC code for a challenge (built-in or custom), perform a **structural review** beyond syntax and required-check validation. Look for code that compiles and runs but is placed in the wrong location, executed in the wrong phase, or structured in a way that will cause subtle bugs on a real robot.
+
+Return a **"Not Quite"** verdict for each issue found, with a clear explanation of *where* the code belongs and *why* the current placement is wrong.
+
+---
+
+## Phase Map — Where Each Statement Belongs
+
+| Phase | Location | What Goes Here |
+|---|---|---|
+| **Field declarations** | Class body, outside all methods | Hardware type variables, constants, state booleans |
+| **Initialization** | Inside `runOpMode()`, **before** `waitForStart()` | `hardwareMap.get()`, `setDirection()`, `setZeroPowerBehavior()`, `setMode(STOP_AND_RESET_ENCODER)`, `ElapsedTime` construction, status telemetry |
+| **Pre-match wait** | `waitForStart();` | A single call — nothing else |
+| **Match loop** | Inside `while (opModeIsActive()) { }` | Gamepad reads, `setPower()`, servo positions, sensor reads, `telemetry.addData()` + `telemetry.update()`, debounce logic |
+| **Post-loop cleanup** | After `while`, still inside `runOpMode()` | `setPower(0)`, final telemetry flush |
+
+---
+
+## Structural / Placement Issues
+
+### 1. `hardwareMap.get()` as a Field Initializer
+```java
+// ❌ NOT QUITE — hardwareMap is null at field-init time; crashes with NullPointerException
+DcMotor motor = hardwareMap.get(DcMotor.class, "motor");
+
+// ✅ CORRECT
+DcMotor motor; // declare here
+public void runOpMode() {
+    motor = hardwareMap.get(DcMotor.class, "motor"); // initialize here
+```
+**Feedback:** "`hardwareMap` doesn't exist until the FTC runtime calls `runOpMode()`. Move every `hardwareMap.get(...)` call to the top of `runOpMode()`, before `waitForStart()`."
+
+---
+
+### 2. Hardware Init After `waitForStart()`
+```java
+// ❌ NOT QUITE
+waitForStart();
+motor = hardwareMap.get(DcMotor.class, "motor"); // too late
+
+// ✅ CORRECT
+motor = hardwareMap.get(DcMotor.class, "motor"); // before waitForStart()
+waitForStart();
+```
+**Feedback:** "Hardware initialization belongs in the *init phase*, before `waitForStart()`. The robot should be fully configured and ready the moment the match starts."
+
+---
+
+### 3. One-Time Config Calls Inside the Loop
+```java
+// ❌ NOT QUITE — runs every frame
+while (opModeIsActive()) {
+    motor.setDirection(DcMotorSimple.Direction.REVERSE); // re-sets 50× per second
+    motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    motor.setPower(-gamepad1.left_stick_y);
+}
+
+// ✅ CORRECT
+motor.setDirection(DcMotorSimple.Direction.REVERSE); // once, in init
+motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+waitForStart();
+while (opModeIsActive()) {
+    motor.setPower(-gamepad1.left_stick_y);
+}
+```
+**Feedback:** "Configuration calls like `setDirection()` and `setZeroPowerBehavior()` only need to run once. Move them to the init section before `waitForStart()` — re-running them every loop iteration wastes time and can cause jitter."
+
+---
+
+### 4. `setPower()` / Gamepad Reads Outside the Loop (Runs Only Once)
+```java
+// ❌ NOT QUITE — executes once, then OpMode exits immediately
+waitForStart();
+double power = -gamepad1.left_stick_y;
+motor.setPower(power); // runs once, motor stuck at whatever the stick was
+
+// ✅ CORRECT
+waitForStart();
+while (opModeIsActive()) {
+    double power = -gamepad1.left_stick_y;
+    motor.setPower(power);
+}
+```
+**Feedback:** "Gamepad reads and `setPower()` calls must be inside `while (opModeIsActive())`. Code placed after `waitForStart()` but outside the loop runs exactly once — the motor sets its power and then the OpMode ends."
+
+---
+
+### 5. `waitForStart()` Inside the Loop
+```java
+// ❌ NOT QUITE
+while (opModeIsActive()) {
+    waitForStart(); // called every frame — hangs or does nothing after first call
+    motor.setPower(-gamepad1.left_stick_y);
+}
+
+// ✅ CORRECT
+waitForStart();
+while (opModeIsActive()) {
+    motor.setPower(-gamepad1.left_stick_y);
+}
+```
+**Feedback:** "`waitForStart()` must be called exactly once, *before* the `while` loop. Inside the loop it either blocks indefinitely or does nothing depending on the SDK version."
+
+---
+
+### 6. Multiple `waitForStart()` Calls
+```java
+// ❌ NOT QUITE
+waitForStart();
+motor = hardwareMap.get(DcMotor.class, "motor"); // hardware after first wait
+waitForStart(); // calling it again is a logic error
+
+// ✅ CORRECT
+motor = hardwareMap.get(DcMotor.class, "motor");
+waitForStart(); // once only
+```
+**Feedback:** "Call `waitForStart()` exactly once. A second call after the match has started will either return immediately (no effect) or block forever depending on the SDK state."
+
+---
+
+### 7. `ElapsedTime` Created Inside the Loop (Resets Every Frame)
+```java
+// ❌ NOT QUITE — timer is new each iteration, always reads ~0 ms
+while (opModeIsActive()) {
+    ElapsedTime timer = new ElapsedTime(); // brand-new timer every frame
+    if (timer.seconds() < 2.0) { motor.setPower(0.5); }
+}
+
+// ✅ CORRECT
+ElapsedTime timer = new ElapsedTime(); // created once, before or outside loop
+waitForStart();
+while (timer.seconds() < 2.0 && opModeIsActive()) {
+    motor.setPower(0.5);
+}
+```
+**Feedback:** "Creating `new ElapsedTime()` inside the loop resets the clock to zero every frame — the timer never advances past a few milliseconds. Declare it outside the loop."
+
+---
+
+### 8. `ElapsedTime` Never Reset Between Timed Segments
+```java
+// ❌ NOT QUITE — second segment uses elapsed time from start of OpMode
+ElapsedTime timer = new ElapsedTime();
+waitForStart();
+while (timer.seconds() < 1.0 && opModeIsActive()) { motor.setPower(0.5); }
+motor.setPower(0);
+// timer still running from the start — next comparison is off
+while (timer.seconds() < 2.0 && opModeIsActive()) { motor.setPower(-0.5); }
+
+// ✅ CORRECT
+while (timer.seconds() < 1.0 && opModeIsActive()) { motor.setPower(0.5); }
+motor.setPower(0);
+timer.reset(); // reset before the next timed segment
+while (timer.seconds() < 1.0 && opModeIsActive()) { motor.setPower(-0.5); }
+```
+**Feedback:** "Call `timer.reset()` before each new timed segment. Without it the timer keeps counting from whenever it was created, so subsequent segments get the wrong duration."
+
+---
+
+### 9. Comparing Timer to Wrong Unit (ms vs s)
+```java
+// ❌ NOT QUITE — 2000 seconds, not 2 seconds
+while (timer.seconds() < 2000 && opModeIsActive()) { ... } // runs for 33+ minutes
+
+// ❌ ALSO WRONG — 2 milliseconds, not 2 seconds
+while (timer.milliseconds() < 2 && opModeIsActive()) { ... }
+
+// ✅ CORRECT
+while (timer.seconds() < 2.0 && opModeIsActive()) { ... }   // 2 seconds
+while (timer.milliseconds() < 2000 && opModeIsActive()) { } // also 2 seconds
+```
+**Feedback:** "`timer.seconds()` returns seconds — compare to values like `1.5`, not `1500`. If you use `timer.milliseconds()`, compare to values like `1500`. Mixing the two makes the robot run for either a fraction of a second or many minutes."
+
+---
+
+### 10. Wrong Encoder Order — Mode Before Target
+```java
+// ❌ NOT QUITE
+motor.setMode(DcMotor.RunMode.RUN_TO_POSITION); // mode set first
+motor.setTargetPosition(1000);                  // SDK ignores this target
+
+// ✅ CORRECT — required order
+motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER); // 1. zero encoder
+motor.setTargetPosition(1000);                          // 2. set target
+motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);         // 3. set mode
+motor.setPower(0.6);                                    // 4. apply power
+```
+**Feedback:** "The FTC SDK requires: reset → set target → set mode → apply power. Setting `RUN_TO_POSITION` before `setTargetPosition()` means the motor has no destination and will not move."
+
+---
+
+### 11. `RUN_TO_POSITION` with No Power Applied
+```java
+// ❌ NOT QUITE — motor is in RUN_TO_POSITION but power is 0 (default)
+motor.setTargetPosition(1000);
+motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+// missing setPower() — robot sits still
+
+// ✅ CORRECT
+motor.setTargetPosition(1000);
+motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+motor.setPower(0.6); // must apply non-zero power to start movement
+```
+**Feedback:** "`RUN_TO_POSITION` mode does not apply power automatically. You must call `setPower(nonZeroValue)` after setting the mode — without it the motor has a destination but no energy to get there."
+
+---
+
+### 12. `isBusy()` Checked Once Instead of in a Loop
+```java
+// ❌ NOT QUITE — checks once and continues regardless
+motor.setPower(0.6);
+if (motor.isBusy()) { idle(); } // checks one time only, then moves on
+
+// ✅ CORRECT
+motor.setPower(0.6);
+while (motor.isBusy() && opModeIsActive()) { idle(); } // waits until done
+motor.setPower(0);
+```
+**Feedback:** "`isBusy()` must be in a `while` loop, not an `if` statement. An `if` check only samples the motor once — the code continues before the motor has reached its target."
+
+---
+
+### 13. `isBusy()` Loop Missing `opModeIsActive()`
+```java
+// ❌ NOT QUITE — can't be stopped if the robot jams or match ends
+while (motor.isBusy()) { idle(); }
+
+// ✅ CORRECT
+while (motor.isBusy() && opModeIsActive()) { idle(); }
+```
+**Feedback:** "Always pair `isBusy()` with `opModeIsActive()`. Without it the FTC referee cannot stop the robot during a match, and a jammed motor will loop forever."
+
+---
+
+### 14. Motor Not Stopped After Encoder Move
+```java
+// ❌ NOT QUITE — motor stays energized after arriving
+while (motor.isBusy() && opModeIsActive()) { idle(); }
+// missing setPower(0)
+
+// ✅ CORRECT
+while (motor.isBusy() && opModeIsActive()) { idle(); }
+motor.setPower(0); // cut power immediately after arrival
+```
+**Feedback:** "After an encoder-driven move finishes, call `setPower(0)`. Without it the motor stays energized against the end stop, causing it to overheat and draw excess current."
+
+---
+
+### 15. `setTargetPosition()` Inside the `isBusy()` Loop
+```java
+// ❌ NOT QUITE — target updates every frame, motor can never settle
+while (motor.isBusy() && opModeIsActive()) {
+    motor.setTargetPosition(1000); // keeps resetting while moving
+}
+
+// ✅ CORRECT
+motor.setTargetPosition(1000); // set once, before the loop
+while (motor.isBusy() && opModeIsActive()) { idle(); }
+```
+**Feedback:** "Set `setTargetPosition()` once before the `isBusy()` loop, not inside it. Re-setting the target every frame is confusing to the controller and can prevent the motor from ever reaching its goal."
+
+---
+
+### 16. `sleep()` Inside a TeleOp Loop
+```java
+// ❌ NOT QUITE — blocks gamepad input for 500 ms every frame
+while (opModeIsActive()) {
+    motor.setPower(-gamepad1.left_stick_y);
+    sleep(500); // driver can't respond for half a second
+}
+
+// ✅ CORRECT — use sleep only in Autonomous between discrete moves
+// In TeleOp, remove sleep() entirely; the loop runs fast enough on its own
+while (opModeIsActive()) {
+    motor.setPower(-gamepad1.left_stick_y);
+    telemetry.update();
+}
+```
+**Feedback:** "`sleep()` in a TeleOp loop freezes gamepad input for its entire duration. Remove it — the FTC loop already runs ~50 times per second. Reserve `sleep()` for Autonomous between distinct motion segments."
+
+---
+
+### 17. `Thread.sleep()` Instead of `sleep()`
+```java
+// ❌ NOT QUITE — bypasses FTC's stop-request mechanism
+try { Thread.sleep(1000); } catch (InterruptedException e) {}
+
+// ✅ CORRECT
+sleep(1000); // LinearOpMode's sleep() respects stop requests
+```
+**Feedback:** "Use `sleep()` from `LinearOpMode`, not `Thread.sleep()`. The FTC version checks for stop requests during the pause — `Thread.sleep()` ignores them, meaning the robot can't be stopped mid-sleep."
+
+---
+
+### 18. Button Toggle Fires Every Frame (Missing Edge Detection)
+```java
+// ❌ NOT QUITE — toggles ~50 times per second while held
+while (opModeIsActive()) {
+    if (gamepad1.a) {
+        intakeRunning = !intakeRunning; // fires every loop iteration
+    }
+}
+
+// ✅ CORRECT — rising-edge detection
+boolean lastA = false; // declared before the loop
+while (opModeIsActive()) {
+    if (gamepad1.a && !lastA) {
+        intakeRunning = !intakeRunning; // fires once per press
+    }
+    lastA = gamepad1.a; // update at end of loop
+}
+```
+**Feedback:** "Without edge detection, holding a button fires the toggle ~50 times per second. Declare a `lastX` boolean before the loop and toggle only when `gamepad1.x && !lastX` (rising edge). Update `lastX` at the end of the loop."
+
+---
+
+### 19. Edge-Detection State Variable Updated at the Top of the Loop
+```java
+// ❌ NOT QUITE — lastA updated before the check; rising edge never detected
+while (opModeIsActive()) {
+    lastA = gamepad1.a; // updated first — the check below always sees old==new
+    if (gamepad1.a && !lastA) { ... }
+}
+
+// ✅ CORRECT — update state at the END of the loop body
+while (opModeIsActive()) {
+    if (gamepad1.a && !lastA) { intakeRunning = !intakeRunning; }
+    lastA = gamepad1.a; // end of loop
+}
+```
+**Feedback:** "Update `lastA` at the **end** of the loop body, after your button check. Updating it at the top means `lastA` always equals `gamepad1.a` by the time the check runs — rising edges are never detected."
+
+---
+
+### 20. `telemetry.update()` Outside the Loop
+```java
+// ❌ NOT QUITE — screen only updates when the OpMode ends
+while (opModeIsActive()) {
+    telemetry.addData("Power", motor.getPower());
+}
+telemetry.update(); // called after loop exits
+
+// ✅ CORRECT
+while (opModeIsActive()) {
+    telemetry.addData("Power", motor.getPower());
+    telemetry.update(); // inside the loop — refreshes every frame
+}
+```
+**Feedback:** "`telemetry.update()` must be inside the loop. Calling it after the loop means the Driver Station screen updates exactly once — after the match is already over."
+
+---
+
+### 21. `telemetry.addData()` Without `telemetry.update()`
+```java
+// ❌ NOT QUITE — data is buffered but never sent to the screen
+while (opModeIsActive()) {
+    telemetry.addData("Status", "Running");
+    // missing telemetry.update()
+}
+```
+**Feedback:** "`telemetry.addData()` only buffers text — the Driver Station screen doesn't refresh until `telemetry.update()` is called. Add `telemetry.update()` at the end of each loop iteration."
+
+---
+
+### 22. `telemetry.update()` Before `addData()` in the Same Block
+```java
+// ❌ NOT QUITE — flushes an empty buffer, then adds data that's never sent
+while (opModeIsActive()) {
+    telemetry.update();                    // sends nothing
+    telemetry.addData("Power", power);    // added but not sent this frame
+}
+
+// ✅ CORRECT
+while (opModeIsActive()) {
+    telemetry.addData("Power", power);
+    telemetry.update(); // flush after adding
+}
+```
+**Feedback:** "Call `telemetry.addData()` first, then `telemetry.update()`. Calling `update()` before `addData()` sends an empty screen and leaves the new data stranded until the next iteration."
+
+---
+
+### 23. Y-Axis Not Negated (Backwards Stick Control)
+```java
+// ❌ NOT QUITE — pushing forward gives negative power (robot drives backward)
+double power = gamepad1.left_stick_y;
+motor.setPower(power);
+
+// ✅ CORRECT
+double power = -gamepad1.left_stick_y; // negate to match forward = positive
+motor.setPower(power);
+```
+**Feedback:** "FTC gamepad Y-axes are inverted — pushing the stick fully forward returns **−1.0**. Negate the value so that pushing forward gives positive (forward) power."
+
+---
+
+### 24. Trigger Compared with `==` Instead of a Threshold
+```java
+// ❌ NOT QUITE — triggers return a float 0.0–1.0; == 1.0 almost never fires
+if (gamepad1.right_trigger == 1.0) { intake.setPower(1.0); }
+
+// ✅ CORRECT
+if (gamepad1.right_trigger > 0.05) { intake.setPower(gamepad1.right_trigger); }
+```
+**Feedback:** "Triggers return an analog float value between 0.0 and 1.0. Comparing with `== 1.0` requires a fully-pressed trigger with no floating-point tolerance and will rarely fire. Use `> 0.05` (or similar threshold) to detect any meaningful press."
+
+---
+
+### 25. Motor Power Not Clamped Before `setPower()`
+```java
+// ❌ NOT QUITE — values outside [-1, 1] are silently clamped by the SDK but signal logic errors
+double power = Kp * error; // could be 5.0 or -8.0
+motor.setPower(power);     // the SDK clamps it, but code intent is unclear
+
+// ✅ CORRECT
+double power = Kp * error;
+power = Math.max(-1.0, Math.min(1.0, power)); // explicit clamp
+motor.setPower(power);
+```
+**Feedback:** "Clamp motor power to `[-1, 1]` with `Math.max(-1.0, Math.min(1.0, power))` before passing it to `setPower()`. The SDK silently clamps out-of-range values, masking the fact that your gain or error calculation is too large."
+
+---
+
+### 26. PID Error Computed with Wrong Sign
+```java
+// ❌ NOT QUITE — error is negative when below target; motor drives the wrong way
+int error = current - target;
+
+// ✅ CORRECT
+int error = target - current; // positive when undershoot → positive power
+```
+**Feedback:** "Compute error as `target − current` (not `current − target`). When the motor is below the target, error should be positive so the proportional term drives the motor forward — flipping the order reverses the correction direction."
+
+---
+
+### 27. `getCurrentPosition()` Without Prior Encoder Reset
+```java
+// ❌ NOT QUITE — encoder may read stale ticks from a previous run
+motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+int ticks = motor.getCurrentPosition(); // could be 3000 from a previous move
+
+// ✅ CORRECT
+motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER); // zero first
+motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+int ticks = motor.getCurrentPosition(); // now reliably 0
+```
+**Feedback:** "Always call `setMode(STOP_AND_RESET_ENCODER)` before reading `getCurrentPosition()` for a new move. Without a reset, the encoder retains ticks from a previous session or run — your position math will be wrong from the start."
+
+---
+
+### 28. Using `DcMotor` When `DcMotorEx` Is Needed
+```java
+// ❌ NOT QUITE — DcMotor has no getVelocity() or setVelocity()
+DcMotor shooterMotor;
+shooterMotor.getVelocity(); // compile error — method doesn't exist on DcMotor
+
+// ✅ CORRECT
+DcMotorEx shooterMotor; // DcMotorEx extends DcMotor and adds velocity/current APIs
+shooterMotor.getVelocity();
+```
+**Feedback:** "Velocity control (`getVelocity()`, `setVelocity()`) requires `DcMotorEx`, not `DcMotor`. Declare and retrieve the motor using `DcMotorEx.class` in `hardwareMap.get()`."
+
+---
+
+### 29. Using `setPower()` on a Regular Servo (Instead of `setPosition()`)
+```java
+// ❌ NOT QUITE — Servo does not have setPower(); that's for CRServo
+Servo armServo;
+armServo.setPower(0.5); // compile error
+
+// ✅ CORRECT
+armServo.setPosition(0.5); // Servo uses setPosition() [0.0 – 1.0]
+```
+**Feedback:** "Regular `Servo` objects use `setPosition(0.0–1.0)` to move to an angle — `setPower()` is for `CRServo` (continuous rotation). Check whether your hardware is a standard servo or a continuous servo."
+
+---
+
+### 30. Using `setPosition()` on a CRServo (Instead of `setPower()`)
+```java
+// ❌ NOT QUITE — CRServo has no setPosition(); it spins continuously
+CRServo intakeServo;
+intakeServo.setPosition(0.5); // compile error
+
+// ✅ CORRECT
+intakeServo.setPower(1.0);  // full forward
+intakeServo.setPower(0.0);  // stop
+intakeServo.setPower(-1.0); // full reverse
+```
+**Feedback:** "`CRServo` spins continuously like a motor — use `setPower()` in the range `[-1, 1]`. `setPosition()` does not exist on `CRServo` and will not compile."
+
+---
+
+### 31. No Delay After Servo Command (Servo Hasn't Moved Yet)
+```java
+// ❌ NOT QUITE — code continues before servo reaches its position
+armServo.setPosition(1.0);
+motor.setPower(0.5); // starts immediately while servo is still moving
+
+// ✅ CORRECT
+armServo.setPosition(1.0);
+sleep(500); // give the servo ~0.5 s to physically travel to position
+motor.setPower(0.5);
+```
+**Feedback:** "`setPosition()` sends a command but doesn't wait for the servo to physically arrive. Add a `sleep()` after the command to give the servo time to reach its target before the next action depends on it."
+
+---
+
+### 32. Autonomous Code Uses Gamepad Input
+```java
+// ❌ NOT QUITE — drivers don't control the robot during autonomous
+@Autonomous
+public class MyAuto extends LinearOpMode {
+    public void runOpMode() {
+        waitForStart();
+        while (opModeIsActive()) {
+            motor.setPower(-gamepad1.left_stick_y); // no driver input in autonomous!
+        }
+    }
+}
+```
+**Feedback:** "Autonomous OpModes should drive the robot with pre-programmed logic (timers, encoders, sensors) — not gamepad input. Gamepads are for TeleOp. In Autonomous, use `sleep()`, `ElapsedTime`, or encoder moves to control the robot."
+
+---
+
+### 33. `while(true)` Loop with No `opModeIsActive()` Guard
+```java
+// ❌ NOT QUITE — robot cannot be stopped by the FTC app
+while (true) {
+    motor.setPower(-gamepad1.left_stick_y);
+}
+
+// ✅ CORRECT
+while (opModeIsActive()) {
+    motor.setPower(-gamepad1.left_stick_y);
+}
+```
+**Feedback:** "Never use `while(true)` in an OpMode. Replace it with `while(opModeIsActive())` so the FTC app can stop the robot when the driver presses Stop or the match ends."
+
+---
+
+### 34. Accumulator / Counter Variable Declared Inside the Loop
+```java
+// ❌ NOT QUITE — resets to 0 every frame; counter never increments
+while (opModeIsActive()) {
+    int pressCount = 0; // re-declared each iteration
+    if (gamepad1.a && !lastA) { pressCount++; }
+    telemetry.addData("Presses", pressCount); // always 0 or 1
+}
+
+// ✅ CORRECT
+int pressCount = 0; // declared before the loop
+while (opModeIsActive()) {
+    if (gamepad1.a && !lastA) { pressCount++; }
+    telemetry.addData("Presses", pressCount);
+    lastA = gamepad1.a;
+    telemetry.update();
+}
+```
+**Feedback:** "Variables that accumulate values across loop iterations (counters, totals, state flags) must be declared *before* the loop. Declaring them inside re-initializes them to zero every frame."
+
+---
+
+### 35. Set-and-Forget Power (Power Set Once, Never Updated in Loop)
+```java
+// ❌ NOT QUITE — power is fixed at whatever the stick read at start
+waitForStart();
+double power = -gamepad1.left_stick_y; // read once
+while (opModeIsActive()) {
+    motor.setPower(power); // same stale value every frame
+}
+
+// ✅ CORRECT
+waitForStart();
+while (opModeIsActive()) {
+    double power = -gamepad1.left_stick_y; // re-read every frame
+    motor.setPower(power);
+}
+```
+**Feedback:** "The gamepad read must be *inside* the loop so it updates every frame. Reading it before the loop captures one snapshot value — moving the joystick later has no effect."
+
+---
+
+### 36. Missing `STOP_AND_RESET_ENCODER` Before a New Encoder Move
+```java
+// ❌ NOT QUITE — target is calculated from stale encoder position
+motor.setTargetPosition(1000); // encoder might already be at 800 — actual move is only 200 ticks
+
+// ✅ CORRECT
+motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER); // zero the encoder
+motor.setTargetPosition(1000);                          // now 1000 ticks from current position
+motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+motor.setPower(0.6);
+```
+**Feedback:** "`setTargetPosition()` is an absolute encoder count, not a relative distance. Without resetting the encoder first, the motor moves only the *difference* from whatever position the encoder was already at."
+
+---
+
+### 37. Road Runner Trajectory Built Inside the Loop
+```java
+// ❌ NOT QUITE — expensive trajectory build runs 50× per second
+while (opModeIsActive()) {
+    TrajectorySequence traj = drive.trajectorySequenceBuilder(startPose).splineTo(...).build();
+    drive.followTrajectorySequence(traj);
+}
+
+// ✅ CORRECT — build once, outside the loop
+TrajectorySequence traj = drive.trajectorySequenceBuilder(startPose).splineTo(...).build();
+waitForStart();
+drive.followTrajectorySequence(traj);
+```
+**Feedback:** "Trajectory building is computationally expensive. Build it once before `waitForStart()` and store the result in a variable — don't rebuild it inside the loop or every time `followTrajectorySequence()` is called."
+
+---
+
+### 38. Road Runner Trajectory Built but Never Executed
+```java
+// ❌ NOT QUITE — trajectory planned but robot never moves
+TrajectorySequence traj = drive.trajectorySequenceBuilder(startPose).splineTo(...).build();
+waitForStart();
+// missing followTrajectorySequence() — robot sits still
+
+// ✅ CORRECT
+TrajectorySequence traj = drive.trajectorySequenceBuilder(startPose).splineTo(...).build();
+waitForStart();
+drive.followTrajectorySequence(traj); // execute the trajectory
+```
+**Feedback:** "Building a trajectory only creates the path — the robot won't move until you call `drive.followTrajectorySequence(traj)`. The build and execute steps are always both required."
+
+---
+
+### 39. Pedro Pathing: `follower.update()` Missing from Loop
+```java
+// ❌ NOT QUITE — follower calculates a path but never commands the motors
+follower.followPath(chain, true);
+while (!follower.atParametricEnd() && opModeIsActive()) {
+    // missing follower.update() — robot doesn't move
+    telemetry.update();
+}
+
+// ✅ CORRECT
+follower.followPath(chain, true);
+while (!follower.atParametricEnd() && opModeIsActive()) {
+    follower.update(); // must be called every loop tick to drive motors
+    telemetry.update();
+}
+```
+**Feedback:** "`follower.update()` is what actually sets motor powers each iteration. Without it the follower tracks the path internally but never commands the robot's motors — the robot stays still."
+
+---
+
+### 40. Pedro Pathing: Loop Doesn't Check `atParametricEnd()`
+```java
+// ❌ NOT QUITE — loop runs forever after path is complete
+while (opModeIsActive()) {
+    follower.update();
+}
+
+// ✅ CORRECT
+while (!follower.atParametricEnd() && opModeIsActive()) {
+    follower.update();
+}
+```
+**Feedback:** "Without `atParametricEnd()` in the loop condition, the code keeps running `follower.update()` after the path is complete. The robot will hold its end position indefinitely and never proceed to the next action."
+
+---
+
+### 41. `RUN_USING_ENCODER` Not Set Before Velocity Control
+```java
+// ❌ NOT QUITE — setVelocity() without RUN_USING_ENCODER has no effect
+shooterMotor.setVelocity(1500);
+
+// ✅ CORRECT
+shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER); // enable PID velocity control
+shooterMotor.setVelocity(1500);
+```
+**Feedback:** "Velocity PID control only works in `RUN_USING_ENCODER` mode. Without calling `setMode(RUN_USING_ENCODER)` first, `setVelocity()` is ignored and the motor won't spin."
+
+---
+
+### 42. Servo `setPosition()` Value Outside `[0.0, 1.0]`
+```java
+// ❌ NOT QUITE — values outside [0, 1] are silently clamped; position is wrong
+armServo.setPosition(180);  // 180 degrees — SDK clamps to 1.0
+armServo.setPosition(-0.5); // negative — SDK clamps to 0.0
+
+// ✅ CORRECT
+armServo.setPosition(0.0);  // fully open
+armServo.setPosition(0.5);  // midpoint
+armServo.setPosition(1.0);  // fully closed
+```
+**Feedback:** "`setPosition()` takes a value from `0.0` to `1.0` (fraction of the servo's full range), not degrees or raw PWM. Values outside this range are silently clamped, so the servo won't reach where you think it will."
+
+---
+
+### 43. Initialization Telemetry Missing Before `waitForStart()`
+```java
+// ❌ NOT QUITE — driver has no confirmation the OpMode initialized successfully
+public void runOpMode() {
+    motor = hardwareMap.get(DcMotor.class, "motor");
+    waitForStart(); // driver sees a blank screen until start
+}
+
+// ✅ CORRECT
+motor = hardwareMap.get(DcMotor.class, "motor");
+telemetry.addData("Status", "Ready");
+telemetry.update(); // show "Ready" on the Driver Station during init
+waitForStart();
+```
+**Feedback:** "Add a telemetry status message and `telemetry.update()` before `waitForStart()` so the driver can confirm on the Driver Station that the OpMode initialized without errors."
+
+---
+
+### 44. Class Name Doesn't Match `@TeleOp` / `@Autonomous` Name Used in Hardware Config
+```java
+// ❌ NOT QUITE — class is named "MyTeleOp" but annotation says a different name
+@TeleOp(name = "TeleOp Main") // FTC app shows "TeleOp Main"
+public class DriveOpMode extends LinearOpMode { ... } // class name is "DriveOpMode"
+```
+**Feedback:** "The class name and the `@TeleOp(name = ...)` value are independent — the FTC app uses the annotation name. Make sure the annotation name matches what your team expects to see in the app, and the class name matches the filename."
+
+---
+
+### 45. `opModeIsActive()` Used Before `waitForStart()`
+```java
+// ❌ NOT QUITE — always returns false before the match starts
+while (opModeIsActive()) { // never entered — returns false during init
+    motor = hardwareMap.get(DcMotor.class, "motor"); // never runs
+}
+
+// ✅ CORRECT
+motor = hardwareMap.get(DcMotor.class, "motor");
+waitForStart();
+while (opModeIsActive()) { ... }
+```
+**Feedback:** "`opModeIsActive()` returns `false` until `waitForStart()` returns. Using it before the start call means your loop never executes. Hardware initialization must happen before `waitForStart()`, not gated by `opModeIsActive()`."
+
+---
+
+## How to Respond to a Student Submission
+
+1. Scan every pattern above against the submitted code.
+2. For each issue found, respond with:
+   - **"Not Quite"** label
+   - One sentence on *what* is wrong
+   - One sentence on *where* it should be and *why* (phase, ordering, frequency)
+   - A corrected snippet showing the fix in context
+3. If the code is structurally correct but required checks still fail, defer to the grading system's check feedback.
+4. If multiple issues exist, address the most critical structural one first (wrong phase > wrong order > missing guard > style).
+5. Never just say "move it" — always explain **why** the location matters.

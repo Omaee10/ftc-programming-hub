@@ -1,0 +1,182 @@
+---
+description: Exhaustively check and fix ALL possible code errors before finalizing any code
+alwaysApply: true
+---
+
+# Code Compiler Error Checker
+
+When writing or editing **any** code, run through **every** category below and fix all issues before considering the code complete. Do not skip any category.
+
+---
+
+## 1. Identifier Spelling Consistency
+
+Scan every identifier (variable, function, class, method, parameter, field) across its **declaration AND every use site**. If the spelling differs anywhere, fix all occurrences to match the declaration.
+
+```java
+// ❌ BAD — declared as "motorSpeed", used as "motorspeed" and "mtrSpeed"
+double motorSpeed = 0.5;
+leftMotor.setPower(motorspeed);   // typo 1
+rightMotor.setPower(mtrSpeed);    // typo 2
+
+// ✅ GOOD
+double motorSpeed = 0.5;
+leftMotor.setPower(motorSpeed);
+rightMotor.setPower(motorSpeed);
+```
+
+Also catch single-character transpositions (`teh` → `the`, `recieve` → `receive`, `calulcate` → `calculate`) and repeated letters (`doublel` → `double`).
+
+---
+
+## 2. Capitalisation / Case
+
+| Context | Required convention |
+|---|---|
+| Classes, constructors, types | `PascalCase` |
+| Variables, functions, methods | `camelCase` |
+| Constants / static finals | `UPPER_SNAKE_CASE` |
+| Java/FTC SDK identifiers | exact SDK casing |
+
+```java
+// ❌ BAD
+DcMotor leftmotor = hardwareMap.get(dcmotor.class, "left_motor");
+double MAX_speed = 1.0;
+
+// ✅ GOOD
+DcMotor leftMotor = hardwareMap.get(DcMotor.class, "left_motor");
+double MAX_SPEED = 1.0;
+```
+
+SDK method names are case-sensitive — verify against the SDK (e.g. `setPower` not `SetPower`, `getRuntime` not `getRunTime`).
+
+---
+
+## 3. Syntax Errors
+
+- Unclosed `{}`, `()`, `[]`
+- Missing or extra commas in argument lists, arrays, objects
+- Malformed ternary, arrow functions, or template literals
+- Missing `=` in assignments, `:` in object literals
+
+```ts
+// ❌ BAD
+const obj = { name: "Omar", age: 17   // missing } and ;
+const fn = (x) => x * 2               // missing ;
+
+// ✅ GOOD
+const obj = { name: "Omar", age: 17 };
+const fn = (x) => x * 2;
+```
+
+---
+
+## 4. Semicolons
+
+- **Missing**: add semicolons after statements in Java, C++, and non-ASI JavaScript.
+- **Stray**: remove semicolons after `}` that close a class, method, or block body.
+
+```java
+// ❌ BAD
+double speed = 0.8
+motor.setPower(speed)
+
+// ✅ GOOD
+double speed = 0.8;
+motor.setPower(speed);
+```
+
+---
+
+## 5. Wrong or Missing Imports / Package Declarations
+
+- Every referenced class or symbol must be imported at the top of the file.
+- Package declarations must exactly match the file's directory path.
+- Remove unused imports that were left after refactoring.
+
+```java
+// ❌ BAD — DcMotor used but not imported
+public class MyOp extends OpMode {
+    DcMotor motor;
+
+// ✅ GOOD
+import com.qualcomm.robotcore.hardware.DcMotor;
+public class MyOp extends OpMode {
+    DcMotor motor;
+```
+
+---
+
+## 6. Type Mismatches
+
+- Argument types must match function/method signatures exactly.
+- No silent narrowing (e.g. assigning `double` to `int` without a cast).
+- No implicit `any` where a concrete type is required.
+
+```java
+// ❌ BAD
+int ticks = 1000.5;          // double → int without cast
+
+// ✅ GOOD
+int ticks = (int) 1000.5;
+```
+
+---
+
+## 7. Logic / Off-by-One Errors
+
+- Array indices start at `0`; last valid index is `length - 1`.
+- Loop bounds: use `<` for exclusive upper bound, `<=` for inclusive.
+
+```java
+// ❌ BAD — reads one past the end
+for (int i = 0; i <= arr.length; i++) { ... }
+
+// ✅ GOOD
+for (int i = 0; i < arr.length; i++) { ... }
+```
+
+---
+
+## 8. Unreachable / Dead Code
+
+- Code after a `return`, `break`, `continue`, or `throw` in the same block.
+- Conditions that are always `true` or always `false`.
+
+---
+
+## 9. Missing Return Statements
+
+- Every non-`void` function must return a value on **every** code path, including all `else`/`catch` branches.
+
+---
+
+## 10. Undefined / Uninitialised / Null References
+
+- Variables must be initialised before use.
+- Nullable or potentially-null values must be null-checked before dereferencing.
+- Hardware devices obtained from `hardwareMap` can return `null` if the name is wrong — guard accordingly.
+
+---
+
+## 11. Duplicate Declarations
+
+- No two variables, parameters, or fields share the same name in the same scope.
+
+---
+
+## 12. Operator and Punctuation Errors
+
+- `=` (assignment) vs `==` (equality) used correctly.
+- `&&` / `||` vs `&` / `|` — use logical operators for boolean conditions.
+- Integer division vs floating-point division (`5/2` = `2`, `5.0/2` = `2.5`).
+
+---
+
+## Workflow
+
+1. **Write** the code.
+2. **Scan** every category above in order — do not skip any.
+3. **Fix** every issue found in place.
+4. **Re-scan** once after fixing to catch cascading errors.
+5. Only then present the final code.

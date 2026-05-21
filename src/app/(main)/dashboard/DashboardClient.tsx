@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -14,10 +15,14 @@ import {
   Navigation,
   ChevronRight,
   Flame,
+  Users,
+  ClipboardList,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { challenges as staticChallenges } from "@/data/challenges";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
+import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
+import { supabase } from "@/lib/supabase";
 
 function calcStreak(completedDates: string[]): number {
   if (completedDates.length === 0) return 0;
@@ -106,11 +111,179 @@ const statColorMap: Record<string, { icon: string; ring: string; bar: string }> 
   orange:  { icon: "bg-orange-500/10 text-orange-400",    ring: "border-orange-500/20",      bar: "bg-orange-400"  },
 };
 
-export default function DashboardClient({ name }: { name?: string }) {
-  // Read directly from localStorage — always up-to-date without any async
-  const { progress, hydrated, completedIds, completedCount } = useChallengeProgress();
+// ─── Mentor dashboard ──────────────────────────────────────────────────────
 
-  const displayName = name ?? getSession()?.name ?? "there";
+function MentorDashboard({ displayName }: { displayName: string }) {
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [studentCount, setStudentCount] = useState<number | null>(null);
+  const [challengeCount, setChallengeCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const session = getSession();
+    if (!session) return;
+    (async () => {
+      const [{ count: pending }, { count: students }, { count: challenges }] =
+        await Promise.all([
+          supabase
+            .from("challenge_submissions")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending"),
+          supabase
+            .from("students")
+            .select("id", { count: "exact", head: true })
+            .eq("mentor_id", session.id),
+          supabase
+            .from("challenges")
+            .select("id", { count: "exact", head: true })
+            .eq("created_by", session.id),
+        ]);
+      setPendingCount(pending ?? 0);
+      setStudentCount(students ?? 0);
+      setChallengeCount(challenges ?? 0);
+    })();
+  }, []);
+
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  const hasPending = pendingCount !== null && pendingCount > 0;
+
+  return (
+    <div className="min-h-full px-8 py-12 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="mb-10">
+        <p className="text-sm text-slate-600 mb-1.5 tracking-wide">{today}</p>
+        <h1 className="text-3xl font-semibold text-slate-100 tracking-tight">
+          {displayName}
+        </h1>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        {/* Left column */}
+        <div className="lg:col-span-3 space-y-5">
+          {/* Stat row */}
+          <div className="grid grid-cols-3 divide-x divide-slate-800 border border-slate-800 rounded-xl bg-slate-900">
+            {[
+              { label: "Students", value: studentCount },
+              { label: "Pending Review", value: pendingCount, highlight: hasPending },
+              { label: "Challenges Created", value: challengeCount },
+            ].map((s) => (
+              <div key={s.label} className="px-6 py-6">
+                <p className={`text-3xl font-semibold tabular-nums ${s.highlight ? "text-amber-400" : "text-slate-100"}`}>
+                  {s.value !== null ? s.value : "—"}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Submissions callout */}
+          {hasPending ? (
+            <Link
+              href="/mentor/dashboard"
+              className="group flex items-center justify-between rounded-xl border border-amber-500/25 bg-amber-500/5 px-6 py-5 hover:bg-amber-500/10 transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <ClipboardList className="h-5 w-5 text-amber-400 shrink-0" />
+                <div>
+                  <p className="text-base font-medium text-slate-200">
+                    {pendingCount} submission{pendingCount !== 1 ? "s" : ""} waiting for review
+                  </p>
+                  <p className="text-sm text-slate-500 mt-0.5">Open mentor portal to grade</p>
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
+            </Link>
+          ) : (
+            pendingCount !== null && (
+              <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 px-6 py-5">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                <p className="text-base text-slate-400">All submissions reviewed — nothing pending.</p>
+              </div>
+            )
+          )}
+
+          {/* Info strip */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900 px-6 py-5">
+            <p className="text-xs text-slate-600 mb-4 uppercase tracking-widest font-medium">About this workspace</p>
+            <ul className="space-y-3 text-sm text-slate-400">
+              <li className="flex items-start gap-3">
+                <span className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-700 shrink-0" />
+                Students join using the 6-character code you share with them.
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-700 shrink-0" />
+                Custom challenges you create are only visible to your students.
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-700 shrink-0" />
+                Submissions appear in your portal once a student submits for review.
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div className="lg:col-span-2">
+          <p className="text-xs text-slate-600 uppercase tracking-widest font-medium mb-4">Quick access</p>
+          <div className="space-y-px rounded-xl border border-slate-800 overflow-hidden">
+            {[
+              { label: "Mentor Portal", sub: "Students, challenges, submissions", href: "/mentor/dashboard", icon: Users },
+              { label: "Coding Challenges", sub: "53 built-in challenges", href: "/challenges", icon: Code2 },
+              { label: "Documentation", sub: "Hardware, SDK, motion libraries", href: "/docs/gobilda", icon: BookOpen },
+            ].map(({ label, sub, href, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className="group flex items-center justify-between bg-slate-900 hover:bg-slate-800 px-5 py-4 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <Icon className="h-5 w-5 text-slate-500 group-hover:text-slate-300 transition-colors shrink-0" />
+                  <div>
+                    <p className="text-sm text-slate-300 group-hover:text-slate-100 transition-colors font-medium">{label}</p>
+                    <p className="text-xs text-slate-600 mt-0.5">{sub}</p>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Student dashboard ─────────────────────────────────────────────────────
+
+export default function DashboardClient({ name }: { name?: string }) {
+  const local = useChallengeProgress();
+  const db = useSupabaseProgress();
+
+  // Merge localStorage + Supabase completions (same pattern as ChallengesClient)
+  const hydrated = local.hydrated && db.hydrated;
+  const completedIds = hydrated
+    ? Array.from(new Set([...local.completedIds, ...db.completedIds]))
+    : [];
+  const completedCount = completedIds.length;
+  const progress = local.progress;
+
+  // Defer localStorage read to after mount to avoid SSR/client hydration mismatch.
+  // Server always renders "there"; client updates to the real name after hydration.
+  const [displayName, setDisplayName] = useState<string>(name ?? "there");
+  const [isMentor, setIsMentor] = useState(false);
+  useEffect(() => {
+    const session = getSession();
+    setDisplayName(name ?? session?.name ?? "there");
+    setIsMentor(session?.role === "mentor");
+  }, [name]);
+
+  if (isMentor) {
+    return <MentorDashboard displayName={displayName} />;
+  }
 
   // ── Derived stats (recalculate whenever progress changes) ──────────────
   const totalChallenges = staticChallenges.length;
@@ -123,7 +296,7 @@ export default function DashboardClient({ name }: { name?: string }) {
 
   const completedDates = completedIds
     .map((id) => progress[id])
-    .filter(Boolean) as string[];
+    .filter(Boolean as unknown as (v: string | undefined) => v is string);
 
   const streak = hydrated ? calcStreak(completedDates) : 0;
 
@@ -184,7 +357,7 @@ export default function DashboardClient({ name }: { name?: string }) {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-100 tracking-tight">
-          Welcome back{displayName ? `, ${displayName}` : ""} 👋
+          Welcome back{displayName ? `, ${displayName}` : ""}
         </h1>
         <p className="mt-1 text-slate-400">
           Track your progress and continue learning FTC programming.

@@ -24,19 +24,22 @@ function rowToChallenge(row: ChallengeRow): Challenge {
 }
 
 async function getChallenge(id: number): Promise<Challenge | null> {
-  // Try static data first (existing 5 challenges)
-  const staticChallenge = getChallengeById(id);
-  if (staticChallenge) return staticChallenge;
+  // Check Supabase first so mentor-created challenges take priority over
+  // static ones and can override any ID in the 1–53 static range.
+  try {
+    const { data } = await supabase
+      .from("challenges")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-  // Fall back to Supabase for mentor-created challenges
-  const { data } = await supabase
-    .from("challenges")
-    .select("*")
-    .eq("id", id)
-    .single();
+    if (data) return rowToChallenge(data as ChallengeRow);
+  } catch {
+    // Supabase unavailable — fall through to static data
+  }
 
-  if (!data) return null;
-  return rowToChallenge(data as ChallengeRow);
+  // Fall back to the built-in static challenge library
+  return getChallengeById(id) ?? null;
 }
 
 export async function generateMetadata({
