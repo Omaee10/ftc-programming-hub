@@ -307,7 +307,7 @@ const UNIVERSAL: ValidationCheck[] = [
       const loopBody = parts[1];
       if (!/\.setDirection\s*\(/.test(loopBody)) return true;
       // Allow when guarded by an if-statement (intentional runtime toggle).
-      const guardedPattern = /if\s*\([^)]+\)\s*\{[^}]*\.setDirection\s*\(/s;
+      const guardedPattern = /if\s*\([^)]+\)\s*\{[^}]*\.setDirection\s*\(/;
       return guardedPattern.test(loopBody);
     },
     tip: "Move setDirection() to the init section before waitForStart() — re-running it every loop wastes time and can cause jitter.",
@@ -327,7 +327,7 @@ const UNIVERSAL: ValidationCheck[] = [
       // Check if the call is directly at loop scope (no enclosing if-block).
       // Heuristic: if every setZeroPowerBehavior call in the loop body is preceded by
       // an `if` keyword on the same logical nesting level, consider it guarded.
-      const guardedPattern = /if\s*\([^)]+\)\s*\{[^}]*\.setZeroPowerBehavior\s*\(/s;
+      const guardedPattern = /if\s*\([^)]+\)\s*\{[^}]*\.setZeroPowerBehavior\s*\(/;
       return guardedPattern.test(loopBody);
     },
     tip: "Move setZeroPowerBehavior() to the init section before waitForStart() — re-setting it 50 times per second is unnecessary and causes jitter.",
