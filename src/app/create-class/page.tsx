@@ -22,6 +22,7 @@ function generateCode() {
 
 export default function CreateClassPage() {
   const router = useRouter();
+  const [mentorName, setMentorName] = useState("");
   const [className, setClassName] = useState("");
   const [teamName, setTeamName] = useState("");
   const [error, setError] = useState("");
@@ -33,6 +34,7 @@ export default function CreateClassPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!mentorName.trim()) { setError("Your name is required."); return; }
     if (!className.trim()) { setError("Class name is required."); return; }
     if (!teamName.trim()) { setError("Robotics team name is required."); return; }
     setError("");
@@ -43,8 +45,8 @@ export default function CreateClassPage() {
       const tryInsert = async (c: string) => {
         const { data, error: dbErr } = await supabase
           .from("mentors")
-          .insert({ name: teamName.trim(), code: c })
-          .select("id, name, code")
+          .insert({ name: teamName.trim(), mentor_name: mentorName.trim(), code: c })
+          .select("id, name, mentor_name, code")
           .single();
         return { data, dbErr };
       };
@@ -61,7 +63,8 @@ export default function CreateClassPage() {
         return;
       }
 
-      setSession({ role: "mentor", id: data.id as string, name: data.name as string, teamName: data.name as string });
+      const personalName = (data as { mentor_name?: string | null }).mentor_name ?? (data.name as string);
+      setSession({ role: "mentor", id: data.id as string, name: personalName, teamName: data.name as string });
       setCreatedCode(data.code as string);
       setCreatedName(teamName.trim());
     });
@@ -167,6 +170,20 @@ export default function CreateClassPage() {
       {/* Form card */}
       <div className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 p-8">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+              Your Name
+            </label>
+            <input
+              type="text"
+              value={mentorName}
+              onChange={(e) => setMentorName(e.target.value)}
+              placeholder="e.g. Coach Smith"
+              disabled={isPending}
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 disabled:opacity-50 transition-all"
+            />
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-widest text-slate-500">
               Class Name

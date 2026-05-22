@@ -4,17 +4,26 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Mentors
+-- `name`        = team / class name  (e.g. "Iron Wolves #12345")
+-- `mentor_name` = personal name      (e.g. "Coach Smith")
 CREATE TABLE IF NOT EXISTS mentors (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name       text NOT NULL,
-  code       char(6) UNIQUE NOT NULL,
-  created_by uuid REFERENCES mentors(id) ON DELETE SET NULL,
-  created_at timestamptz DEFAULT now()
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        text NOT NULL,
+  mentor_name text,
+  code        char(6) UNIQUE NOT NULL,
+  created_by  uuid REFERENCES mentors(id) ON DELETE SET NULL,
+  created_at  timestamptz DEFAULT now()
 );
 
 -- ─── Migration: add created_by to existing mentors table ─────────────────────
 -- Run this if the table already exists:
 -- ALTER TABLE mentors ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES mentors(id) ON DELETE SET NULL;
+
+-- ─── Migration: add mentor_name (personal name) to existing mentors table ────
+-- The `name` column stores the team/class name; `mentor_name` stores the
+-- individual mentor's real name (e.g. "Coach Smith" vs "Iron Wolves #12345").
+-- Run this in the Supabase SQL Editor if the table already exists:
+-- ALTER TABLE mentors ADD COLUMN IF NOT EXISTS mentor_name text;
 
 -- Students
 CREATE TABLE IF NOT EXISTS students (

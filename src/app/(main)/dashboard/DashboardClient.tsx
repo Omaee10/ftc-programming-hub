@@ -121,6 +121,7 @@ function MentorDashboard({ displayName }: { displayName: string }) {
   useEffect(() => {
     const session = getSession();
     if (!session) return;
+    const ownerId = session.parentMentorId ?? session.id;
     (async () => {
       const [{ count: pending }, { count: students }, { count: challenges }] =
         await Promise.all([
@@ -131,11 +132,11 @@ function MentorDashboard({ displayName }: { displayName: string }) {
           supabase
             .from("students")
             .select("id", { count: "exact", head: true })
-            .eq("mentor_id", session.id),
+            .eq("mentor_id", ownerId),
           supabase
             .from("challenges")
             .select("id", { count: "exact", head: true })
-            .eq("created_by", session.id),
+            .eq("created_by", ownerId),
         ]);
       setPendingCount(pending ?? 0);
       setStudentCount(students ?? 0);
@@ -271,14 +272,46 @@ export default function DashboardClient({ name }: { name?: string }) {
   const completedCount = completedIds.length;
   const progress = local.progress;
 
+  // Attempted = any challenge with saved progress (local keys ∪ Supabase records)
+  const attemptedCount = hydrated
+    ? new Set([
+        ...Object.keys(local.progress).map(Number),
+        ...db.attemptedIds,
+      ]).size
+    : 0;
+
+  // DB challenges (mentor-created) needed for correct XP total
+  const [dbChallengeXP, setDbChallengeXP] = useState<Record<number, number>>({});
+  useEffect(() => {
+    supabase.from("challenges").select("id, xp").then(({ data }) => {
+      if (data) {
+        const map: Record<number, number> = {};
+        data.forEach((r: { id: number; xp: number }) => { map[r.id] = r.xp; });
+        setDbChallengeXP(map);
+      }
+    });
+  }, []);
+
   // Defer localStorage read to after mount to avoid SSR/client hydration mismatch.
   // Server always renders "there"; client updates to the real name after hydration.
   const [displayName, setDisplayName] = useState<string>(name ?? "there");
   const [isMentor, setIsMentor] = useState(false);
-  useEffect(() => {
+
+  const syncFromSession = () => {
     const session = getSession();
-    setDisplayName(name ?? session?.name ?? "there");
+    const resolvedName = session?.role === "mentor"
+      ? (session?.teamName || session?.name)
+      : session?.name;
+    setDisplayName(name ?? resolvedName ?? "there");
     setIsMentor(session?.role === "mentor");
+  };
+
+  useEffect(() => {
+    syncFromSession();
+    // Re-sync when AppShell writes the corrected teamName back to localStorage
+    window.addEventListener("ftc-session-updated", syncFromSession);
+    return () => window.removeEventListener("ftc-session-updated", syncFromSession);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
 
   if (isMentor) {
@@ -288,9 +321,10 @@ export default function DashboardClient({ name }: { name?: string }) {
   // ── Derived stats (recalculate whenever progress changes) ──────────────
   const totalChallenges = staticChallenges.length;
 
-  const xpEarned = staticChallenges
-    .filter((c) => completedIds.includes(c.id))
-    .reduce((sum, c) => sum + c.xp, 0);
+  const xpEarned = completedIds.reduce((sum, id) => {
+    const staticC = staticChallenges.find((c) => c.id === id);
+    return sum + (staticC?.xp ?? dbChallengeXP[id] ?? 0);
+  }, 0);
 
   const completedSet = new Set(completedIds);
 
@@ -346,7 +380,7 @@ export default function DashboardClient({ name }: { name?: string }) {
     },
     {
       label: "Challenges Attempted",
-      value: hydrated ? String(completedCount) : "—",
+      value: hydrated ? String(attemptedCount) : "—",
       total: String(totalChallenges),
       icon: BookOpen,
       color: "blue",

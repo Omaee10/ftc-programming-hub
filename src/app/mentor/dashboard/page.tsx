@@ -44,6 +44,11 @@ function maskCode(code: string) {
   return `${code.slice(0, 2)}••••`;
 }
 
+/** Returns the ID that owns the class (parent ID for co-mentors, own ID otherwise) */
+function classOwner(session: { id: string; parentMentorId?: string } | null): string {
+  return session?.parentMentorId ?? session?.id ?? "";
+}
+
 // ─── Tab button ───────────────────────────────────────────────────────────────
 
 function TabButton({
@@ -99,9 +104,10 @@ function ProgressTab() {
   const load = useCallback(async () => {
     if (!session?.id) return;
     setLoading(true);
+    const ownerId = classOwner(session);
     const [{ data: students }, { data: challenges }, { data: progress }] =
       await Promise.all([
-        supabase.from("students").select("*").eq("mentor_id", session.id).order("name"),
+        supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
         supabase.from("challenges").select("id, title").order("id"),
         supabase.from("student_challenge_progress").select("*"),
       ]);
@@ -265,20 +271,21 @@ function CodeManager({
   const load = useCallback(async () => {
     if (!session?.id) return;
     setLoading(true);
+    const ownerId = classOwner(session);
     if (table === "students") {
-      const { data } = await supabase.from("students").select("*").eq("mentor_id", session.id).order("name");
+      const { data } = await supabase.from("students").select("*").eq("mentor_id", ownerId).order("name");
       setRows((data ?? []) as (MentorRow | StudentRow)[]);
     } else {
-      // Show the logged-in mentor + all co-mentors they created
+      // Show the class owner + all co-mentors created by the owner
       const { data } = await supabase
         .from("mentors")
-        .select("*")
-        .or(`id.eq.${session.id},created_by.eq.${session.id}`)
+        .select("id, name, mentor_name, code, created_at, created_by")
+        .or(`id.eq.${ownerId},created_by.eq.${ownerId}`)
         .order("name");
       setRows((data ?? []) as (MentorRow | StudentRow)[]);
     }
     setLoading(false);
-  }, [table, session?.id]);
+  }, [table, session?.id, session?.parentMentorId]);
 
   useEffect(() => {
     load();
@@ -290,10 +297,11 @@ function CodeManager({
     setError("");
 
     startTransition(async () => {
+      const ownerId = classOwner(session);
       const tryInsert = async (code: string) => {
         const payload: Record<string, string> = { name: newName.trim(), code };
-        if (table === "students" && session?.id) payload.mentor_id = session.id;
-        if (table === "mentors" && session?.id) payload.created_by = session.id;
+        if (table === "students" && ownerId) payload.mentor_id = ownerId;
+        if (table === "mentors" && ownerId) payload.created_by = ownerId;
         return supabase.from(table).insert(payload);
       };
 
@@ -335,8 +343,9 @@ function CodeManager({
     <div className="space-y-6">
       {/* Your Code card — mentors tab only */}
       {table === "mentors" && session && (() => {
-        const myRow = rows.find((r) => r.id === session.id);
+        const myRow = rows.find((r) => r.id === session.id) as MentorRow | undefined;
         if (!myRow) return null;
+        const myDisplayName = myRow.mentor_name ?? myRow.name;
         return (
           <div className="rounded-xl border border-white/20 bg-white/5 p-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
             <div className="flex-1">
@@ -351,7 +360,7 @@ function CodeManager({
               </p>
             </div>
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-amber-500/20 bg-amber-500/10 text-sm font-bold text-zinc-100">
-              {myRow.name[0]?.toUpperCase()}
+              {myDisplayName[0]?.toUpperCase()}
             </div>
           </div>
         );
@@ -375,20 +384,25 @@ function CodeManager({
           </p>
         ) : (
           <ul className="divide-y divide-slate-800/60">
-            {rows.map((row) => (
+            {rows.map((row) => {
+              const mentorRow = row as MentorRow;
+              const displayName = mentorRow.mentor_name ?? mentorRow.name;
+              const teamName = mentorRow.mentor_name ? mentorRow.name : null;
+              return (
               <li
                 key={row.id}
                 className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/30 transition-colors"
               >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-xs font-bold text-slate-300">
-                  {row.name[0]?.toUpperCase()}
+                  {displayName[0]?.toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-200 truncate">
-                    {row.name}
+                    {displayName}
                   </p>
-                  <p className="font-mono text-xs text-slate-500">
-                    {showCodes.has(row.id) ? row.code : maskCode(row.code)}
+                  <p className="text-xs text-slate-500 truncate">
+                    {teamName && <span className="mr-2">{teamName}</span>}
+                    <span className="font-mono">{showCodes.has(row.id) ? row.code : maskCode(row.code)}</span>
                   </p>
                 </div>
                 <button
@@ -411,7 +425,8 @@ function CodeManager({
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
@@ -870,10 +885,11 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
     if (!session?.id) return;
     setLoading(true);
 
+    const ownerId = classOwner(session);
     const { data: students } = await supabase
       .from("students")
       .select("id, name")
-      .eq("mentor_id", session.id);
+      .eq("mentor_id", ownerId);
 
     if (!students || students.length === 0) {
       setSubmissions([]);
@@ -929,7 +945,7 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
     });
 
     setLoading(false);
-  }, [session?.id, onCountChange]);
+  }, [session?.id, session?.parentMentorId, onCountChange]);
 
   useEffect(() => {
     load();
@@ -1196,10 +1212,11 @@ export default function MentorDashboardPage() {
     const session = typeof window !== "undefined" ? getSession() : null;
     if (!session?.id) return;
     (async () => {
+      const ownerId = classOwner(session);
       const { data: students } = await supabase
         .from("students")
         .select("id")
-        .eq("mentor_id", session.id);
+        .eq("mentor_id", ownerId);
       if (!students || students.length === 0) return;
       const studentIds = (students as { id: string }[]).map((s) => s.id);
       const { count } = await supabase

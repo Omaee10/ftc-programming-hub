@@ -6,7 +6,8 @@ import { useTheme } from "next-themes";
 import { Menu, LogOut, User, Sun, Moon, Shield } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "./Sidebar";
-import { getSession, clearSession, type Session } from "@/lib/auth";
+import { getSession, setSession as persistSession, clearSession, type Session } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -16,8 +17,46 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
-    setSession(getSession());
+    const stored = getSession();
+    setSession(stored);
     setMounted(true);
+
+    // For mentors, always resolve the correct team name from Supabase.
+    // This fixes stale sessions and co-mentors whose teamName wasn't set.
+    if (stored?.role === "mentor") {
+      (async () => {
+        const { data: mentorRow } = await supabase
+          .from("mentors")
+          .select("name, mentor_name, created_by")
+          .eq("id", stored.id)
+          .single();
+        if (!mentorRow) return;
+
+        const row = mentorRow as { name: string; mentor_name?: string | null; created_by?: string | null };
+        let personalName: string = row.mentor_name ?? row.name;
+        let teamName: string = row.name;
+        let parentMentorId: string | undefined = row.created_by ?? undefined;
+
+        if (parentMentorId) {
+          const { data: parentRow } = await supabase
+            .from("mentors")
+            .select("name")
+            .eq("id", parentMentorId)
+            .single();
+          if (parentRow) teamName = (parentRow as { name: string }).name;
+        }
+
+        const updated: Session = {
+          ...stored,
+          name: personalName,
+          teamName,
+          ...(parentMentorId ? { parentMentorId } : {}),
+        };
+        setSession(updated);        // update React state
+        persistSession(updated);    // update localStorage so next load is instant
+        window.dispatchEvent(new CustomEvent("ftc-session-updated"));
+      })();
+    }
   }, []);
 
   const handleSignOut = () => {
@@ -85,9 +124,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <User className="h-3 w-3 text-slate-400" />
                 <div className="flex flex-col leading-none">
                   <span className="text-xs font-medium text-slate-300">
-                    {session.name}
+                    {session.role === "mentor"
+                      ? (session.teamName || session.name)
+                      : session.name}
                   </span>
-                  {session.teamName && session.teamName !== session.name && (
+                  {session.role === "mentor" && session.teamName && session.teamName !== session.name && (
+                    <span className="text-[10px] text-slate-500 truncate max-w-[120px]">
+                      {session.name}
+                    </span>
+                  )}
+                  {session.role === "student" && session.teamName && session.teamName !== session.name && (
                     <span className="text-[10px] text-slate-500 truncate max-w-[120px]">
                       {session.teamName}
                     </span>

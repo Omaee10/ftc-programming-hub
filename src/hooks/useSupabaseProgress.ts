@@ -57,6 +57,9 @@ export function useSupabaseProgress(challengeId?: number) {
     .filter((r) => r.completed)
     .map((r) => r.challenge_id);
 
+  // All challenge IDs with any saved progress (attempted, not necessarily complete)
+  const attemptedIds: number[] = records.map((r) => r.challenge_id);
+
   const saveCode = useCallback(
     async (code: string): Promise<void> => {
       const session = getSession();
@@ -108,6 +111,7 @@ export function useSupabaseProgress(challengeId?: number) {
     isCompleted,
     completedIds,
     completedCount: completedIds.length,
+    attemptedIds,
     loadedCode,
     hydrated,
     saveCode,

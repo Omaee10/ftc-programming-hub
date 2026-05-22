@@ -6,6 +6,8 @@ export interface Session {
   id: string;
   name: string;
   teamName?: string;
+  /** Set for co-mentors — the ID of the mentor who owns the class */
+  parentMentorId?: string;
 }
 
 export function getSession(): Session | null {

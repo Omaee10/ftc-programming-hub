@@ -12,7 +12,7 @@ export default function RootPage() {
     if (!session) {
       router.replace("/onboarding");
     } else {
-      router.replace(session.role === "mentor" ? "/mentor/dashboard" : "/dashboard");
+      router.replace("/dashboard");
     }
   }, [router]);
 

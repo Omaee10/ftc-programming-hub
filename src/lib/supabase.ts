@@ -23,6 +23,7 @@ export const supabase = new Proxy({} as SupabaseClient, {
 export interface MentorRow {
   id: string;
   name: string;
+  mentor_name?: string | null;
   code: string;
   created_at: string;
 }

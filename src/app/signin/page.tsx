@@ -100,7 +100,7 @@ function LoginPanel({
   accentClass: string;
   borderClass: string;
   buttonClass: string;
-  onSuccess: (id: string, name: string, teamName: string) => void;
+  onSuccess: (id: string, name: string, teamName: string, parentMentorId?: string) => void;
 }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -119,15 +119,28 @@ function LoginPanel({
       if (role === "mentor") {
         const { data, error: dbErr } = await supabase
           .from("mentors")
-          .select("id, name")
+          .select("id, name, mentor_name, created_by")
           .eq("code", trimmed)
           .single();
         if (dbErr || !data) {
           setError(`Invalid code. (${dbErr?.message ?? "no data returned"})`);
           return;
         }
-        // For mentors, their name IS the team name
-        onSuccess(data.id as string, data.name as string, data.name as string);
+        const row = data as { id: string; name: string; mentor_name?: string | null; created_by?: string | null };
+        const parentId = row.created_by ?? undefined;
+        // For class-creator mentors: name = team name, mentor_name = personal name
+        // For co-mentors: name = personal name (no separate team name on their row)
+        let personalName = row.mentor_name ?? row.name;
+        let teamName = row.name;
+        if (parentId) {
+          const { data: parentData } = await supabase
+            .from("mentors")
+            .select("name")
+            .eq("id", parentId)
+            .single();
+          if (parentData) teamName = (parentData as { name: string }).name;
+        }
+        onSuccess(row.id, personalName, teamName, parentId);
       } else {
         const { data, error: dbErr } = await supabase
           .from("students")
@@ -204,9 +217,9 @@ function LoginPanel({
 export default function SignInPage() {
   const router = useRouter();
 
-  const handleSuccess = (role: "mentor" | "student") => (id: string, name: string, teamName: string) => {
-    setSession({ role, id, name, teamName });
-    router.push(role === "mentor" ? "/mentor/dashboard" : "/dashboard");
+  const handleSuccess = (role: "mentor" | "student") => (id: string, name: string, teamName: string, parentMentorId?: string) => {
+    setSession({ role, id, name, teamName, ...(parentMentorId ? { parentMentorId } : {}) });
+    router.push("/dashboard");
   };
 
   return (
