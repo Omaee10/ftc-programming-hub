@@ -330,9 +330,9 @@ function RequirementItem({
   };
   const s = cfg[status];
   return (
-    <li className={`flex items-center gap-2 text-xs transition-colors ${s.color}`}>
-      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
-      {label}
+    <li className={`flex min-w-0 items-start gap-2 text-xs transition-colors ${s.color}`}>
+      <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
+      <span className="min-w-0 break-words leading-relaxed">{label}</span>
     </li>
   );
 }
@@ -377,7 +377,7 @@ function InstructionBlock({ text }: { text: string }) {
       if (part.startsWith("**") && part.endsWith("**"))
         return <strong key={`${baseKey}-${j}`} className="text-slate-200 font-semibold">{part.slice(2, -2)}</strong>;
       if (part.startsWith("`") && part.endsWith("`"))
-        return <code key={`${baseKey}-${j}`} className="rounded bg-zinc-200/10 px-1 py-0.5 text-[0.8rem] font-mono text-zinc-200 border border-zinc-200/15">{part.slice(1, -1)}</code>;
+        return <code key={`${baseKey}-${j}`} className="break-words rounded bg-zinc-200/10 px-1 py-0.5 text-[0.8rem] font-mono text-zinc-200 border border-zinc-200/15">{part.slice(1, -1)}</code>;
       return part;
     });
   }
@@ -392,7 +392,7 @@ function InstructionBlock({ text }: { text: string }) {
         return (
           <ol key={`${segIdx}-${j}`} className="list-decimal list-inside space-y-1">
             {paraLines.filter((l) => l.trim()).map((l, k) => (
-              <li key={k} className="text-slate-400 leading-relaxed">
+              <li key={k} className="break-words text-slate-400 leading-relaxed">
                 {renderInline(l.replace(/^\d+\.\s/, "").trim(), segIdx * 10000 + j * 100 + k)}
               </li>
             ))}
@@ -404,7 +404,7 @@ function InstructionBlock({ text }: { text: string }) {
         return (
           <ul key={`${segIdx}-${j}`} className="list-disc list-inside space-y-1">
             {paraLines.filter((l) => l.trim()).map((l, k) => (
-              <li key={k} className="text-slate-400 leading-relaxed">
+              <li key={k} className="break-words text-slate-400 leading-relaxed">
                 {renderInline(l.replace(/^[-*]\s/, "").trim(), segIdx * 10000 + j * 100 + k)}
               </li>
             ))}
@@ -417,18 +417,18 @@ function InstructionBlock({ text }: { text: string }) {
         if (k > 0) inlineNodes.push(<br key={`br-${k}`} />);
         inlineNodes.push(...renderInline(l.trim(), segIdx * 10000 + j * 100 + k));
       });
-      return <p key={`${segIdx}-${j}`}>{inlineNodes}</p>;
+      return <p key={`${segIdx}-${j}`} className="break-words">{inlineNodes}</p>;
     });
   }
 
   return (
-    <div className="space-y-3 text-sm text-slate-400 leading-relaxed">
+    <div className="min-w-0 max-w-full space-y-3 text-sm text-slate-400 leading-relaxed">
       {segments.map((seg, i) => {
         if (seg.type === "code") {
           return (
             <pre
               key={i}
-              className="rounded-lg bg-zinc-900 border border-zinc-700/50 px-4 py-3 text-xs font-mono text-zinc-300 overflow-x-auto whitespace-pre leading-5"
+              className="max-w-full overflow-x-auto rounded-lg border border-zinc-700/50 bg-zinc-900 px-4 py-3 text-xs font-mono text-zinc-300 whitespace-pre-wrap break-words leading-5"
             >
               {seg.content}
             </pre>
@@ -893,11 +893,11 @@ export default function ChallengeWorkspace({
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div
-      className="flex flex-col overflow-hidden"
+      className="flex w-full min-w-0 flex-col overflow-hidden"
       style={{ height: "calc(100svh - 3.5rem)" }}
     >
       {/* ── Workspace top bar ──────────────────────────────────────────── */}
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/95 px-3 backdrop-blur-md">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/95 px-3 backdrop-blur-md min-w-0">
         <Link
           href="/challenges"
           className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-600 link-accent transition-colors"
@@ -964,10 +964,10 @@ export default function ChallengeWorkspace({
       </div>
 
       {/* ── Split workspace body ───────────────────────────────────────── */}
-      <div ref={containerRef} className="flex flex-1 overflow-hidden">
+      <div ref={containerRef} className="flex min-w-0 flex-1 overflow-hidden">
         {/* ── LEFT: Instructions panel ─────────────────────────────────── */}
         <aside
-          className="flex flex-col overflow-hidden border-r border-slate-800"
+          className="flex min-w-0 shrink-0 flex-col overflow-hidden border-r border-slate-800"
           style={{ width: `${leftPct}%` }}
         >
           {/* ── TAB BAR ─────────────────────────────────────────────────── */}
@@ -1001,13 +1001,13 @@ export default function ChallengeWorkspace({
             </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5">
+          <div className="sidebar-scroll min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 space-y-5">
 
             {/* ── TASK TAB ───────────────────────────────────────────────── */}
             {leftTab === "task" && (
               <>
                 {/* Description */}
-                <p className="text-sm leading-relaxed text-slate-400">
+                <p className="break-words text-sm leading-relaxed text-slate-400">
                   {challenge.description}
                 </p>
 
@@ -1032,7 +1032,7 @@ export default function ChallengeWorkspace({
                           className="flex items-start gap-2.5 py-1.5"
                         >
                           <span className="text-[10px] font-mono text-slate-700 mt-0.5 shrink-0 w-4 text-right">{i + 1}.</span>
-                          <span className="text-xs text-slate-400 leading-relaxed">
+                          <span className="min-w-0 break-words text-xs text-slate-400 leading-relaxed">
                             {obj}
                           </span>
                         </li>
@@ -1046,7 +1046,7 @@ export default function ChallengeWorkspace({
                   <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-slate-600">
                     Problem Statement
                   </p>
-                  <div className="rounded-md border border-slate-800/60 bg-slate-900/30 px-4 py-3.5">
+                  <div className="min-w-0 overflow-hidden rounded-md border border-slate-800/60 bg-slate-900/30 px-4 py-3.5">
                     <InstructionBlock text={challenge.instructions} />
                   </div>
                 </div>
@@ -1101,9 +1101,9 @@ export default function ChallengeWorkspace({
                         </p>
                         <ul className="space-y-1.5">
                           {failedErrors.map((item, i) => (
-                            <li key={i} className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
-                              <p className="text-[11px] font-semibold text-red-300 leading-snug">{item.label}</p>
-                              {item.tip && <p className="mt-0.5 text-[10px] text-red-400/70 leading-relaxed">{item.tip}</p>}
+                            <li key={i} className="min-w-0 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
+                              <p className="break-words text-[11px] font-semibold text-red-300 leading-snug">{item.label}</p>
+                              {item.tip && <p className="mt-0.5 break-words text-[10px] text-red-400/70 leading-relaxed">{item.tip}</p>}
                             </li>
                           ))}
                         </ul>
@@ -1116,9 +1116,9 @@ export default function ChallengeWorkspace({
                         </p>
                         <ul className="space-y-1.5">
                           {failedImprovements.map((item, i) => (
-                            <li key={i} className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
-                              <p className="text-[11px] font-semibold text-amber-300 leading-snug">{item.label}</p>
-                              {item.tip && <p className="mt-0.5 text-[10px] text-amber-400/70 leading-relaxed">{item.tip}</p>}
+                            <li key={i} className="min-w-0 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                              <p className="break-words text-[11px] font-semibold text-amber-300 leading-snug">{item.label}</p>
+                              {item.tip && <p className="mt-0.5 break-words text-[10px] text-amber-400/70 leading-relaxed">{item.tip}</p>}
                             </li>
                           ))}
                         </ul>
@@ -1160,7 +1160,7 @@ export default function ChallengeWorkspace({
         </div>
 
         {/* ── RIGHT: Editor + Console ───────────────────────────────────── */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Editor toolbar */}
           <div className="flex h-8 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/80 px-3">
             <FileCode className="h-3 w-3 text-slate-700 shrink-0" />
@@ -1181,7 +1181,7 @@ export default function ChallengeWorkspace({
           </div>
 
           {/* Monaco editor */}
-          <div className="flex-1 overflow-hidden">
+          <div className="min-w-0 flex-1 overflow-hidden">
             <MonacoEditor
               height="100%"
               language="java"
@@ -1285,7 +1285,7 @@ export default function ChallengeWorkspace({
             }`}
           >
             {/* Console toolbar */}
-            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-800/60 px-3">
+            <div className="flex h-10 shrink-0 items-center gap-2 overflow-x-hidden border-b border-slate-800/60 px-3">
               <Terminal className="h-3.5 w-3.5 text-slate-500 shrink-0" />
               <span className="text-xs font-semibold text-slate-500">Console</span>
 
@@ -1385,7 +1385,7 @@ export default function ChallengeWorkspace({
 
             {/* Scrollable log */}
             {consoleOpen && (
-              <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-2">
+              <div className="sidebar-scroll min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-2">
                 {consoleEntries.length === 0 ? (
                   <p className="mt-2 text-xs text-slate-700 italic">
                     Press &quot;Submit Code&quot; to analyze your solution…

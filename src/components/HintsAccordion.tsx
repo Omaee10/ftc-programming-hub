@@ -58,7 +58,7 @@ export default function HintsAccordion({ hints }: HintsAccordionProps) {
 
               <div className="flex-1 min-w-0">
                 {revealed.has(i) ? (
-                  <p className="text-sm text-slate-300 leading-relaxed">
+                  <p className="break-words text-sm text-slate-300 leading-relaxed">
                     {hint}
                   </p>
                 ) : (

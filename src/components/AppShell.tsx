@@ -79,10 +79,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const initials = displayName ? getInitials(displayName) : "?";
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-w-0 overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex flex-1 flex-col lg:ml-64 min-h-full">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden lg:ml-64">
         <header className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/90 px-4 backdrop-blur-md">
           {/* Mobile menu */}
           <button
@@ -173,7 +173,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </header>
 
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</main>
       </div>
     </div>
   );
