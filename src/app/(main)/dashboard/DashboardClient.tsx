@@ -5,14 +5,12 @@ import Link from "next/link";
 import {
   BookOpen,
   Code2,
-  Star,
   Zap,
   ArrowRight,
   CheckCircle2,
   Cpu,
   GitBranch,
   Navigation,
-  Flame,
   Users,
   ClipboardList,
   ChevronRight,
@@ -363,9 +361,9 @@ export default function DashboardClient({ name }: { name?: string }) {
   });
 
   return (
-    <div className="min-h-full px-6 py-10 max-w-5xl mx-auto page-enter">
+    <div className="min-h-full px-6 py-8 max-w-5xl mx-auto page-enter">
       {/* ── Hero — open, no card ───────────────────────────────────────── */}
-      <div className="mb-10">
+      <div className="mb-6">
         <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-2">{today}</p>
         <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
           Welcome back{displayName ? `, ${displayName}` : ""}
@@ -378,7 +376,7 @@ export default function DashboardClient({ name }: { name?: string }) {
       </div>
 
       {/* ── Progress feature ─────────────────────────────────────────────── */}
-      <div className="mb-10 pb-10 border-b border-slate-800/60">
+      <div className="mb-6 pb-6 border-b border-slate-800/60">
         <div className="flex flex-wrap items-end gap-8">
           {/* Primary stat */}
           <div>
@@ -426,7 +424,7 @@ export default function DashboardClient({ name }: { name?: string }) {
       </div>
 
       {/* ── Two-column layout ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Documentation quick links */}
         <div className="lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
@@ -449,7 +447,7 @@ export default function DashboardClient({ name }: { name?: string }) {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="group flex items-center gap-4 py-3.5 card-accent-hover transition-all duration-150"
+                  className="group flex items-center gap-4 py-3 card-accent-hover transition-all duration-150"
                 >
                   <div className="h-8 w-8 shrink-0 flex items-center justify-center rounded-md bg-slate-900 border border-slate-800/80 group-hover:accent-border transition-colors">
                     <Icon className="h-3.5 w-3.5 text-slate-500 group-hover:accent-text transition-colors" />
@@ -469,7 +467,7 @@ export default function DashboardClient({ name }: { name?: string }) {
           </div>
 
           {/* All challenges link */}
-          <div className="mt-4 pt-4 border-t border-slate-800/60">
+          <div className="mt-3 pt-3 border-t border-slate-800/60">
             <Link
               href="/challenges"
               className="group flex items-center justify-between rounded-md accent-bg-subtle border accent-border-subtle px-4 py-3 card-accent-hover transition-all duration-150"
@@ -489,7 +487,7 @@ export default function DashboardClient({ name }: { name?: string }) {
         </div>
 
         {/* Right: recent activity + next challenge */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Recent activity */}
           <div>
             <p className="text-[11px] uppercase tracking-widest text-slate-600 font-medium mb-3">
@@ -560,23 +558,6 @@ export default function DashboardClient({ name }: { name?: string }) {
             </div>
           )}
 
-          {/* Sidebar stats */}
-          <div className="pt-2">
-            <p className="text-[11px] uppercase tracking-widest text-slate-600 font-medium mb-3">
-              Quick Stats
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { icon: Star, label: "XP", value: hydrated ? xpEarned : "—", color: "text-purple-400" },
-                { icon: Flame, label: "Streak", value: hydrated ? `${streak}d` : "—", color: "text-orange-400" },
-              ].map(({ icon: Icon, label, value, color }) => (
-                <div key={label} className="rounded-md border border-slate-800/60 bg-slate-900/40 px-3 py-2.5">
-                  <p className={`text-lg font-semibold stat-number ${color}`}>{value}</p>
-                  <p className="text-[10px] text-slate-600 mt-0.5">{label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>
