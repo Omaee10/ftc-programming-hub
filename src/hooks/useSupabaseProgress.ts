@@ -3,11 +3,78 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { mergeLocalProgress, readLocalProgress } from "@/hooks/useChallengeProgress";
 
 interface ProgressRecord {
   challenge_id: number;
   completed: boolean;
   code_snapshot: string | null;
+  updated_at: string | null;
+}
+
+/**
+ * Bidirectional sync between localStorage and Supabase for a student session.
+ * - Pushes local completions that never reached the cloud (e.g. localhost-only work)
+ * - Pulls cloud completions into this browser's localStorage
+ */
+async function syncProgressWithLocal(studentId: string): Promise<ProgressRecord[]> {
+  const { data, error } = await supabase
+    .from("student_challenge_progress")
+    .select("challenge_id, completed, code_snapshot, updated_at")
+    .eq("student_id", studentId);
+
+  if (error) {
+    console.error("Failed to load progress from cloud:", error.message);
+    return [];
+  }
+
+  const dbRecords = (data ?? []) as ProgressRecord[];
+  const local = readLocalProgress(studentId);
+
+  // Local → cloud: upload completions that exist in this browser but not in DB
+  const localToPush = Object.entries(local).filter(([idStr]) => {
+    const id = Number(idStr);
+    const rec = dbRecords.find((r) => r.challenge_id === id);
+    return !rec?.completed;
+  });
+
+  if (localToPush.length > 0) {
+    const { error: pushError } = await supabase
+      .from("student_challenge_progress")
+      .upsert(
+        localToPush.map(([idStr, ts]) => ({
+          student_id: studentId,
+          challenge_id: Number(idStr),
+          completed: true,
+          updated_at: ts,
+        })),
+        { onConflict: "student_id,challenge_id" }
+      );
+
+    if (pushError) {
+      console.error("Failed to sync local progress to cloud:", pushError.message);
+    } else {
+      const { data: refreshed } = await supabase
+        .from("student_challenge_progress")
+        .select("challenge_id, completed, code_snapshot, updated_at")
+        .eq("student_id", studentId);
+      if (refreshed) return refreshed as ProgressRecord[];
+    }
+  }
+
+  // Cloud → local: download completions missing from this browser
+  const cloudCompletions: Record<number, string> = {};
+  for (const rec of dbRecords) {
+    if (rec.completed && !(rec.challenge_id in local)) {
+      cloudCompletions[rec.challenge_id] =
+        rec.updated_at ?? new Date().toISOString();
+    }
+  }
+  if (Object.keys(cloudCompletions).length > 0) {
+    mergeLocalProgress(studentId, cloudCompletions);
+  }
+
+  return dbRecords;
 }
 
 /**
@@ -29,17 +96,11 @@ export function useSupabaseProgress(challengeId?: number) {
     }
 
     (async () => {
-      const { data } = await supabase
-        .from("student_challenge_progress")
-        .select("challenge_id, completed, code_snapshot")
-        .eq("student_id", session.id);
-
-      if (data) {
-        setRecords(data as ProgressRecord[]);
-        if (challengeId !== undefined) {
-          const rec = data.find((r) => r.challenge_id === challengeId);
-          setLoadedCode((rec as ProgressRecord | undefined)?.code_snapshot ?? null);
-        }
+      const synced = await syncProgressWithLocal(session.id);
+      setRecords(synced);
+      if (challengeId !== undefined) {
+        const rec = synced.find((r) => r.challenge_id === challengeId);
+        setLoadedCode(rec?.code_snapshot ?? null);
       }
       setHydrated(true);
     })();
@@ -66,7 +127,7 @@ export function useSupabaseProgress(challengeId?: number) {
       if (!session || session.role !== "student" || challengeId === undefined)
         return;
 
-      await supabase.from("student_challenge_progress").upsert(
+      const { error } = await supabase.from("student_challenge_progress").upsert(
         {
           student_id: session.id,
           challenge_id: challengeId,
@@ -75,37 +136,74 @@ export function useSupabaseProgress(challengeId?: number) {
         },
         { onConflict: "student_id,challenge_id" }
       );
+      if (error) console.error("Failed to save code:", error.message);
     },
     [challengeId]
   );
 
-  const markComplete = useCallback(
-    async (id: number): Promise<void> => {
-      const session = getSession();
-      if (!session || session.role !== "student") return;
+  const markComplete = useCallback(async (id: number): Promise<void> => {
+    const session = getSession();
+    if (!session || session.role !== "student") return;
 
-      await supabase.from("student_challenge_progress").upsert(
+    const { error } = await supabase.from("student_challenge_progress").upsert(
+      {
+        student_id: session.id,
+        challenge_id: id,
+        completed: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "student_id,challenge_id" }
+    );
+
+    if (error) {
+      console.error("Failed to save completion to cloud:", error.message);
+      return;
+    }
+
+    setRecords((prev) => {
+      const exists = prev.find((r) => r.challenge_id === id);
+      if (exists) {
+        return prev.map((r) =>
+          r.challenge_id === id ? { ...r, completed: true } : r
+        );
+      }
+      return [
+        ...prev,
         {
-          student_id: session.id,
           challenge_id: id,
           completed: true,
+          code_snapshot: null,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "student_id,challenge_id" }
-      );
+      ];
+    });
+  }, []);
 
-      setRecords((prev) => {
-        const exists = prev.find((r) => r.challenge_id === id);
-        if (exists) {
-          return prev.map((r) =>
-            r.challenge_id === id ? { ...r, completed: true } : r
-          );
-        }
-        return [...prev, { challenge_id: id, completed: true, code_snapshot: null }];
-      });
-    },
-    []
-  );
+  const markIncomplete = useCallback(async (id: number): Promise<void> => {
+    const session = getSession();
+    if (!session || session.role !== "student") return;
+
+    const { error } = await supabase.from("student_challenge_progress").upsert(
+      {
+        student_id: session.id,
+        challenge_id: id,
+        completed: false,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "student_id,challenge_id" }
+    );
+
+    if (error) {
+      console.error("Failed to reset completion in cloud:", error.message);
+      return;
+    }
+
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.challenge_id === id ? { ...r, completed: false } : r
+      )
+    );
+  }, []);
 
   return {
     isCompleted,
@@ -116,5 +214,6 @@ export function useSupabaseProgress(challengeId?: number) {
     hydrated,
     saveCode,
     markComplete,
+    markIncomplete,
   };
 }

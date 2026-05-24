@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { CheckCircle2, RotateCcw, Loader2 } from "lucide-react";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
+import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { getSession } from "@/lib/auth";
 
 interface MarkCompleteButtonProps {
@@ -17,11 +18,12 @@ export default function MarkCompleteButton({
   xp,
   lastGrade,
 }: MarkCompleteButtonProps) {
-  const { isCompleted, markComplete, markIncomplete, hydrated } =
-    useChallengeProgress();
+  const local = useChallengeProgress();
+  const db = useSupabaseProgress(challengeId);
 
   const [justCompleted, setJustCompleted] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setIsMentor(getSession()?.role === "mentor");
@@ -37,6 +39,8 @@ export default function MarkCompleteButton({
   // Mentors don't track personal progress — hide the button entirely
   if (isMentor) return null;
 
+  const hydrated = local.hydrated && db.hydrated;
+
   if (!hydrated) {
     return (
       <div className="flex items-center gap-2 text-xs text-slate-600">
@@ -46,7 +50,7 @@ export default function MarkCompleteButton({
     );
   }
 
-  const done = isCompleted(challengeId);
+  const done = local.isCompleted(challengeId) || db.isCompleted(challengeId);
 
   if (done) {
     return (
@@ -59,17 +63,27 @@ export default function MarkCompleteButton({
           </div>
         </div>
         <button
-          onClick={() => markIncomplete(challengeId)}
-          className="flex items-center gap-1.5 px-3 py-2 text-xs text-slate-600 hover:text-slate-300 transition-colors"
+          onClick={async () => {
+            setBusy(true);
+            local.markIncomplete(challengeId);
+            await db.markIncomplete(challengeId);
+            setBusy(false);
+          }}
+          disabled={busy}
+          className="flex items-center gap-1.5 px-3 py-2 text-xs text-slate-600 hover:text-slate-300 transition-colors disabled:opacity-50"
         >
-          <RotateCcw className="h-3 w-3" />
+          {busy ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RotateCcw className="h-3 w-3" />
+          )}
           Reset
         </button>
       </div>
     );
   }
 
-  const handleMarkComplete = () => {
+  const handleMarkComplete = async () => {
     if (lastGrade !== "good") {
       const confirmed = window.confirm(
         lastGrade == null
@@ -78,23 +92,31 @@ export default function MarkCompleteButton({
       );
       if (!confirmed) return;
     }
-    markComplete(challengeId);
+    setBusy(true);
+    local.markComplete(challengeId);
+    await db.markComplete(challengeId);
+    setBusy(false);
     setJustCompleted(true);
   };
 
   return (
     <button
       onClick={handleMarkComplete}
-      className={`flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.98] ${
+      disabled={busy}
+      className={`flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:opacity-60 ${
         justCompleted
           ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/15"
           : "btn-primary border border-transparent"
       }`}
     >
-      <CheckCircle2 className="h-4 w-4" />
+      {busy ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <CheckCircle2 className="h-4 w-4" />
+      )}
       <span>{justCompleted ? `+${xp} XP earned!` : "Mark as Complete"}</span>
       {!justCompleted && (
-        <span className="ml-0.5 text-xs text-slate-600 font-normal">+{xp} XP</span>
+        <span className="ml-0.5 text-xs text-white/70 font-normal">+{xp} XP</span>
       )}
     </button>
   );

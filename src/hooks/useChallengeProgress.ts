@@ -96,6 +96,50 @@ function writeStorage(map: ProgressMap): void {
   }
 }
 
+// ─── Exported helpers for cross-device sync ───────────────────────────────
+
+export function studentStorageKey(studentId: string): string {
+  return `${BASE_KEY}:${studentId}`;
+}
+
+export function readLocalProgress(studentId: string): ProgressMap {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(studentStorageKey(studentId)) ?? "{}";
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    const map: ProgressMap = {};
+    for (const [idStr, ts] of Object.entries(parsed)) {
+      map[Number(idStr)] = ts;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+/** Merge cloud completions into this browser's localStorage. */
+export function mergeLocalProgress(studentId: string, additions: ProgressMap): void {
+  if (typeof window === "undefined") return;
+  const current = readLocalProgress(studentId);
+  const next: ProgressMap = { ...current };
+  let changed = false;
+  for (const [id, ts] of Object.entries(additions)) {
+    const numId = Number(id);
+    if (!(numId in next)) {
+      next[numId] = ts;
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  try {
+    localStorage.setItem(studentStorageKey(studentId), JSON.stringify(next));
+    invalidateCache();
+    notifyAll();
+  } catch {
+    // Ignore quota / private-browsing errors
+  }
+}
+
 // ─── Hydration detector ───────────────────────────────────────────────────
 // useSyncExternalStore runs getServerSnapshot on the server and getSnapshot
 // on the client. By returning false server-side and true client-side we get a

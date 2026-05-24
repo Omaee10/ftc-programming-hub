@@ -542,9 +542,9 @@ export default function ChallengeWorkspace({
   const done = isCompleted(challenge.id);
 
   // Combined mark-complete: writes to both localStorage and Supabase
-  const markComplete = (id: number) => {
+  const markComplete = async (id: number) => {
     markCompleteLocal(id);
-    markCompleteDB(id);
+    await markCompleteDB(id);
   };
 
   // ── Mentor-challenge detection & submission state ────────────────────────
@@ -837,7 +837,7 @@ export default function ChallengeWorkspace({
 
     // ── Auto-complete on "Good" ────────────────────────────────────────
     if (grade === "good") {
-      markComplete(challenge.id);
+      await markComplete(challenge.id);
     }
 
     // ── Populate live check statuses for the left panel ────────────────
