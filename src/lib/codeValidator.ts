@@ -379,6 +379,40 @@ const UNIVERSAL: ValidationCheck[] = [
     },
     tip: "hardwareMap is not in the right spot.",
   },
+
+  // ── Anti-starter / placeholder detection ────────────────────────────────
+  {
+    label: 'No placeholder "TBD" telemetry values',
+    description: 'Replace "TBD" strings with real variable names or computed values.',
+    tier: "required",
+    shouldBeAbsent: true,
+    pattern: /telemetry\.addData\s*\([^)]*,\s*"TBD"\s*\)/,
+    tip: 'Replace telemetry.addData("State", "TBD") with the actual state variable, e.g. state.name().',
+  },
+  {
+    label: "No stub sensor checks (if false)",
+    description: "Replace if (false) with a real sensor or condition.",
+    tier: "required",
+    shouldBeAbsent: true,
+    pattern: /if\s*\(\s*false\s*\)/,
+    tip: "Use the real sensor call, e.g. if (touchSensor.isPressed()) break;",
+  },
+  {
+    label: "No stub interpolation (t = 0; return 0)",
+    description: "Interpolation helpers must compute t and return a table-based value, not placeholders.",
+    tier: "required",
+    shouldBeAbsent: true,
+    pattern: /double\s+t\s*=\s*0\s*;\s*\n\s*return\s+0(?:\.0*)?\s*;/,
+    tip: "Compute t from the bracket pair, then return the interpolated table value.",
+  },
+  {
+    label: "No stub helper methods (return 0 only)",
+    description: "Helper methods that only return 0 are placeholders — implement the real formula.",
+    tier: "required",
+    shouldBeAbsent: true,
+    pattern: /(?:private|public)\s+\w+\s+\w+\s*\([^)]*\)\s*\{[\s\n]*return\s+0(?:\.0*)?\s*;[\s\n]*\}/,
+    tip: "Replace return 0; with the actual conversion or interpolation formula.",
+  },
 ];
 
 // ─── Comment stripper ─────────────────────────────────────────────────────────
@@ -765,18 +799,12 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "Declare BOTH motors as separate fields: `private DcMotor leftDrive;` AND `private DcMotor rightDrive;`",
     },
     {
-      label: "Left motor retrieved from hardwareMap",
-      description: "leftDrive initialized with hardwareMap.get(DcMotor…).",
+      label: "Both motors retrieved from hardwareMap",
+      description: "Both drive motors initialized via hardwareMap.get(DcMotor…).",
       tier: "required",
-      pattern: /hardwareMap\.get\(\s*DcMotor(Ex)?\.class,\s*"left_drive"\s*\)/,
-      tip: 'leftDrive = hardwareMap.get(DcMotor.class, "left_drive");',
-    },
-    {
-      label: "Right motor retrieved from hardwareMap",
-      description: "rightDrive initialized with hardwareMap.get(DcMotor…).",
-      tier: "required",
-      pattern: /hardwareMap\.get\(\s*DcMotor(Ex)?\.class,\s*"right_drive"\s*\)/,
-      tip: 'rightDrive = hardwareMap.get(DcMotor.class, "right_drive");',
+      pattern: (code) =>
+        (code.match(/hardwareMap\.get\s*\(\s*DcMotor(Ex)?\.class/g) ?? []).length >= 2,
+      tip: 'leftDrive = hardwareMap.get(DcMotor.class, "left_drive"); rightDrive = hardwareMap.get(DcMotor.class, "right_drive");',
     },
     {
       label: "Left stick Y negated",
@@ -969,32 +997,37 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 10 ─ Button Debouncing ──────────────────────────────────────
   10: [
     {
-      label: "lastAButton variable declared",
-      description: "lastAButton boolean tracks the previous button state.",
+      label: "Previous-state boolean declared",
+      description: "A boolean variable tracks the previous button state for edge detection.",
       tier: "required",
-      pattern: /\blastAButton\b/,
-      tip: "boolean lastAButton = false; — declared outside the loop.",
+      pattern: /\blast\w+\s*=\s*false|boolean\s+\w*[Pp]rev\w*\s*=/,
+      tip: "boolean lastAButton = false; — declared before the loop to track the previous press state.",
     },
     {
       label: "Rising-edge detection",
-      description: "Button checked with gamepad1.a && !lastAButton.",
+      description: "Button checked with gamepad1.x && !lastX — fires only on the first frame the button is pressed.",
       tier: "required",
-      pattern: /gamepad1\.a\s*&&\s*!lastAButton/,
-      tip: "if (gamepad1.a && !lastAButton) { intakeRunning = !intakeRunning; }",
+      pattern: /gamepad1\.\w+\s*&&\s*!\w+/,
+      tip: "if (gamepad1.a && !lastAButton) { intakeRunning = !intakeRunning; } — the !last part makes it fire only once per press.",
     },
     {
-      label: "lastAButton updated each loop",
-      description: "lastAButton = gamepad1.a; at end of loop.",
+      label: "Previous-state variable updated at end of loop",
+      description: "lastButton = gamepad1.button; at the END of the loop body so rising edges are detected next frame.",
       tier: "required",
-      pattern: /lastAButton\s*=\s*gamepad1\.a/,
-      tip: "lastAButton update is not in the right spot.",
+      pattern: (code) => {
+        // Check that an assignment matching "lastX = gamepad1.Y" appears inside the loop body
+        const parts = code.split(/while\s*\([^{]*opModeIsActive[^{]*\{/);
+        if (parts.length < 2) return false;
+        return /\blast\w+\s*=\s*gamepad1\.\w+/.test(parts[1]);
+      },
+      tip: "lastAButton = gamepad1.a; must appear at the END of the while loop — updating it at the top means rising edges are never detected.",
     },
     {
-      label: "intakeRunning boolean toggled",
-      description: "intakeRunning flipped with the ! operator on rising edge.",
+      label: "Toggle boolean flipped with !",
+      description: "A state variable toggled using the ! operator on the rising edge.",
       tier: "required",
-      pattern: /\bintakeRunning\b/,
-      tip: "intakeRunning toggle is not in the right spot.",
+      pattern: /\w+\s*=\s*!\s*\w+/,
+      tip: "intakeRunning = !intakeRunning; — the ! operator flips the boolean each time the button is newly pressed.",
     },
     {
       label: "No leftover TODO comments",
@@ -1062,32 +1095,22 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 17 ─ Basic 4-Motor Mecanum ──────────────────────────────────
   17: [
     {
-      label: "frontLeft motor declared",
-      description: "frontLeft DcMotor field declared.",
+      label: "Four DcMotor fields declared",
+      description: "Four separate DcMotor or DcMotorEx fields declared for the four mecanum wheels.",
       tier: "required",
-      pattern: /\bfrontLeft\b/,
-      tip: "private DcMotor frontLeft;",
+      pattern: (code) => {
+        const matches = code.match(/\bDcMotor(Ex)?\b[^;{(]*\w+\s*[;=]/g) ?? [];
+        return matches.length >= 4;
+      },
+      tip: "Declare all four: private DcMotor frontLeft, frontRight, backLeft, backRight;",
     },
     {
-      label: "frontRight motor declared",
-      description: "frontRight DcMotor field declared.",
+      label: "All four motors retrieved from hardwareMap",
+      description: "All four mecanum wheels initialized from hardwareMap.get(DcMotor…).",
       tier: "required",
-      pattern: /\bfrontRight\b/,
-      tip: "private DcMotor frontRight;",
-    },
-    {
-      label: "backLeft motor declared",
-      description: "backLeft DcMotor field declared.",
-      tier: "required",
-      pattern: /\bbackLeft\b/,
-      tip: "private DcMotor backLeft;",
-    },
-    {
-      label: "backRight motor declared",
-      description: "backRight DcMotor field declared.",
-      tier: "required",
-      pattern: /\bbackRight\b/,
-      tip: "private DcMotor backRight;",
+      pattern: (code) =>
+        (code.match(/hardwareMap\.get\s*\(\s*DcMotor(Ex)?\.class/g) ?? []).length >= 4,
+      tip: "frontLeft = hardwareMap.get(DcMotor.class, \"front_left\"); — repeat for all four.",
     },
     {
       label: "Strafe input read",
@@ -1277,39 +1300,32 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 28 ─ Button-Latch Shooting ──────────────────────────────────
   28: [
     {
-      label: "shootingLatched boolean",
-      description: "shootingLatched boolean declared.",
+      label: "Latch boolean declared",
+      description: "A boolean variable used as a shoot latch (prevents re-firing without releasing).",
       tier: "required",
-      pattern: /\bshootingLatched\b/,
-      tip: "boolean shootingLatched = false;",
+      pattern: /boolean\s+\w*[Ll]atch\w*\s*=|boolean\s+\w*[Ss]hoot\w*\s*=|\bshootingLatched\b/,
+      tip: "boolean shootingLatched = false; — tracks whether the shoot button has been held through a valid fire event.",
     },
     {
-      label: "shooterReady boolean",
-      description: "shooterReady boolean computed from TPS tolerance check.",
+      label: "Shooter-ready tolerance check",
+      description: "Math.abs(actual − target) compared to a tolerance constant to gate the latch.",
       tier: "required",
-      pattern: /\bshooterReady\b/,
-      tip: "boolean shooterReady = Math.abs(simulatedTPS - TARGET_TPS) <= TOLERANCE;",
+      pattern: /Math\.abs\s*\([^)]*\)\s*<=\s*\w+/,
+      tip: "boolean shooterReady = Math.abs(simulatedTPS - TARGET_TPS) <= TOLERANCE; — the tolerance window prevents firing before speed is stable.",
     },
     {
-      label: "shooterReady uses Math.abs tolerance check",
-      description: "Math.abs(actual - TARGET_TPS) <= TOLERANCE ensures shooterReady only triggers when speed is close enough.",
+      label: "Latch released when button released",
+      description: "The latch variable set to false when the shoot button is not pressed.",
       tier: "required",
-      pattern: /Math\.abs\s*\([^)]*TPS[^)]*\)\s*<=\s*\w+/i,
-      tip: "boolean shooterReady = Math.abs(simulatedTPS - TARGET_TPS) <= TOLERANCE; — the tolerance window prevents firing too early.",
+      pattern: /\w+\s*=\s*false[^;]*;(?:[^}]*\})?[^}]*gamepad|\bif\s*\(\s*!/,
+      tip: "if (!gamepad1.right_bumper) { shootingLatched = false; } — releasing the button resets the latch so the next press can fire again.",
     },
     {
-      label: "Latch logic: release on button release",
-      description: "shootingLatched = false when shoot button is not pressed.",
+      label: "Feeding gated by both latch and button",
+      description: "A feeding/fire flag uses && to require both the button AND the latch being true.",
       tier: "required",
-      pattern: /shootingLatched\s*=\s*false/,
-      tip: "if (!shootButtonPressed) { shootingLatched = false; }",
-    },
-    {
-      label: "feeding depends on latch AND button",
-      description: "feeding = shootButtonPressed && shootingLatched.",
-      tier: "required",
-      pattern: /\bfeeding\b/,
-      tip: "boolean feeding = shootButtonPressed && shootingLatched;",
+      pattern: /\bboolean\s+\w+\s*=\s*\w+\s*&&\s*\w+|\bfeeding\b|\bfire\b\s*=\s*\w+\s*&&/,
+      tip: "boolean feeding = shootButtonPressed && shootingLatched; — both conditions must be true to actually feed.",
     },
     {
       label: "No leftover TODO comments",
@@ -1324,18 +1340,20 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 33 ─ Pythagorean Distance to Goal ───────────────────────────
   33: [
     {
-      label: "distanceToGoal() method",
-      description: "distanceToGoal helper method implemented.",
+      label: "Distance helper method defined",
+      description: "A method that computes distance to the goal using Pythagorean theorem.",
       tier: "required",
-      pattern: /distanceToGoal\s*\(/,
-      tip: "private double distanceToGoal(double x, double y) { ... }",
+      pattern: /private\s+double\s+\w+\s*\(\s*double[^)]*,\s*double/,
+      tip: "private double distanceToGoal(double x, double y) { return Math.hypot(GOAL_X - x, GOAL_Y - y); }",
     },
     {
-      label: "Math.hypot() used",
-      description: "Math.hypot() computes the Pythagorean distance.",
+      label: "Math.hypot() or Math.sqrt() with squared terms used",
+      description: "Pythagorean distance computed using Math.hypot() or sqrt(dx² + dy²).",
       tier: "required",
-      pattern: /Math\.hypot\s*\(/,
-      tip: "return Math.hypot(GOAL_X - x, GOAL_Y - y);",
+      pattern: (code) =>
+        /Math\.hypot\s*\(/.test(code) ||
+        (/Math\.sqrt\s*\(/.test(code) && /\*\s*\w+|\w+\s*\*/.test(code)),
+      tip: "Math.hypot(GOAL_X - x, GOAL_Y - y) computes √((dx)²+(dy)²) in one call.",
     },
     {
       label: "GOAL_X and GOAL_Y defined",
@@ -1357,17 +1375,17 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 49 ─ Unit Conversion ────────────────────────────────────────
   49: [
     {
-      label: "inchesToMm() method",
-      description: "inchesToMm helper method implemented.",
+      label: "inches→mm conversion implemented",
+      description: "A method or expression multiplies inches by 25.4 to convert to millimetres.",
       tier: "required",
-      pattern: /inchesToMm\s*\(/,
+      pattern: /25\.4[^;]*\*|\*[^;]*25\.4|inchesToMm\s*\(/,
       tip: "private double inchesToMm(double inches) { return inches * 25.4; }",
     },
     {
-      label: "mmToInches() method",
-      description: "mmToInches helper method implemented.",
+      label: "mm→inches conversion implemented",
+      description: "A method or expression divides millimetres by 25.4 to convert to inches.",
       tier: "required",
-      pattern: /mmToInches\s*\(/,
+      pattern: /\/\s*25\.4|mmToInches\s*\(/,
       tip: "private double mmToInches(double mm) { return mm / 25.4; }",
     },
     {
@@ -1390,11 +1408,14 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 51 ─ Linear Interpolation ───────────────────────────────────
   51: [
     {
-      label: "lerp() method",
-      description: "lerp helper method implemented.",
+      label: "Linear interpolation method implemented",
+      description: "A helper method computes a + t*(b-a) (lerp formula) between two values.",
       tier: "required",
-      pattern: /\blerp\s*\(/,
-      tip: "private double lerp(double a, double b, double t) { return a + t * (b - a); }",
+      pattern: (code) =>
+        /\blerp\s*\(/.test(code) ||
+        // Accept any method body with the lerp formula: a + t * (b - a) or equivalent
+        /\w+\s*\+\s*\w+\s*\*\s*\(\s*\w+\s*-\s*\w+\s*\)/.test(code),
+      tip: "private double lerp(double a, double b, double t) { return a + t * (b - a); } — interpolates between two values.",
     },
     {
       label: "t clamped to [0,1]",
@@ -1680,11 +1701,11 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "while (!isStarted() && !isStopRequested()) — both conditions are necessary.",
     },
     {
-      label: "isRedAlliance variable declared",
-      description: "Boolean variable tracks the selected alliance (RED/BLUE).",
+      label: "Alliance-selection boolean declared",
+      description: "A boolean variable tracks whether the robot is on RED or BLUE alliance.",
       tier: "required",
-      pattern: /\bisRedAlliance\b/,
-      tip: "boolean isRedAlliance = true; // default RED",
+      pattern: /boolean\s+\w*[Rr]ed\w*\s*=|boolean\s+\w*[Aa]lliance\w*\s*=|\bisRedAlliance\b/,
+      tip: "boolean isRedAlliance = true; — declare before the init loop so it persists when match starts.",
     },
     {
       label: "Alliance set via B or X button",
@@ -1915,11 +1936,17 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "double rotStrafe = drive * Math.sin(-heading) + strafe * Math.cos(-heading);",
     },
     {
-      label: "Rotated drive/strafe applied to mecanum formula",
-      description: "Rotation matrix output (rotDrive/rotStrafe) used in wheel power computation.",
+      label: "Rotated vectors used in wheel power formula",
+      description: "Variables derived from the cos/sin rotation are fed into the mecanum power computation.",
       tier: "required",
-      pattern: /rot[Dd]rive|rot[Ss]trafe/,
-      tip: "Use rotDrive and rotStrafe (not raw drive/strafe) in the mecanum formula after rotation.",
+      pattern: (code) => {
+        // Rotation result must be stored and then used in setPower calls
+        // Accept rotDrive/rotStrafe or any variable assigned from cos/sin expression
+        if (/rot[Dd]rive|rot[Ss]trafe/.test(code)) return true;
+        // Accept pattern: variable = ... Math.cos ... then used in setPower
+        return /=\s*[^;]*Math\.(?:cos|sin)[^;]*;[\s\S]{1,800}\.setPower\s*\(/.test(code);
+      },
+      tip: "Store the rotated drive/strafe values (e.g. rotDrive, rotStrafe) and use those — not the raw stick values — in the mecanum wheel formula.",
     },
     {
       label: "Four mecanum motors driven",
@@ -2045,18 +2072,33 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "private static final double[] DIST_TABLE = {30, 40, 50, 60}; and TPS_TABLE = {1200, 1350, 1500, 1650};",
     },
     {
-      label: "interpolateTPS() method implemented",
-      description: "interpolateTPS() helper method defined and called.",
+      label: "Interpolation helper method defined and called",
+      description: "A helper method that takes a distance and returns a TPS value is defined and called.",
       tier: "required",
-      pattern: /interpolateTPS\s*\(/,
-      tip: "private double interpolateTPS(double distanceInches) { ... }",
+      pattern: (code) => {
+        // Accept any method defined as "private double name(double ...)" that is also called
+        const methodMatch = code.match(/private\s+double\s+(\w+)\s*\(\s*double/);
+        if (!methodMatch) return false;
+        const name = methodMatch[1];
+        // Ensure it's called somewhere (other than its own definition)
+        return new RegExp(`\\b${name}\\s*\\(`).test(code.replace(`private double ${name}`, ''));
+      },
+      tip: "private double interpolateTPS(double distanceInches) { ... } — define the helper, then call it inside the loop.",
     },
     {
       label: "Linear interpolation computed (t parameter)",
       description: "t = (distance - lower) / (upper - lower) interpolation parameter computed.",
       tier: "required",
-      pattern: /\bt\s*=\s*\(/,
+      pattern: (code) =>
+        /\bt\s*=\s*\([^)]*(?:DIST_TABLE|TPS_TABLE)/.test(code),
       tip: "double t = (distanceInches - DIST_TABLE[i]) / (DIST_TABLE[i+1] - DIST_TABLE[i]);",
+    },
+    {
+      label: "Interpolated TPS returned from table",
+      description: "Return uses TPS_TABLE[i] and the t parameter — not a bare return 0.",
+      tier: "required",
+      pattern: /return\s+TPS_TABLE\[i\]\s*\+/,
+      tip: "return TPS_TABLE[i] + t * (TPS_TABLE[i+1] - TPS_TABLE[i]);",
     },
     {
       label: "Clamping for out-of-range inputs",
@@ -2093,32 +2135,32 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "private static final double Kp = 0.001, Ki = 0.0002, Kd = 0.0003, Kf = 0.00055;",
     },
     {
-      label: "Integral term accumulated",
-      description: "integral variable accumulates error × dt each loop.",
+      label: "Integral term accumulated with +=",
+      description: "A running integral accumulates error × dt each loop iteration.",
       tier: "required",
-      pattern: /\bintegral\b/,
-      tip: "integral += error * dt;",
+      pattern: /\w+\s*\+=\s*\w*error\w*\s*\*\s*dt|\w+\s*\+=\s*dt\s*\*\s*\w*error\w*/,
+      tip: "integral += error * dt; — place this inside the while loop.",
     },
     {
       label: "Integral anti-windup clamp",
-      description: "integral clamped to prevent unbounded growth.",
+      description: "Integral clamped with Math.max/Math.min to prevent unbounded growth.",
       tier: "required",
-      pattern: /WINDUP|Math\.max.*integral|integral.*Math\.min/,
+      pattern: /Math\.max\s*\([^)]*Math\.min|Math\.min\s*\([^)]*Math\.max|WINDUP/,
       tip: "integral = Math.max(-WINDUP, Math.min(WINDUP, integral));",
     },
     {
-      label: "Derivative term computed",
-      description: "derivative = (error - lastError) / dt computed each loop.",
+      label: "Derivative term: (error − lastError) / dt",
+      description: "Derivative computed as change-in-error divided by elapsed time.",
       tier: "required",
-      pattern: /\bderivative\b/,
-      tip: "double derivative = (error - lastError) / dt;",
+      pattern: /\(\s*\w*error\w*\s*-\s*\w*[Ll]ast[Ee]rror\w*\s*\)\s*\/\s*dt|\w*[Ll]ast[Ee]rror\w*/,
+      tip: "double derivative = (error - lastError) / dt; — store lastError = error; at the end of each loop.",
     },
     {
-      label: "Feedforward term added",
-      description: "Kf × targetTPS feedforward term included in output.",
+      label: "Feedforward term (Kf × target)",
+      description: "Kf multiplied by the target TPS to compute the feedforward term.",
       tier: "required",
-      pattern: /\bfeedforward\b|Kf\s*\*/,
-      tip: "double feedforward = Kf * TARGET_TPS;",
+      pattern: /Kf\s*\*|feedforward/,
+      tip: "double feedforward = Kf * TARGET_TPS; — feedforward reduces the error the PID needs to correct.",
     },
     {
       label: "RUN_USING_ENCODER mode set",
@@ -3052,11 +3094,16 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 52 ─ Projectile Distance from TPS ───────────────────────────
   52: [
     {
-      label: "tpsToDistance() method implemented",
-      description: "tpsToDistance() inverse-lookup method defined and called.",
+      label: "Inverse-lookup helper method defined and called",
+      description: "A method that takes a TPS value and returns an estimated distance is defined and used.",
       tier: "required",
-      pattern: /tpsToDistance\s*\(/,
-      tip: "private double tpsToDistance(double tps) { ... }",
+      pattern: (code) => {
+        const methodMatch = code.match(/private\s+double\s+(\w+)\s*\(\s*double/);
+        if (!methodMatch) return false;
+        const name = methodMatch[1];
+        return new RegExp(`\\b${name}\\s*\\(`).test(code.replace(`private double ${name}`, ''));
+      },
+      tip: "private double tpsToDistance(double tps) { ... } — define the helper, then call it in the loop.",
     },
     {
       label: "Same calibration tables used",
@@ -3069,8 +3116,16 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       label: "Inverse interpolation computed",
       description: "t = (tps - TPS_TABLE[i]) / (TPS_TABLE[i+1] - TPS_TABLE[i]) bracket search.",
       tier: "required",
-      pattern: /TPS_TABLE\[i\]|TPS_TABLE\[i\s*\+\s*1\]/,
+      pattern: (code) =>
+        /\bt\s*=\s*\([^)]*TPS_TABLE/.test(code),
       tip: "double t = (tps - TPS_TABLE[i]) / (TPS_TABLE[i+1] - TPS_TABLE[i]); return DIST_TABLE[i] + t * (DIST_TABLE[i+1] - DIST_TABLE[i]);",
+    },
+    {
+      label: "Interpolated distance returned from table",
+      description: "Return uses DIST_TABLE[i] and the t parameter — not a bare return 0.",
+      tier: "required",
+      pattern: /return\s+DIST_TABLE\[i\]\s*\+/,
+      tip: "return DIST_TABLE[i] + t * (DIST_TABLE[i+1] - DIST_TABLE[i]);",
     },
     {
       label: "Clamping for out-of-range TPS",
@@ -4291,6 +4346,34 @@ export interface GradedResult {
     title: string;
     subtitle: string;
   };
+}
+
+/** Preview of a grader check shown in the workspace requirements panel. */
+export interface RequirementPreview {
+  label: string;
+  description: string;
+  tier: CheckTier;
+  /** "universal" = every challenge; "challenge" = per-challenge rule */
+  scope: "universal" | "challenge";
+}
+
+/** All checks the grader will run for a challenge (before code is submitted). */
+export function getChallengeRequirements(challengeId: number): RequirementPreview[] {
+  const challengeChecks = CHALLENGE_CHECKS[challengeId] ?? [];
+  const toPreview = (checks: ValidationCheck[], scope: RequirementPreview["scope"]) =>
+    checks.map((c) => ({
+      label: c.label,
+      description: c.description,
+      tier: c.tier,
+      scope,
+    }));
+
+  return [
+    ...toPreview(UNIVERSAL.filter((c) => c.tier === "required"), "universal"),
+    ...toPreview(challengeChecks.filter((c) => c.tier === "required"), "challenge"),
+    ...toPreview(UNIVERSAL.filter((c) => c.tier !== "required"), "universal"),
+    ...toPreview(challengeChecks.filter((c) => c.tier !== "required"), "challenge"),
+  ];
 }
 
 function runCheck(
