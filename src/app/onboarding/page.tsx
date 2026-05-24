@@ -1,80 +1,76 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Trophy, Users, PlusCircle } from "lucide-react";
+import { Trophy, ArrowRight } from "lucide-react";
 
 export default function OnboardingPage() {
   const router = useRouter();
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-10 bg-slate-950 px-4 py-12">
-      {/* Logo */}
-      <div className="flex flex-col items-center gap-3 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/5">
-          <Trophy className="h-5 w-5 text-zinc-100" />
+    <div className="flex min-h-screen bg-slate-950 px-4">
+      <div className="m-auto w-full max-w-md py-16">
+        {/* Brand mark */}
+        <div className="mb-14 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 border border-slate-700/60">
+            <Trophy className="h-4.5 w-4.5 text-slate-300" />
+          </div>
+          <div>
+            <p className="text-base font-semibold text-slate-200 tracking-tight leading-none">
+              FTC Programming Hub
+            </p>
+            <p className="text-xs text-slate-600 mt-0.5">by Team 21171</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">
-            FTC Programming Hub
+
+        {/* Heading */}
+        <div className="mb-10">
+          <h1 className="text-3xl font-semibold text-slate-100 tracking-tight leading-snug">
+            Get started
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Get started by joining an existing class or creating a new one
+          <p className="mt-3 text-base text-slate-500 leading-relaxed">
+            Learn FTC programming, complete challenges, and track your progress.
           </p>
         </div>
-      </div>
 
-      {/* Cards */}
-      <div className="flex w-full max-w-2xl flex-col gap-5 sm:flex-row sm:gap-6">
-        {/* Join */}
+        {/* Primary action — student */}
         <button
           onClick={() => router.push("/signin")}
-          className="group flex flex-1 flex-col items-center gap-5 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center transition-all hover:border-slate-700 hover:bg-slate-800/80 focus:outline-none focus:ring-2 focus:ring-white/20"
+          className="group w-full flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/80 px-6 py-5 text-left hover:border-slate-600/60 hover:bg-slate-800/60 transition-all duration-200 focus:outline-none accent-ring mb-4"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 transition-all group-hover:bg-white/10">
-            <Users className="h-7 w-7 text-zinc-300" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <h2 className="text-lg font-bold text-slate-100">
-              Join an Existing Class
-            </h2>
-            <p className="text-sm text-slate-500">
-              Enter your access code to join a class your mentor set up
+          <div>
+            <p className="text-base font-medium text-slate-200 group-hover:text-white transition-colors">
+              Join a class
+            </p>
+            <p className="text-sm text-slate-600 mt-0.5">
+              Enter your 6-digit access code
             </p>
           </div>
-          <span className="mt-auto inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/8 px-5 py-2.5 text-sm font-semibold text-zinc-100 transition-all group-hover:bg-zinc-100 group-hover:text-slate-950 group-hover:border-zinc-100">
-            Join Class
-          </span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg btn-primary shrink-0">
+            <ArrowRight className="h-4 w-4" />
+          </div>
         </button>
 
         {/* Divider */}
-        <div className="flex items-center justify-center sm:hidden">
-          <div className="h-px w-16 bg-slate-800" />
-          <span className="mx-3 text-xs text-slate-600">or</span>
-          <div className="h-px w-16 bg-slate-800" />
-        </div>
-        <div className="hidden items-center justify-center sm:flex">
-          <div className="h-24 w-px bg-slate-800" />
+        <div className="relative flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-slate-800/80" />
+          <span className="text-xs text-slate-700 font-medium">or</span>
+          <div className="flex-1 h-px bg-slate-800/80" />
         </div>
 
-        {/* Create */}
+        {/* Secondary action — mentor */}
         <button
           onClick={() => router.push("/create-class")}
-          className="group flex flex-1 flex-col items-center gap-5 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center transition-all hover:border-slate-700 hover:bg-slate-800/80 focus:outline-none focus:ring-2 focus:ring-white/20"
+          className="group w-full flex items-center justify-between rounded-xl border border-slate-800/60 px-6 py-4.5 text-left hover:border-slate-700/60 hover:bg-slate-900/40 transition-all duration-200 focus:outline-none accent-ring"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 transition-all group-hover:bg-white/10">
-            <PlusCircle className="h-7 w-7 text-zinc-300" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <h2 className="text-lg font-bold text-slate-100">
-              Create a New Class
-            </h2>
-            <p className="text-sm text-slate-500">
-              Set up a new class and get your mentor access code
+          <div>
+            <p className="text-sm font-medium text-slate-400 group-hover:text-slate-200 transition-colors">
+              Create a class
+            </p>
+            <p className="text-xs text-slate-700 mt-0.5">
+              For mentors — set up your team workspace
             </p>
           </div>
-          <span className="mt-auto inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/8 px-5 py-2.5 text-sm font-semibold text-zinc-100 transition-all group-hover:bg-zinc-100 group-hover:text-slate-950 group-hover:border-zinc-100">
-            Create Class
-          </span>
+          <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
         </button>
       </div>
     </div>

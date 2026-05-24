@@ -789,19 +789,19 @@ public class CRServoIntake extends LinearOpMode {
 
 **Required display sections:**
 \`\`\`
-=== RUNTIME ===
+RUNTIME
   Loop Count : 142
   Elapsed    : 3.47 s
 
-=== MOTOR ===
+MOTOR
   Power    : 0.65
   Encoder  : 1234 ticks
 
-=== STATUS ===
+STATUS
   Running
 \`\`\`
 
-Use \`telemetry.addLine()\` for the \`=== SECTION ===\` headers and \`telemetry.addData()\` for each key-value pair. Call \`telemetry.update()\` **exactly once** per loop cycle — calling it multiple times per loop causes flickering.`,
+Use \`telemetry.addLine("RUNTIME")\` for the section headers and \`telemetry.addData("Key", value)\` for each data row. Call \`telemetry.update()\` **exactly once** at the end of every loop cycle — calling it multiple times causes flickering on the Driver Station screen.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -836,11 +836,11 @@ public class TelemetryDashboard extends LinearOpMode {
             driveMotor.setPower(motorPower);
 
             // TODO 4: Build the telemetry display using addLine() and addData()
-            //   Section 1 header: "=== RUNTIME ==="
+            //   Section 1 header: "RUNTIME"
             //   Data: Loop Count, Elapsed (timer.seconds())
-            //   Section 2 header: "=== MOTOR ==="
+            //   Section 2 header: "MOTOR"
             //   Data: Power, Encoder (driveMotor.getCurrentPosition())
-            //   Section 3 header: "=== STATUS ==="
+            //   Section 3 header: "STATUS"
             //   Data: "Running"
 
             // TODO 5: Call telemetry.update() once at the end of the loop
@@ -848,7 +848,7 @@ public class TelemetryDashboard extends LinearOpMode {
     }
 }`,
     hints: [
-      "Use `telemetry.addLine(\"=== RUNTIME ===\");` for a blank-label header — `addLine()` takes a string and adds it as its own line.",
+      "Use `telemetry.addLine(\"RUNTIME\");` for a blank-label header — `addLine()` takes a string and adds it as its own line.",
       "`telemetry.addData(\"Elapsed\", timer.seconds());` — the second argument is the value, which telemetry auto-converts to a string.",
       "Put all `addLine()` / `addData()` calls before a single `telemetry.update()` at the bottom of the loop — the driver station receives the whole packet at once.",
     ],

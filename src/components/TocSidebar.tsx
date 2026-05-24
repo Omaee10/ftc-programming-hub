@@ -52,12 +52,12 @@ export default function TocSidebar({ items }: { items: TocItem[] }) {
                 href={`#${item.anchor}`}
                 className={`flex items-center gap-2 rounded-md px-2 py-1 text-xs leading-relaxed transition-all duration-150 ${
                   isActive
-                    ? "text-zinc-100 font-medium bg-white/4"
+                    ? "accent-text font-medium accent-bg-subtle"
                     : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/40"
                 }`}
               >
                 {isActive && (
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-200" />
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full accent-dot" />
                 )}
                 {!isActive && (
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-transparent" />

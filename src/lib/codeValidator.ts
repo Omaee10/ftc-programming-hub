@@ -58,24 +58,37 @@ export interface CheckResult {
 const UNIVERSAL: ValidationCheck[] = [
   // ── Required ────────────────────────────────────────────────────────────────
   {
-    label: "Extends LinearOpMode",
-    description: "Class declaration extends LinearOpMode.",
+    label: "Extends LinearOpMode or OpMode",
+    description: "Class declaration extends LinearOpMode or OpMode.",
     tier: "required",
-    pattern: /extends\s+LinearOpMode/,
-    tip: "Every FTC OpMode must extend LinearOpMode (or OpMode).",
+    pattern: /extends\s+(LinearOpMode|OpMode)\b/,
+    tip: "Every FTC OpMode must extend LinearOpMode (for sequential code) or OpMode (for iterative init/loop style).",
   },
   {
-    label: "runOpMode() defined",
-    description: "@Override public void runOpMode() method is present.",
+    label: "runOpMode() or init()/loop() defined",
+    description: "LinearOpMode requires runOpMode(); iterative OpMode requires init() and loop().",
     tier: "required",
-    pattern: /void\s+runOpMode\s*\(\s*\)/,
+    pattern: (code) => {
+      // LinearOpMode style
+      if (/extends\s+LinearOpMode\b/.test(code)) return /void\s+runOpMode\s*\(\s*\)/.test(code);
+      // Iterative OpMode style
+      if (/extends\s+OpMode\b/.test(code)) {
+        return /void\s+init\s*\(\s*\)/.test(code) && /void\s+loop\s*\(\s*\)/.test(code);
+      }
+      // Unknown base — require runOpMode as fallback
+      return /void\s+runOpMode\s*\(\s*\)/.test(code);
+    },
     tip: "runOpMode() is the entry point the FTC runtime calls.",
   },
   {
     label: "waitForStart() called",
     description: "waitForStart() pauses execution until the driver presses Start.",
     tier: "required",
-    pattern: /waitForStart\s*\(\s*\)/,
+    pattern: (code) => {
+      // Iterative OpMode (extends OpMode) does not use waitForStart() — skip check.
+      if (/extends\s+OpMode\b/.test(code) && !/extends\s+LinearOpMode\b/.test(code)) return true;
+      return /waitForStart\s*\(\s*\)/.test(code);
+    },
     tip: "Skipping waitForStart() causes the robot to run during initialization.",
   },
 
@@ -155,26 +168,28 @@ const UNIVERSAL: ValidationCheck[] = [
     description: "waitForStart() must live inside the runOpMode() method, not above it.",
     tier: "required",
     pattern: (code) => {
+      // Iterative OpMode (init/loop) does not use waitForStart — skip.
+      if (/extends\s+OpMode\b/.test(code) && !/extends\s+LinearOpMode\b/.test(code)) return true;
       const runOpIdx  = firstIndex(code, /void\s+runOpMode\s*\(\s*\)/);
       const waitIdx   = firstIndex(code, /waitForStart\s*\(\s*\)/);
-      // If either is missing, let the "exists" required checks handle it.
       if (runOpIdx === -1 || waitIdx === -1) return true;
       return waitIdx > runOpIdx;
     },
-    tip: "Move waitForStart() inside the runOpMode() method body — placing it above the method declaration does nothing.",
+      tip: "waitForStart() is not in the right spot.",
   },
   {
     label: "waitForStart() before the main loop",
     description: "waitForStart() must be called before the while(opModeIsActive()) loop.",
     tier: "required",
     pattern: (code) => {
+      // Iterative OpMode does not use waitForStart — skip.
+      if (/extends\s+OpMode\b/.test(code) && !/extends\s+LinearOpMode\b/.test(code)) return true;
       const waitIdx = firstIndex(code, /waitForStart\s*\(\s*\)/);
       const loopIdx = firstIndex(code, /while\s*\([^{]*opModeIsActive/);
-      // Only validate when both exist.
       if (waitIdx === -1 || loopIdx === -1) return true;
       return waitIdx < loopIdx;
     },
-    tip: "Call waitForStart() before your while(opModeIsActive()) loop so the robot waits for the match to begin.",
+      tip: "waitForStart() is not in the right spot.",
   },
   {
     label: "Hardware initialized before waitForStart()",
@@ -191,7 +206,7 @@ const UNIVERSAL: ValidationCheck[] = [
       }
       return true;
     },
-    tip: "Initialize all hardware with hardwareMap.get(...) before calling waitForStart() — hardware isn't available after the match starts.",
+      tip: "Hardware initialization is not in the right spot.",
   },
   {
     label: "setTargetPosition() before RUN_TO_POSITION",
@@ -203,7 +218,7 @@ const UNIVERSAL: ValidationCheck[] = [
       const modeIdx   = firstIndex(code, /RUN_TO_POSITION/);
       return targetIdx < modeIdx;
     },
-    tip: "Call setTargetPosition() before setMode(RUN_TO_POSITION) — the FTC SDK ignores the target if mode is set first.",
+      tip: "setTargetPosition() is not in the right spot.",
   },
 
   // ── Missing-element checks ─────────────────────────────────────────────────
@@ -258,15 +273,14 @@ const UNIVERSAL: ValidationCheck[] = [
     description: "waitForStart() must be called exactly once, before the while(opModeIsActive()) loop.",
     tier: "required",
     pattern: (code) => {
-      // Only relevant when both waitForStart and a loop exist.
+      // Iterative OpMode does not use waitForStart — skip.
+      if (/extends\s+OpMode\b/.test(code) && !/extends\s+LinearOpMode\b/.test(code)) return true;
       if (!/waitForStart\s*\(\s*\)/.test(code) || !/while\s*\([^{]*opModeIsActive/.test(code)) return true;
-      // Split at the while(opModeIsActive) opening brace to get the loop body.
       const parts = code.split(/while\s*\([^{]*opModeIsActive[^{]*\{/);
       if (parts.length < 2) return true;
-      // waitForStart must NOT appear inside the loop body.
       return !/waitForStart\s*\(\s*\)/.test(parts[1]);
     },
-    tip: "waitForStart() must be called once before the while(opModeIsActive()) loop — inside the loop it either blocks indefinitely or does nothing.",
+      tip: "waitForStart() is not in the right spot.",
   },
 
   // ── Issue 24: Trigger compared with == instead of a threshold ──────────
@@ -310,7 +324,7 @@ const UNIVERSAL: ValidationCheck[] = [
       const guardedPattern = /if\s*\([^)]+\)\s*\{[^}]*\.setDirection\s*\(/;
       return guardedPattern.test(loopBody);
     },
-    tip: "Move setDirection() to the init section before waitForStart() — re-running it every loop wastes time and can cause jitter.",
+      tip: "setDirection() is not in the right spot.",
   },
   {
     label: "setZeroPowerBehavior() not inside main loop",
@@ -330,7 +344,40 @@ const UNIVERSAL: ValidationCheck[] = [
       const guardedPattern = /if\s*\([^)]+\)\s*\{[^}]*\.setZeroPowerBehavior\s*\(/;
       return guardedPattern.test(loopBody);
     },
-    tip: "Move setZeroPowerBehavior() to the init section before waitForStart() — re-setting it 50 times per second is unnecessary and causes jitter.",
+      tip: "setZeroPowerBehavior() is not in the right spot.",
+  },
+
+  // ── waitForStart() inside if(opModeIsActive()) ─────────────────────────
+  {
+    label: "waitForStart() not inside if(opModeIsActive())",
+    description: "waitForStart() must be called directly, not wrapped in an if(opModeIsActive()) guard.",
+    tier: "required",
+    shouldBeAbsent: true,
+    pattern: (code) => {
+      // Iterative OpMode does not use waitForStart — skip.
+      if (/extends\s+OpMode\b/.test(code) && !/extends\s+LinearOpMode\b/.test(code)) return false;
+      return /if\s*\(\s*opModeIsActive\s*\(\s*\)\s*\)\s*\{[\s\S]*?waitForStart\s*\(\s*\)/.test(code);
+    },
+    tip: "waitForStart() is not in the right spot.",
+  },
+
+  // ── hardwareMap used as argument before runOpMode() opens ───────────────
+  {
+    label: "hardwareMap not used before runOpMode()",
+    description: "Any use of hardwareMap (including as a constructor argument) must be inside runOpMode() or init(), not at class-field level.",
+    tier: "required",
+    pattern: (code) => {
+      // For OpMode, check before init() instead of runOpMode()
+      const isIterativeOpMode = /extends\s+OpMode\b/.test(code) && !/extends\s+LinearOpMode\b/.test(code);
+      const entryMethodPattern = isIterativeOpMode
+        ? /void\s+init\s*\(\s*\)/
+        : /void\s+runOpMode\s*\(\s*\)/;
+      const entryIdx = code.search(entryMethodPattern);
+      if (entryIdx === -1) return true;
+      const beforeEntry = code.slice(0, entryIdx);
+      return !/\bhardwareMap\b/.test(beforeEntry);
+    },
+    tip: "hardwareMap is not in the right spot.",
   },
 ];
 
@@ -452,8 +499,7 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       description: "Motor power is updated every iteration (not set-and-forget).",
       tier: "improvement",
       pattern: setPowerInsideLoop,
-      tip:
-        "Move leftMotor.setPower(power) inside the while(opModeIsActive()) block so it updates every frame.",
+      tip: "setPower() is not in the right spot.",
     },
     {
       label: "Motor direction set",
@@ -616,7 +662,7 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
         if (parts.length < 2) return true;
         return !/new\s+ElapsedTime\s*\(\s*\)/.test(parts.slice(1).join(""));
       },
-      tip: "Declare ElapsedTime timer = new ElapsedTime() once before any loops — creating it inside the loop resets the clock every frame so it never advances past a few milliseconds.",
+      tip: "ElapsedTime declaration is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -941,14 +987,14 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       description: "lastAButton = gamepad1.a; at end of loop.",
       tier: "required",
       pattern: /lastAButton\s*=\s*gamepad1\.a/,
-      tip: "Put `lastAButton = gamepad1.a;` at the END of the loop body.",
+      tip: "lastAButton update is not in the right spot.",
     },
     {
       label: "intakeRunning boolean toggled",
       description: "intakeRunning flipped with the ! operator on rising edge.",
       tier: "required",
       pattern: /\bintakeRunning\b/,
-      tip: "intakeRunning = !intakeRunning; inside the rising-edge if block.",
+      tip: "intakeRunning toggle is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -977,11 +1023,11 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "timer.reset(); before each timed segment.",
     },
     {
-      label: "Timer compared with seconds()",
-      description: "timer.seconds() used in a while loop condition.",
+      label: "Two separate timed segments",
+      description: "Two distinct timer.seconds() comparisons drive the 1 s forward and 0.5 s reverse segments.",
       tier: "required",
-      pattern: /\w+\.seconds\(\)\s*[<>]/,
-      tip: "while (timer.seconds() < 1.0 && opModeIsActive()) { ... }",
+      pattern: (code) => (code.match(/\w+\.seconds\s*\(\s*\)\s*[<>]/g) ?? []).length >= 2,
+      tip: "There should be two timed while loops: while(timer.seconds() < 1.0 ...) and while(timer.seconds() < 0.5 ...). Call timer.reset() between them.",
     },
     {
       label: "Motor stopped after timed run",
@@ -1001,7 +1047,7 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
         if (parts.length < 2) return true;
         return !/new\s+ElapsedTime\s*\(\s*\)/.test(parts.slice(1).join(""));
       },
-      tip: "Declare ElapsedTime timer = new ElapsedTime() once before any loops — creating it inside the loop resets the clock every frame so it never advances past a few milliseconds.",
+      tip: "ElapsedTime declaration is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -1049,6 +1095,23 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tier: "required",
       pattern: /gamepad1\.left_stick_x/,
       tip: "double strafe = gamepad1.left_stick_x;",
+    },
+    {
+      label: "Rotate input read",
+      description: "gamepad1.right_stick_x used as rotation input.",
+      tier: "required",
+      pattern: /gamepad1\.right_stick_x/,
+      tip: "double rotate = gamepad1.right_stick_x;",
+    },
+    {
+      label: "Mecanum formula combines drive + strafe + rotate",
+      description: "Each motor power mixes drive, strafe, and rotate with the correct signs.",
+      tier: "required",
+      pattern: (code) =>
+        // At least two of the three inputs are combined in an arithmetic expression
+        (/drive\s*[\+\-]\s*strafe|strafe\s*[\+\-]\s*drive/.test(code)) &&
+        (/\+\s*rotate|\-\s*rotate/.test(code)),
+      tip: "frontLeft.setPower(drive + strafe + rotate); — mecanum mixes all three axes with +/- signs per wheel.",
     },
     {
       label: "All four motors set power",
@@ -1109,7 +1172,7 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       description: "RUN_USING_ENCODER is required before calling setVelocity() — without it the velocity PID is ignored.",
       tier: "required",
       pattern: /RUN_USING_ENCODER/,
-      tip: "shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER); — must be called during init, before setVelocity().",
+      tip: "setMode(RUN_USING_ENCODER) is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -1226,6 +1289,13 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tier: "required",
       pattern: /\bshooterReady\b/,
       tip: "boolean shooterReady = Math.abs(simulatedTPS - TARGET_TPS) <= TOLERANCE;",
+    },
+    {
+      label: "shooterReady uses Math.abs tolerance check",
+      description: "Math.abs(actual - TARGET_TPS) <= TOLERANCE ensures shooterReady only triggers when speed is close enough.",
+      tier: "required",
+      pattern: /Math\.abs\s*\([^)]*TPS[^)]*\)\s*<=\s*\w+/i,
+      tip: "boolean shooterReady = Math.abs(simulatedTPS - TARGET_TPS) <= TOLERANCE; — the tolerance window prevents firing too early.",
     },
     {
       label: "Latch logic: release on button release",
@@ -1393,11 +1463,19 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 5 ─ Pedro Pathing Chain ────────────────────────────────────────
   5: [
     {
-      label: "Follower instantiated",
-      description: "new Follower(hardwareMap) creates the path follower.",
+      label: "Follower instantiated before use",
+      description: "new Follower(hardwareMap) must appear before any follower.method() calls.",
       tier: "required",
-      pattern: /new\s+Follower\s*\(/,
-      tip: "follower = new Follower(hardwareMap);",
+      pattern: (code) => {
+        const newFollowerIdx = code.search(/new\s+Follower\s*\(/);
+        if (newFollowerIdx === -1) return false; // not instantiated at all
+        // Check that no follower. call appears before the instantiation
+        const beforeInit = code.slice(0, newFollowerIdx);
+        // Require lowercase after the dot so import paths like
+        // `com.pedropathing.follower.Follower` are not flagged as method calls.
+        return !/follower\s*\.[a-z_$]/.test(beforeInit);
+      },
+      tip: "follower = new Follower(hardwareMap) is not in the right spot.",
     },
     {
       label: "Starting pose configured",
@@ -1445,18 +1523,19 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "follower.followPath(chain, true); — true = hold position at end.",
     },
     {
-      label: "follower.update() in loop",
-      description: "follower.update() called every loop tick to drive toward the path.",
+      label: "follower.update() inside while loop",
+      description: "follower.update() must be inside while(opModeIsActive()), not outside it.",
       tier: "required",
-      pattern: /follower\.update\s*\(\s*\)/,
-      tip: "Call follower.update() inside your while loop — without it the robot won't move.",
+      pattern: (code) =>
+        /while\s*\(\s*opModeIsActive\s*\(\s*\)\s*\)[\s\S]*?follower\.update\s*\(\s*\)/.test(code),
+      tip: "follower.update() is not in the right spot.",
     },
     {
-      label: "Path completion checked",
-      description: "Code detects when the follower finishes the path (atParametricEnd or isBusy).",
+      label: "atParametricEnd() checked to exit loop",
+      description: "follower.atParametricEnd() used to break out of the path loop when the segment completes.",
       tier: "required",
-      pattern: /\.atParametricEnd\s*\(\s*\)|\.isBusy\s*\(\s*\)/,
-      tip: "Check path completion with follower.atParametricEnd() or !follower.isBusy() to know when to advance to the next action.",
+      pattern: /follower\.atParametricEnd\s*\(\s*\)/,
+      tip: "Add: if (follower.atParametricEnd()) break; inside the while(opModeIsActive()) loop so the robot advances to the next action when each path segment finishes.",
     },
     {
       label: "Heading interpolation set per segment",
@@ -1478,32 +1557,60 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "ElapsedTime timer = new ElapsedTime();",
     },
     {
-      label: "addLine() used for section headers",
-      description: "telemetry.addLine() adds section headers (=== RUNTIME ===, etc.).",
+      label: "RUNTIME section header present",
+      description: 'telemetry.addLine("RUNTIME") adds the first section header.',
       tier: "required",
-      pattern: /telemetry\.addLine\s*\(/,
-      tip: 'telemetry.addLine("=== RUNTIME ===");',
+      pattern: /telemetry\.addLine\s*\(\s*["']RUNTIME["']\s*\)/,
+      tip: 'telemetry.addLine("RUNTIME");',
+    },
+    {
+      label: "MOTOR section header present",
+      description: 'telemetry.addLine("MOTOR") adds the second section header.',
+      tier: "required",
+      pattern: /telemetry\.addLine\s*\(\s*["']MOTOR["']\s*\)/,
+      tip: 'telemetry.addLine("MOTOR");',
+    },
+    {
+      label: "STATUS section header present",
+      description: 'telemetry.addLine("STATUS") adds the third section header.',
+      tier: "required",
+      pattern: /telemetry\.addLine\s*\(\s*["']STATUS["']\s*\)/,
+      tip: 'telemetry.addLine("STATUS");',
     },
     {
       label: "Loop counter incremented",
       description: "A loop counter variable is incremented each iteration.",
       tier: "required",
-      pattern: /\w+\+\+|\+\+\w+/,
+      pattern: /\w+\+\+\s*;|\+\+\w+\s*;/,
       tip: "loopCount++; inside the while loop.",
+    },
+    {
+      label: "Elapsed time displayed",
+      description: "timer.seconds() used to display how long the OpMode has been running.",
+      tier: "required",
+      pattern: /\.seconds\s*\(\s*\)/,
+      tip: 'telemetry.addData("Elapsed", timer.seconds());',
+    },
+    {
+      label: "Motor power displayed",
+      description: "Motor power value sent to telemetry.",
+      tier: "required",
+      pattern: /telemetry\.addData\s*\([^)]*[Pp]ower/,
+      tip: 'telemetry.addData("Power", driveMotor.getPower());',
     },
     {
       label: "getCurrentPosition() read",
       description: "Motor encoder position read and displayed.",
       tier: "required",
       pattern: /\.getCurrentPosition\s*\(\s*\)/,
-      tip: "telemetry.addData(\"Encoder\", driveMotor.getCurrentPosition());",
+      tip: 'telemetry.addData("Encoder", driveMotor.getCurrentPosition());',
     },
     {
       label: "timer.reset() after waitForStart()",
       description: "Timer reset after waitForStart() so elapsed time measures match time, not init time.",
       tier: "improvement",
       pattern: /\.reset\s*\(\s*\)/,
-      tip: "timer.reset(); immediately after waitForStart() so the clock starts from match start.",
+      tip: "timer.reset() is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -1678,7 +1785,7 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       description: "clearBulkCache() at the top of the loop triggers a fresh bulk read.",
       tier: "required",
       pattern: /clearBulkCache\s*\(\s*\)/,
-      tip: "for (LynxModule hub : hubs) hub.clearBulkCache(); — first line inside the while loop.",
+      tip: "clearBulkCache() is not in the right spot.",
     },
     {
       label: "Loop Hz measured and displayed",
@@ -1718,7 +1825,7 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       description: "touchSensor.isPressed() checked to detect limit hit.",
       tier: "required",
       pattern: /\.isPressed\s*\(\s*\)/,
-      tip: "if (touchSensor.isPressed()) break; — inside the homing while loop.",
+      tip: "isPressed() check is not in the right spot.",
     },
     {
       label: "Motor stopped after sensor triggers",
@@ -1853,6 +1960,23 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tier: "required",
       pattern: /ElapsedTime\s+\w+\s*=/,
       tip: "ElapsedTime timer = new ElapsedTime(); timer.reset();",
+    },
+    {
+      label: "setMecanumPowers() or strafe formula applied",
+      description: "Mecanum strafe pattern sets different signs on left vs right wheels.",
+      tier: "required",
+      pattern: (code) =>
+        /setMecanumPowers\s*\(/.test(code) ||
+        // Accept inline mecanum strafe: at least one motor gets negative of another's value
+        /strafe/.test(code),
+      tip: "Call setMecanumPowers(0, strafe, 0) or set frontLeft = -frontRight = backLeft = -backRight for pure strafe.",
+    },
+    {
+      label: "Two timed strafe phases",
+      description: "Separate right-strafe and left-strafe timed segments with timer.reset() between them.",
+      tier: "required",
+      pattern: (code) => (code.match(/\w+\.seconds\s*\(\s*\)\s*[<>]/g) ?? []).length >= 2,
+      tip: "Strafe right for 1 s, call timer.reset(), then strafe left for 1 s.",
     },
     {
       label: "All motors stopped at end",
@@ -1997,6 +2121,13 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "double feedforward = Kf * TARGET_TPS;",
     },
     {
+      label: "RUN_USING_ENCODER mode set",
+      description: "RUN_USING_ENCODER enables the motor's built-in velocity PID — without it getVelocity() is meaningless.",
+      tier: "required",
+      pattern: /RUN_USING_ENCODER/,
+      tip: "shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER); before the loop.",
+    },
+    {
       label: "No leftover TODO comments",
       description: "All TODO placeholders resolved.",
       tier: "required",
@@ -2113,15 +2244,20 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       label: "switch statement dispatches states",
       description: "switch(state) runs the correct logic for the current state.",
       tier: "required",
-      pattern: /switch\s*\(/,
-      tip: "switch (state) { case DRIVE_TO_SHOOT: ... }",
+      pattern: (code) => {
+        if (!/switch\s*\(/.test(code)) return false;
+        // Require at least two case labels so the student wrote a real state machine
+        const cases = (code.match(/\bcase\b/g) ?? []).length;
+        return cases >= 2;
+      },
+      tip: "switch (state) { case DRIVE_TO_SHOOT: ... case SHOOTING: ... } — need at least two cases.",
     },
     {
       label: "Timer reset on state transition",
       description: "stateTimer.reset() called when transitioning to the next state.",
       tier: "required",
       pattern: /\w+\.reset\s*\(\s*\)/,
-      tip: "stateTimer.reset(); immediately after changing state.",
+      tip: "stateTimer.reset() is not in the right spot.",
     },
     {
       label: "All motors stopped in DONE state",
@@ -2339,15 +2475,21 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       label: "resetPosAndIMU() called",
       description: "Position and IMU zeroed during init.",
       tier: "required",
-      pattern: /\.resetPosAndIMU\s*\(\s*\)/,
-      tip: "odo.resetPosAndIMU(); — before waitForStart().",
+      pattern: (code) => {
+        const waitIdx = code.indexOf("waitForStart()");
+        if (waitIdx === -1) return /\.resetPosAndIMU\s*\(\s*\)/.test(code);
+        // Must appear before waitForStart
+        return /\.resetPosAndIMU\s*\(\s*\)/.test(code.slice(0, waitIdx));
+      },
+      tip: "resetPosAndIMU() is not in the right spot.",
     },
     {
       label: "odo.update() called in loop",
       description: "odo.update() refreshes position data each loop tick.",
       tier: "required",
-      pattern: /\w+\.update\s*\(\s*\)/,
-      tip: "odo.update(); first line inside the while loop.",
+      pattern: (code) =>
+        /while\s*\(\s*opModeIsActive[^)]*\)[^{]*\{[\s\S]*?\w+\.update\s*\(\s*\)/.test(code),
+      tip: "odo.update() is not in the right spot.",
     },
     {
       label: "getPosition() read",
@@ -2420,7 +2562,7 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       description: "limelight.start() begins frame capture.",
       tier: "required",
       pattern: /limelight\.start\s*\(\s*\)/,
-      tip: "limelight.start(); — before waitForStart().",
+      tip: "limelight.start() is not in the right spot.",
     },
     {
       label: "getLatestResult() called in loop",
@@ -2441,7 +2583,7 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       description: "Camera stopped cleanly after the OpMode ends.",
       tier: "improvement",
       pattern: /limelight\.stop\s*\(\s*\)/,
-      tip: "limelight.stop(); after the main while loop exits.",
+      tip: "limelight.stop() is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -2642,11 +2784,18 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 45 ─ BezierLine Path Follow ────────────────────────────────
   45: [
     {
-      label: "Follower instantiated",
-      description: "new Follower(hardwareMap) created.",
+      label: "Follower instantiated before use",
+      description: "new Follower(hardwareMap) must appear before any follower.method() calls.",
       tier: "required",
-      pattern: /new\s+Follower\s*\(/,
-      tip: "follower = new Follower(hardwareMap);",
+      pattern: (code) => {
+        const newFollowerIdx = code.search(/new\s+Follower\s*\(/);
+        if (newFollowerIdx === -1) return false;
+        const beforeInit = code.slice(0, newFollowerIdx);
+        // Require lowercase after the dot so import paths like
+        // `com.pedropathing.follower.Follower` are not flagged as method calls.
+        return !/follower\s*\.[a-z_$]/.test(beforeInit);
+      },
+      tip: "follower = new Follower(hardwareMap) is not in the right spot.",
     },
     {
       label: "setStartingPose() called",
@@ -2680,8 +2829,9 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       label: "follower.update() called in loop",
       description: "follower.update() drives motors toward the path each tick.",
       tier: "required",
-      pattern: /follower\.update\s*\(\s*\)/,
-      tip: "follower.update(); inside the while loop — without it the robot won't move.",
+      pattern: (code) =>
+        /while\s*\(\s*opModeIsActive[^)]*\)[^{]*\{[\s\S]*?follower\.update\s*\(\s*\)/.test(code),
+      tip: "follower.update() is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -2695,6 +2845,20 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
 
   // ── Challenge 46 ─ BezierCurve Tape Detour ───────────────────────────────
   46: [
+    {
+      label: "Follower instantiated before use",
+      description: "new Follower(hardwareMap) must appear before any follower.method() calls.",
+      tier: "required",
+      pattern: (code) => {
+        const newFollowerIdx = code.search(/new\s+Follower\s*\(/);
+        if (newFollowerIdx === -1) return false;
+        const beforeInit = code.slice(0, newFollowerIdx);
+        // Require lowercase after the dot so import paths like
+        // `com.pedropathing.follower.Follower` are not flagged as method calls.
+        return !/follower\s*\.[a-z_$]/.test(beforeInit);
+      },
+      tip: "follower = new Follower(hardwareMap) is not in the right spot.",
+    },
     {
       label: "BezierCurve with control point",
       description: "new BezierCurve() with start, control, and end Point objects.",
@@ -2720,8 +2884,9 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       label: "follower.update() called in loop",
       description: "follower.update() commands motors every tick.",
       tier: "required",
-      pattern: /follower\.update\s*\(\s*\)/,
-      tip: "follower.update(); inside the while loop.",
+      pattern: (code) =>
+        /while\s*\(\s*opModeIsActive[^)]*\)[^{]*\{[\s\S]*?follower\.update\s*\(\s*\)/.test(code),
+      tip: "follower.update() is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -2735,6 +2900,20 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
 
   // ── Challenge 47 ─ Reversed Path ─────────────────────────────────────────
   47: [
+    {
+      label: "Follower instantiated before use",
+      description: "new Follower(hardwareMap) must appear before any follower.method() calls.",
+      tier: "required",
+      pattern: (code) => {
+        const newFollowerIdx = code.search(/new\s+Follower\s*\(/);
+        if (newFollowerIdx === -1) return false;
+        const beforeInit = code.slice(0, newFollowerIdx);
+        // Require lowercase after the dot so import paths like
+        // `com.pedropathing.follower.Follower` are not flagged as method calls.
+        return !/follower\s*\.[a-z_$]/.test(beforeInit);
+      },
+      tip: "follower = new Follower(hardwareMap) is not in the right spot.",
+    },
     {
       label: "BezierLine path built",
       description: "BezierLine creates the return path segment.",
@@ -2761,8 +2940,9 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       description: "Path executed and follower updated in the loop.",
       tier: "required",
       pattern: (code) =>
-        /follower\.followPath\s*\(/.test(code) && /follower\.update\s*\(\s*\)/.test(code),
-      tip: "follower.followPath(returnPath, true); then follower.update() in loop.",
+        /follower\.followPath\s*\(/.test(code) &&
+        /while\s*\(\s*opModeIsActive[^)]*\)[^{]*\{[\s\S]*?follower\.update\s*\(\s*\)/.test(code),
+      tip: "follower.update() is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -2777,6 +2957,20 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 48 ─ Dynamic Path Building ──────────────────────────────────
   48: [
     {
+      label: "Follower instantiated before use",
+      description: "new Follower(hardwareMap) must appear before any follower.method() calls.",
+      tier: "required",
+      pattern: (code) => {
+        const newFollowerIdx = code.search(/new\s+Follower\s*\(/);
+        if (newFollowerIdx === -1) return false;
+        const beforeInit = code.slice(0, newFollowerIdx);
+        // Require lowercase after the dot so import paths like
+        // `com.pedropathing.follower.Follower` are not flagged as method calls.
+        return !/follower\s*\.[a-z_$]/.test(beforeInit);
+      },
+      tip: "follower = new Follower(hardwareMap) is not in the right spot.",
+    },
+    {
       label: "buildPathTo() helper method defined",
       description: "buildPathTo() encapsulates dynamic path construction.",
       tier: "required",
@@ -2788,7 +2982,7 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       description: "follower.getPose() captures the current robot position as the path start.",
       tier: "required",
       pattern: /follower\.getPose\s*\(\s*\)/,
-      tip: "Pose current = follower.getPose(); — call inside buildPathTo() before any other follower calls.",
+      tip: "follower.getPose() is not in the right spot.",
     },
     {
       label: "BezierLine used in dynamic builder",
@@ -2803,6 +2997,14 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tier: "required",
       pattern: /follower\.isBusy\s*\(\s*\)/,
       tip: "while (opModeIsActive() && follower.isBusy()) { follower.update(); }",
+    },
+    {
+      label: "follower.update() called in loop",
+      description: "follower.update() drives motors every tick inside the isBusy wait loop.",
+      tier: "required",
+      pattern: (code) =>
+        /while\s*\([^)]*follower\.isBusy[^)]*\)[^{]*\{[\s\S]*?follower\.update\s*\(\s*\)/.test(code),
+      tip: "follower.update() is not in the right spot.",
     },
     {
       label: "No leftover TODO comments",
@@ -2920,6 +3122,83 @@ function editDistance(a: string, b: string): number {
 
 export function checkSyntax(code: string): SyntaxIssue[] {
   const issues: SyntaxIssue[] = [];
+
+  // ── Check: Misspelled package declaration ──────────────────────────────────
+  // The standard FTC package is org.firstinspires.ftc.teamcode[.optional.sub].
+  // Flag any component that is one edit away from the expected segment.
+  {
+    const pkgLine = code.split("\n").find((l) => l.trim().startsWith("package "));
+    if (pkgLine) {
+      const pkgValue = pkgLine.trim().replace(/^package\s+/, "").replace(/;.*$/, "").trim();
+      const parts = pkgValue.split(".");
+      const expected = ["org", "firstinspires", "ftc", "teamcode"];
+      const badParts: string[] = [];
+      for (let i = 0; i < Math.min(parts.length, expected.length); i++) {
+        const p = parts[i], e = expected[i];
+        if (p !== e && Math.abs(p.length - e.length) <= 1 && editDistance(p, e) === 1) {
+          badParts.push(`'${p}' (did you mean '${e}'?)`);
+        }
+      }
+      if (badParts.length > 0) {
+        issues.push({
+          message: `Misspelled package component: ${badParts.join(", ")} — check the package declaration.`,
+          severity: "error",
+        });
+      }
+    }
+  }
+
+  // ── Check: Misspelled class name in import statements ──────────────────────
+  // Extract the class name (last component) of each import and compare it
+  // against known FTC SDK class names. One-edit-away typos are flagged.
+  {
+    const KNOWN_FTC_CLASSES = new Set([
+      "LinearOpMode", "OpMode",
+      "TeleOp", "Autonomous",
+      "DcMotor", "DcMotorEx", "DcMotorSimple",
+      "Servo", "CRServo",
+      "ColorSensor", "DistanceSensor", "TouchSensor", "RevColorSensorV3",
+      "IMU", "ElapsedTime", "Gamepad", "HardwareMap", "Telemetry",
+      "GoBildaPinpointDriver",
+      // Pedro Pathing
+      "Follower", "BezierCurve", "BezierLine", "PathChain", "PathBuilder",
+      "Point", "Pose", "MathFunctions",
+      // Road Runner
+      "SampleMecanumDrive", "TrajectorySequence", "TrajectorySequenceBuilder",
+      "Pose2d", "Vector2d",
+      // Limelight
+      "LimelightManager", "LimelightResult",
+    ]);
+
+    const importTypoLines: number[] = [];
+    const importTypoTokens: string[] = [];
+    code.split("\n").forEach((line, i) => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("import ")) return;
+      // Get the last dot-separated segment (the class name), strip trailing `;`
+      const segments = trimmed.replace(/^import\s+/, "").replace(/;.*$/, "").split(".");
+      const className = segments[segments.length - 1].trim();
+      if (!className || className === "*") return;
+      // Already a known class — nothing to flag
+      if (KNOWN_FTC_CLASSES.has(className)) return;
+      // Check if it's one edit away from any known class
+      for (const known of KNOWN_FTC_CLASSES) {
+        if (Math.abs(className.length - known.length) > 1) continue;
+        if (editDistance(className, known) === 1) {
+          importTypoLines.push(i + 1);
+          importTypoTokens.push(`'${className}' (did you mean '${known}'?)`);
+          break;
+        }
+      }
+    });
+    if (importTypoLines.length > 0) {
+      issues.push({
+        message: `Misspelled class in import: ${importTypoTokens.join(", ")} — check the import statement.`,
+        severity: "error",
+        lines: importTypoLines,
+      });
+    }
+  }
 
   const opens = countChar(code, "{");
   const closes = countChar(code, "}");
@@ -3192,6 +3471,71 @@ export function checkSyntax(code: string): SyntaxIssue[] {
     }
   }
 
+  // ── Check: import statement missing semicolon ────────────────────────────
+  // `import com.qualcomm.robotcore.hardware.CRServo` without `;` is a compile
+  // error and can cause the next line (e.g. a field declaration) to be silently
+  // appended as if it were part of the import, hiding the real placement bug.
+  {
+    const importNoSemiLines: number[] = [];
+    noComments.split("\n").forEach((line, i) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("import ") && !trimmed.endsWith(";")) {
+        importNoSemiLines.push(i + 1);
+      }
+    });
+    if (importNoSemiLines.length > 0) {
+      issues.push({
+        message: "import statement missing ';' — every import must end with a semicolon.",
+        severity: "error",
+        lines: importNoSemiLines,
+      });
+    }
+  }
+
+  // ── Check: Field/statement declarations at file scope (depth 0) ─────────
+  // In Java, code like `private PathChain autoPath;` at file scope (outside
+  // any class) is a compile error. This catches imports-then-field patterns
+  // where the student pasted a field declaration before the class declaration.
+  {
+    let depth = 0;
+    let classOpened = false;
+    const fileScope: number[] = [];
+    noComments.split("\n").forEach((line, i) => {
+      const trimmed = line.trim();
+      const opens  = (line.match(/\{/g) ?? []).length;
+      const closes = (line.match(/\}/g) ?? []).length;
+      if (depth === 1) classOpened = true;
+      // At depth 0 (file scope), after any import/package but before the class opens
+      if (depth === 0 && !classOpened && trimmed !== "") {
+        // Ignore blank lines, import, package, annotations, and comments
+        if (
+          !trimmed.startsWith("import ") &&
+          !trimmed.startsWith("package ") &&
+          !trimmed.startsWith("@") &&
+          !trimmed.startsWith("//") &&
+          !trimmed.startsWith("/*") &&
+          !trimmed.startsWith("*") &&
+          !/^public\s+class\b/.test(trimmed) &&
+          !/^class\b/.test(trimmed) &&
+          // Flag field declarations (access modifier + type + name)
+          /^(private|public|protected|static|final)\s+/.test(trimmed)
+        ) {
+          fileScope.push(i + 1);
+        }
+      }
+      depth += opens - closes;
+    });
+    if (fileScope.length > 0) {
+      issues.push({
+        message:
+          "Field or statement declared outside the class body — " +
+          "move it inside 'public class ... extends LinearOpMode { }'.",
+        severity: "error",
+        lines: fileScope,
+      });
+    }
+  }
+
   // ── Check: hardwareMap.get() at class field level ─────────────────────────
   // `DcMotor motor = hardwareMap.get(...)` as a field initializer compiles but
   // crashes at runtime with NullPointerException because hardwareMap is null
@@ -3219,6 +3563,46 @@ export function checkSyntax(code: string): SyntaxIssue[] {
     }
   }
 
+  // ── Check: Hardware object used before it's initialized ───────────────────
+  // Variables assigned via `hardwareMap.get(...)` or `new X(hardwareMap...)`
+  // must not be called as `varName.method()` anywhere before that assignment.
+  // This catches: follower.setStartingPose() before new Follower(hardwareMap),
+  //               motor.setPower() before hardwareMap.get(DcMotor.class, "m"), etc.
+  {
+    const hwAssignPattern =
+      /(\w+)\s*=\s*(?:hardwareMap\.get\s*\(|new\s+\w+\s*\(\s*hardwareMap)/g;
+    const useBeforeInitLines: number[] = [];
+    let hwMatch: RegExpExecArray | null;
+    while ((hwMatch = hwAssignPattern.exec(noComments)) !== null) {
+      const varName = hwMatch[1];
+      // Skip language keywords and obvious non-hardware names
+      if (["this", "super", "null", "true", "false"].includes(varName)) continue;
+      const assignIdx = hwMatch.index;
+      const beforeAssign = noComments.slice(0, assignIdx);
+      // Look for varName used as receiver of a method call before the init.
+      // Require a lowercase letter after the dot so that import path segments like
+      // `com.pedropathing.follower.Follower` (where the next char is uppercase) are
+      // not mistaken for method calls.
+      const usePattern = new RegExp(`\\b${varName}\\s*\\.[a-z_$]`);
+      const firstUse = usePattern.exec(beforeAssign);
+      if (firstUse) {
+        const lineNum = beforeAssign.slice(0, firstUse.index).split("\n").length;
+        if (!useBeforeInitLines.includes(lineNum)) {
+          useBeforeInitLines.push(lineNum);
+        }
+      }
+    }
+    if (useBeforeInitLines.length > 0) {
+      issues.push({
+        message:
+          "Hardware object used before it was initialized — " +
+          "move the hardwareMap.get() or constructor call above the first use of that variable.",
+        severity: "error",
+        lines: useBeforeInitLines,
+      });
+    }
+  }
+
   // ── Check: Executable hardware/OpMode statements at class body level ──────
   // Statements like `motor.setPower(0.5)` or `waitForStart()` are not valid
   // outside a method body. At class depth (depth 1) they cause a compile error.
@@ -3231,8 +3615,11 @@ export function checkSyntax(code: string): SyntaxIssue[] {
       /\.setTargetPosition\s*\(/,
       /\.setPosition\s*\(/,
       /\.setZeroPowerBehavior\s*\(/,
+      /\.followPath\s*\(/,
+      /\.update\s*\(\s*\)/,
       /\btelemetry\.(addData|update|addLine)\s*\(/,
       /\bsleep\s*\(\s*\d/,
+      /\bopModeIsActive\s*\(\s*\)/,
     ];
 
     let depth = 0;
@@ -3249,6 +3636,16 @@ export function checkSyntax(code: string): SyntaxIssue[] {
         if (!isDecl && EXEC_PATTERNS.some((p) => p.test(line))) {
           execAtClassLines.push(i + 1);
         }
+        // Also catch raw re-assignments: `intakeServo = null;` or `intakeServo = hardwareMap.get(...)`
+        // that are not field declarations (no type keyword before the name).
+        if (
+          !isDecl &&
+          !execAtClassLines.includes(i + 1) &&
+          /^\w+\s*=\s*[^=]/.test(trimmed) && // assignment but not ==
+          !trimmed.startsWith("@")
+        ) {
+          execAtClassLines.push(i + 1);
+        }
       }
       depth += opens - closes;
     });
@@ -3259,6 +3656,59 @@ export function checkSyntax(code: string): SyntaxIssue[] {
           "hardware calls, waitForStart(), and telemetry must be inside runOpMode().",
         severity: "error",
         lines: execAtClassLines,
+      });
+    }
+  }
+
+  // ── Check: new ElapsedTime() created inside the while(opModeIsActive()) loop ──
+  // Creating ElapsedTime inside the loop resets the timer to zero every frame,
+  // so it never advances past a few milliseconds.
+  {
+    const loopSplit = noComments.split(/while\s*\([^{]*opModeIsActive[^{]*\{/);
+    if (loopSplit.length >= 2) {
+      const loopBody = loopSplit.slice(1).join(""); // everything inside any opModeIsActive loop
+      if (/new\s+ElapsedTime\s*\(\s*\)/.test(loopBody)) {
+        // Find the actual line number
+        const fullCode = noComments;
+        const loopStart = fullCode.search(/while\s*\([^{]*opModeIsActive[^{]*\{/);
+        const afterLoop = fullCode.slice(loopStart);
+        const timerInLoop = /new\s+ElapsedTime\s*\(\s*\)/.exec(afterLoop);
+        const linesBefore = loopStart + (timerInLoop?.index ?? 0);
+        const lineNum = fullCode.slice(0, loopStart + (timerInLoop?.index ?? 0)).split("\n").length;
+        void linesBefore; // suppress unused warning
+        issues.push({
+          message:
+            "new ElapsedTime() created inside while(opModeIsActive()) — " +
+            "this resets the timer to zero every loop iteration. " +
+            "Declare it before waitForStart() so it counts from the start of the match.",
+          severity: "error",
+          lines: [lineNum],
+        });
+      }
+    }
+  }
+
+  // ── Check: Trailing comma in method/constructor argument list ───────────
+  // `method(a, b,)` is invalid Java (valid in JS/TS but not Java).
+  // The comma and `)` can be on different lines, so scan the full text,
+  // not per-line. Array initializers `{1, 2, 3,}` close with `}` not `)` — safe.
+  {
+    const trailingCommaLines: number[] = [];
+    const tcPattern = /,(\s*)\)/g;
+    let tcMatch: RegExpExecArray | null;
+    while ((tcMatch = tcPattern.exec(noComments)) !== null) {
+      // Calculate line number of the comma
+      const lineNum = noComments.slice(0, tcMatch.index).split("\n").length;
+      if (!trailingCommaLines.includes(lineNum)) {
+        trailingCommaLines.push(lineNum);
+      }
+    }
+    if (trailingCommaLines.length > 0) {
+      issues.push({
+        message:
+          "Trailing comma before ')' — Java method/constructor arguments cannot end with a comma. Remove the last comma.",
+        severity: "error",
+        lines: trailingCommaLines,
       });
     }
   }
@@ -3347,6 +3797,14 @@ export function checkSyntax(code: string): SyntaxIssue[] {
     const kwErrLines: number[] = [];
     const kwErrTokens: string[] = [];
 
+    // Common FTC method/identifier names that are one edit away from a keyword
+    // but are perfectly valid Java identifiers — never flag these.
+    const ALLOWED_NON_KEYWORDS = new Set([
+      "init", "loop", "stop", // OpMode lifecycle methods
+      "idle", "opMode", "pose", "path", "node", "edge", "dist", "gyro",
+      "imu", "odo", "pid", "rpm", "fps", "deg", "rad",
+    ]);
+
     noComments.split("\n").forEach((line, i) => {
       const trimmed = line.trim();
       if (trimmed.startsWith("import ") || trimmed.startsWith("package ")) return;
@@ -3358,6 +3816,7 @@ export function checkSyntax(code: string): SyntaxIssue[] {
         const token = wm[1];
         if (JAVA_KEYWORDS.has(token)) continue;           // it IS a keyword — correct
         if (declaredVarNames.has(token)) continue;        // it's a declared variable
+        if (ALLOWED_NON_KEYWORDS.has(token)) continue;   // known FTC/Java identifier
 
         for (const kw of JAVA_KEYWORDS) {
           if (Math.abs(token.length - kw.length) > 1) continue; // fast pre-filter
@@ -3491,7 +3950,34 @@ export function checkSyntax(code: string): SyntaxIssue[] {
     }
   }
 
-  // ── Check 5: Identifier spelling consistency ──────────────────────────────
+  // ── Check: Invalid compound operators ────────────────────────────────────
+  // Catch operators like /==, *==, +==, -==, %==, and === which are not valid
+  // Java. The student likely meant /= (divide-assign) or == (equality) but
+  // accidentally wrote both together.
+  {
+    const badOpLines: number[] = [];
+    const badOpTokens: string[] = [];
+    noComments.split("\n").forEach((line, i) => {
+      // Strip string literals so we don't match inside quoted text.
+      const safe = line.replace(/"[^"]*"/g, '""');
+      const m = safe.match(/[+\-*\/%]==|===/g);
+      if (m) {
+        m.forEach((op) => {
+          if (!badOpTokens.includes(op)) badOpTokens.push(op);
+        });
+        badOpLines.push(i + 1);
+      }
+    });
+    if (badOpLines.length > 0) {
+      issues.push({
+        message: `Invalid operator '${badOpTokens.join("', '")}' — did you mean '/=' (divide-assign) or '==' (equality)? Java does not have a '${badOpTokens[0]}' operator.`,
+        severity: "error",
+        lines: badOpLines,
+      });
+    }
+  }
+
+
   // Catch variable names used with different casing than their declaration,
   // and UPPER_SNAKE_CASE constants used without their underscores
   // (e.g. MOTOR_POWER declared → MOTORPOWER used).
@@ -3519,7 +4005,14 @@ export function checkSyntax(code: string): SyntaxIssue[] {
           let flagged = false;
 
           // Case A: same lowercase form but different casing (motorSpeed vs motorspeed)
-          if (token.toLowerCase() === lowerName) flagged = true;
+          // Do NOT flag when the declared variable is camelCase (starts lowercase) and
+          // the token is PascalCase (starts uppercase) — that's the standard Java pattern
+          // of "ClassName instanceName" (e.g. TouchSensor touchSensor).
+          if (token.toLowerCase() === lowerName) {
+            const declaredStartsLower = /^[a-z]/.test(exactName);
+            const tokenStartsUpper   = /^[A-Z]/.test(token);
+            if (!(declaredStartsLower && tokenStartsUpper)) flagged = true;
+          }
 
           // Case B: ALL_CAPS constant used without underscores (MOTORPOWER vs MOTOR_POWER)
           // Only trigger when the token itself is all-uppercase with no underscores,

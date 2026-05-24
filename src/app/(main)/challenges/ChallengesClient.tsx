@@ -6,13 +6,15 @@ import {
   Clock,
   Zap,
   Code2,
-  ChevronRight,
   ArrowRight,
   Trophy,
   Flame,
 } from "lucide-react";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
+import { getSession } from "@/lib/auth";
+import { supabase, type ChallengeRow } from "@/lib/supabase";
+import { useState, useEffect } from "react";
 import {
   challenges as staticChallenges,
   difficultyConfig,
@@ -21,102 +23,108 @@ import {
   type Difficulty,
 } from "@/data/challenges";
 
+function rowToChallenge(row: ChallengeRow): Challenge {
+  return {
+    id: row.id,
+    title: row.title,
+    difficulty: row.difficulty as Challenge["difficulty"],
+    description: row.description,
+    xp: row.xp,
+    estimatedTime: row.estimated_time,
+    tags: row.tags,
+    objectives: row.objectives,
+    instructions: row.instructions,
+    starterCode: row.starter_code,
+    hints: row.hints,
+    conceptsCovered: row.concepts_covered,
+  };
+}
+
 // ─── Individual card ──────────────────────────────────────────────────────
 
-function ChallengeCard({ challenge, isCompleted, hydrated }: { challenge: Challenge; isCompleted: (id: number) => boolean; hydrated: boolean }) {
-
+function ChallengeCard({
+  challenge,
+  displayNumber,
+  isCompleted,
+  hydrated,
+}: {
+  challenge: Challenge;
+  displayNumber: number;
+  isCompleted: (id: number) => boolean;
+  hydrated: boolean;
+}) {
   const diff = difficultyConfig[challenge.difficulty];
   const done = isCompleted(challenge.id);
 
   return (
     <Link
       href={`/challenges/${challenge.id}`}
-      className={`group relative flex flex-col gap-4 rounded-xl border p-5 transition-all duration-200 cursor-pointer ${
+      className={`group relative flex flex-col gap-3 rounded-lg border p-4 transition-all duration-200 cursor-pointer hover:-translate-y-0.5 ${
         done
-          ? "border-emerald-500/20 bg-gradient-to-br from-slate-900 to-emerald-950/20 hover:border-emerald-500/40"
-          : "border-slate-800 bg-slate-900 hover:border-white/20 hover:bg-slate-800/80 hover:shadow-lg hover:shadow-white/5"
+          ? "border-emerald-500/15 bg-emerald-950/10 hover:border-emerald-500/25"
+          : "border-slate-800/80 bg-slate-900/40 card-accent-hover hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20"
       }`}
     >
-      {/* Shimmer on hover */}
-      <span className="pointer-events-none absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-white/[0.02] to-transparent" />
-
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {/* Number / check badge */}
           <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold transition-all ${
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-medium transition-all ${
               done
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                : "border-slate-700 bg-slate-800 text-slate-400 group-hover:border-white/20 group-hover:text-zinc-100"
+                ? "bg-emerald-500/10 text-emerald-500"
+                : "bg-slate-800/80 text-slate-500 group-hover:accent-text"
             }`}
           >
             {done ? (
-              <CheckCircle2 className="h-4 w-4" />
+              <CheckCircle2 className="h-3.5 w-3.5" />
             ) : (
-              <span>{challenge.id}</span>
+              <span>{displayNumber}</span>
             )}
           </div>
 
-          {/* Title + difficulty */}
+          {/* Title */}
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-slate-200 group-hover:text-white transition-colors truncate">
+            <h3 className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors truncate">
               {challenge.title}
             </h3>
-            <span
-              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide mt-0.5 ${diff.badgeClass}`}
-            >
-              {diff.label}
-            </span>
           </div>
         </div>
 
-        {/* XP pill */}
-        <div className="flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/4 px-2.5 py-1">
-          <Zap className="h-3 w-3 text-zinc-100" />
-          <span className="text-xs font-semibold text-zinc-100">
-            {challenge.xp} XP
-          </span>
+        {/* XP — subtle */}
+        <div className="flex shrink-0 items-center gap-1 text-[11px] text-slate-600">
+          <Zap className="h-3 w-3" />
+          <span>{challenge.xp}</span>
         </div>
       </div>
 
       {/* Description */}
-      <p className="text-xs leading-relaxed text-slate-400 line-clamp-2">
+      <p className="text-xs leading-relaxed text-slate-500 line-clamp-2">
         {challenge.description}
       </p>
 
-      {/* Tags row */}
-      <div className="flex flex-wrap gap-1.5">
-        {challenge.tags.map((tag) => (
-          <span
-            key={tag}
-            className="rounded-md border border-slate-800 bg-slate-800/60 px-2 py-0.5 text-[10px] text-slate-500"
-          >
-            {tag}
-          </span>
-        ))}
-      </div>
+      {/* Footer: difficulty + time */}
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${diff.badgeClass}`}
+        >
+          {diff.label}
+        </span>
 
-      {/* Footer: status + time */}
-      <div className="flex items-center justify-between gap-2 pt-0.5">
-        {/* Status badge */}
-        {!hydrated ? (
-          <span className="h-4 w-20 animate-pulse rounded bg-slate-800" />
-        ) : done ? (
-          <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
-            <CheckCircle2 className="h-3 w-3" />
-            Completed
+        <div className="flex items-center gap-2">
+          {!hydrated ? (
+            <span className="h-3 w-16 animate-pulse rounded bg-slate-800" />
+          ) : done ? (
+            <span className="text-[11px] font-medium text-emerald-500">Completed</span>
+          ) : (
+            <span className="text-[11px] accent-text font-medium group-hover:accent-text transition-colors">
+              Start →
+            </span>
+          )}
+          <div className="flex items-center gap-1 text-[11px] text-slate-700">
+            <Clock className="h-3 w-3" />
+            {challenge.estimatedTime}
           </div>
-        ) : (
-          <div className="flex items-center gap-1 text-xs font-medium text-slate-500 group-hover:text-zinc-100 transition-colors">
-            <span>Start challenge</span>
-            <ChevronRight className="h-3 w-3" />
-          </div>
-        )}
-
-        <div className="flex shrink-0 items-center gap-1 text-[11px] text-slate-600">
-          <Clock className="h-3 w-3" />
-          {challenge.estimatedTime}
         </div>
       </div>
     </Link>
@@ -125,18 +133,12 @@ function ChallengeCard({ challenge, isCompleted, hydrated }: { challenge: Challe
 
 // ─── Progress bar ────────────────────────────────────────────────────────
 
-function ProgressBar({
-  completed,
-  total,
-}: {
-  completed: number;
-  total: number;
-}) {
+function ProgressBar({ completed, total }: { completed: number; total: number }) {
   const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
   return (
-    <div className="relative h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+    <div className="relative h-0.5 w-full rounded-full bg-slate-800 overflow-hidden">
       <div
-        className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-700"
+        className="absolute inset-y-0 left-0 rounded-full accent-fill transition-all duration-700"
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -145,24 +147,64 @@ function ProgressBar({
 
 // ─── Main client component ────────────────────────────────────────────────
 
-export default function ChallengesClient({
-  dbChallenges = [],
-}: {
-  dbChallenges?: Challenge[];
-}) {
-  // Merge static + DB challenges (DB entries override static on same ID)
+export default function ChallengesClient() {
+  const [dbChallenges, setDbChallenges] = useState<Challenge[]>([]);
+  const [isMentor, setIsMentor] = useState(false);
+
+  const local = useChallengeProgress();
+  const db = useSupabaseProgress();
+
+  // Fetch only the challenges scoped to this user's mentor.
+  // Students see only their own mentor's challenges.
+  // Mentors see only their own created challenges.
+  // This prevents cross-class data leakage.
+  useEffect(() => {
+    const session = getSession();
+    if (!session) return;
+
+    setIsMentor(session.role === "mentor");
+
+    (async () => {
+      let mentorOwnerId: string | null = null;
+
+      if (session.role === "student") {
+        // Use the stored mentorId if available (set at sign-in).
+        // Fall back to a DB lookup for sessions that pre-date this fix.
+        if (session.mentorId) {
+          mentorOwnerId = session.mentorId;
+        } else {
+          const { data } = await supabase
+            .from("students")
+            .select("mentor_id")
+            .eq("id", session.id)
+            .single();
+          mentorOwnerId = (data as { mentor_id?: string | null } | null)?.mentor_id ?? null;
+        }
+      } else if (session.role === "mentor") {
+        mentorOwnerId = session.parentMentorId ?? session.id;
+      }
+
+      if (!mentorOwnerId) return;
+
+      const { data } = await supabase
+        .from("challenges")
+        .select("*")
+        .eq("created_by", mentorOwnerId)
+        .order("id", { ascending: true });
+
+      setDbChallenges((data ?? []).map(rowToChallenge));
+    })();
+  }, []);
+
   const dbIds = new Set(dbChallenges.map((c) => c.id));
   const challenges = [
     ...staticChallenges.filter((c) => !dbIds.has(c.id)),
     ...dbChallenges,
   ].sort((a, b) => a.id - b.id);
 
-  const local = useChallengeProgress();
-  const db = useSupabaseProgress();
-
-  const isCompleted = (id: number) =>
-    local.isCompleted(id) || db.isCompleted(id);
+  const isCompleted = (id: number) => local.isCompleted(id) || db.isCompleted(id);
   const hydrated = local.hydrated;
+  const progress = local.progress;
 
   const completedIds = challenges
     .map((c) => c.id)
@@ -174,113 +216,128 @@ export default function ChallengesClient({
     return sum + (c?.xp ?? 0);
   }, 0);
 
-  const totalChallenges = challenges.length;
-  const nextChallenge = challenges.find((c) => !isCompleted(c.id));
-
   const byDifficulty: Record<Difficulty, Challenge[]> = {
     Beginner: challenges.filter((c) => c.difficulty === "Beginner"),
     Intermediate: challenges.filter((c) => c.difficulty === "Intermediate"),
     Advanced: challenges.filter((c) => c.difficulty === "Advanced"),
   };
 
+  const displayNumbers: Record<number, number> = {};
+  const orderedChallenges: typeof challenges = [];
+  let counter = 1;
+  for (const diff of difficultyOrder) {
+    for (const c of byDifficulty[diff]) {
+      displayNumbers[c.id] = counter++;
+      orderedChallenges.push(c);
+    }
+  }
+
+  const totalChallenges = challenges.length;
+
+  const nextChallenge = (() => {
+    if (!hydrated) return orderedChallenges[0] ?? null;
+    const entries = Object.entries(progress) as [string, string][];
+    let mostRecentId: number | null = null;
+    if (entries.length > 0) {
+      const best = entries.reduce((a, b) => (a[1] >= b[1] ? a : b));
+      mostRecentId = Number(best[0]);
+    }
+    const startIdx = mostRecentId !== null
+      ? orderedChallenges.findIndex((c) => c.id === mostRecentId)
+      : -1;
+    for (let i = startIdx + 1; i < orderedChallenges.length; i++) {
+      if (!isCompleted(orderedChallenges[i].id)) return orderedChallenges[i];
+    }
+    return orderedChallenges.find((c) => !isCompleted(c.id)) ?? null;
+  })();
+
   return (
-    <div className="min-h-full px-6 py-8 max-w-4xl mx-auto">
+    <div className="min-h-full px-6 py-10 max-w-4xl mx-auto page-enter">
       {/* ── Page header ─────────────────────────────────────────────────── */}
-      <div className="mb-8">
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1">
-          <Code2 className="h-3 w-3 text-blue-400" />
-          <span className="text-xs font-medium uppercase tracking-widest text-blue-400">
-            Coding Challenges
-          </span>
-        </div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-100">
-          Programming Challenges
+      <div className="mb-10">
+        <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-2">
+          FTC Programming Hub
+        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-100">
+          Coding Challenges
         </h1>
-        <p className="mt-1 text-slate-400">
+        <p className="mt-1 text-sm text-slate-500 max-w-xl">
           Practice real FTC concepts — from basic motor control to advanced
-          autonomous pathing. Complete challenges to earn XP.
+          autonomous pathing.
         </p>
       </div>
 
-      {/* ── Progress overview ────────────────────────────────────────────── */}
-      <div className="mb-8 rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <div className="flex flex-wrap items-center gap-6 mb-4">
-          {[
-            {
-              icon: Trophy,
-              label: "Completed",
-              value: hydrated
-                ? `${completedCount} / ${totalChallenges}`
-                : "— / —",
-              color: "text-zinc-100",
-              iconColor: "text-zinc-100",
-            },
-            {
-              icon: Zap,
-              label: "XP Earned",
-              value: hydrated ? `${totalXP} XP` : "— XP",
-              color: "text-purple-400",
-              iconColor: "text-purple-400",
-            },
-            {
-              icon: Flame,
-              label: "Remaining",
-              value: hydrated
-                ? `${totalChallenges - completedCount} left`
-                : "— left",
-              color: "text-slate-300",
-              iconColor: "text-slate-500",
-            },
-          ].map(({ icon: Icon, label, value, color, iconColor }) => (
-            <div key={label} className="flex items-center gap-2.5">
-              <Icon className={`h-4 w-4 ${iconColor}`} />
-              <div>
-                <p className={`text-base font-bold leading-none ${color}`}>
-                  {value}
-                </p>
-                <p className="text-[10px] text-slate-600 mt-0.5">{label}</p>
+      {/* ── Progress — open, inline ──────────────────────────────────────── */}
+      {!isMentor && (
+        <div className="mb-10 pb-8 border-b border-slate-800/60">
+          <div className="flex flex-wrap items-center gap-8 mb-3">
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-3xl font-semibold stat-number accent-stat">
+                  {hydrated ? completedCount : "—"}
+                </span>
+                <span className="text-lg text-slate-700 font-light">/ {totalChallenges}</span>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Progress bar */}
-        <ProgressBar
-          completed={hydrated ? completedCount : 0}
-          total={totalChallenges}
-        />
-        <p className="mt-2 text-[10px] text-slate-600">
-          {hydrated
-            ? completedCount === totalChallenges
-              ? "All challenges complete! 🎉"
-              : `${totalChallenges - completedCount} challenge${
-                  totalChallenges - completedCount !== 1 ? "s" : ""
-                } remaining`
-            : "Loading progress…"}
-        </p>
-      </div>
-
-      {/* ── Next up CTA ──────────────────────────────────────────────────── */}
-      {hydrated && nextChallenge && (
-        <Link
-          href={`/challenges/${nextChallenge.id}`}
-          className="group mb-8 flex items-center justify-between gap-4 rounded-xl border border-white/15 bg-gradient-to-r from-amber-500/5 to-amber-600/3 px-5 py-4 hover:border-amber-500/40 transition-all"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/8">
-              <Zap className="h-4 w-4 text-zinc-100" />
+              <p className="text-[11px] text-slate-600 mt-0.5">completed</p>
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-200/70">
-                Up next
+              <div className="flex items-center gap-1.5">
+                <Zap className="h-3.5 w-3.5 text-purple-400" />
+                <span className="text-xl font-semibold stat-number text-purple-400">
+                  {hydrated ? totalXP : "—"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-0.5">XP earned</p>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <Flame className="h-3.5 w-3.5 text-slate-600" />
+                <span className="text-xl font-semibold stat-number text-slate-400">
+                  {hydrated ? totalChallenges - completedCount : "—"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-0.5">remaining</p>
+            </div>
+          </div>
+          <div className="max-w-sm">
+            <ProgressBar
+              completed={hydrated ? completedCount : 0}
+              total={totalChallenges}
+            />
+            <p className="mt-1.5 text-[11px] text-slate-700">
+              {hydrated
+                ? completedCount === totalChallenges
+                  ? "All challenges complete!"
+                  : `${Math.round((completedCount / totalChallenges) * 100)}% complete`
+                : "Loading progress…"}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Next up ──────────────────────────────────────────────────── */}
+      {!isMentor && hydrated && nextChallenge && (
+        <Link
+          href={`/challenges/${nextChallenge.id}`}
+          className="group mb-10 flex items-center justify-between gap-4 rounded-lg border accent-border-subtle accent-bg-subtle px-4 py-3.5 card-accent-hover transition-all duration-200"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-7 w-7 flex items-center justify-center rounded-md accent-bg border accent-border-subtle">
+              <Code2 className="h-3.5 w-3.5 accent-text" />
+            </div>
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                Continue
               </p>
-              <p className="text-sm font-semibold text-slate-200">
+              <p className="text-sm font-medium text-slate-200">
                 {nextChallenge.title}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-100/70 group-hover:text-zinc-100 transition-colors">
-            Continue <ArrowRight className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 group-hover:accent-text transition-colors">
+            <Trophy className="h-3.5 w-3.5" />
+            <span>{nextChallenge.xp} XP</span>
+            <ArrowRight className="h-3.5 w-3.5 ml-1" />
           </div>
         </Link>
       )}
@@ -290,27 +347,31 @@ export default function ChallengesClient({
         const items = byDifficulty[difficulty];
         if (items.length === 0) return null;
 
-        const doneInSection = items.filter((c) =>
-          isCompleted(c.id)
-        ).length;
+        const doneInSection = items.filter((c) => isCompleted(c.id)).length;
 
         return (
           <div key={difficulty} className="mb-10">
             <div className="mb-4 flex items-center gap-3">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+              <h2 className="text-[11px] font-medium uppercase tracking-widest text-slate-600">
                 {difficulty}
               </h2>
-              <div className="h-px flex-1 bg-slate-800" />
+              <div className="h-px flex-1 bg-slate-800/80" />
               {hydrated && (
-                <span className="text-[11px] text-slate-600">
-                  {doneInSection} / {items.length} done
+                <span className="text-[11px] text-slate-700">
+                  {doneInSection} / {items.length}
                 </span>
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {items.map((challenge) => (
-                <ChallengeCard key={challenge.id} challenge={challenge} isCompleted={isCompleted} hydrated={hydrated} />
+                <ChallengeCard
+                  key={challenge.id}
+                  challenge={challenge}
+                  displayNumber={displayNumbers[challenge.id]}
+                  isCompleted={isCompleted}
+                  hydrated={hydrated}
+                />
               ))}
             </div>
           </div>

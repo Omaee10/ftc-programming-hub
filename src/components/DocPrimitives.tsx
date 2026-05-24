@@ -53,8 +53,8 @@ export function SpecTable({ rows }: { rows: SpecRow[] }) {
     <div className="my-4 overflow-hidden rounded-xl border border-slate-800">
       <table className="w-full text-xs">
         <tbody className="divide-y divide-slate-800/60">
-          {rows.map((row) => (
-            <tr key={row.label} className="group">
+          {rows.map((row, i) => (
+            <tr key={`${row.label}-${i}`} className="group">
               <td className="w-40 py-2.5 pl-4 pr-3 font-medium text-slate-400 align-top group-hover:bg-slate-800/20">
                 {row.label}
               </td>
@@ -100,9 +100,9 @@ interface InfoGridItem {
 export function InfoGrid({ items }: { items: InfoGridItem[] }) {
   return (
     <div className="my-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-      {items.map((item) => (
+      {items.map((item, i) => (
         <div
-          key={item.label}
+          key={`${item.label}-${item.value}-${i}`}
           className="rounded-lg border border-slate-800 bg-slate-900/60 px-3.5 py-3"
         >
           <p className="text-[10px] font-medium uppercase tracking-wider text-slate-600 mb-1">

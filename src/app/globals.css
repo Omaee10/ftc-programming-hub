@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *, .midnight, .midnight *));
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
@@ -21,6 +21,9 @@
   --color-slate-300: #d4d4d8;
   --color-slate-200: #e4e4e7;
   --color-slate-100: #f4f4f5;
+  /* Default accent: sky */
+  --accent: 14 165 233;
+  --accent-fg: 56 189 248;
 }
 
 /* ─── Light mode overrides — inverts the slate scale ─────────────
@@ -51,8 +54,140 @@
   --color-zinc-950: #fafafa;
 }
 
+/* ─── Midnight mode — OLED pure black ────────────────────────── */
+/* Surfaces stay true black; muted text is lifted for readability  */
+/* on #000 — small labels at slate-600/700 were nearly invisible.  */
+.midnight {
+  color-scheme: dark;
+  --color-slate-950: #000000;
+  --color-slate-900: #0a0a0a;
+  --color-slate-800: #141414;
+  --color-slate-700: #65656a;
+  --color-slate-600: #75757a;
+  --color-slate-500: #939399;
+  --color-slate-400: #aeaeb2;
+  --color-slate-300: #c7c7cc;
+  --color-slate-200: #e5e5ea;
+  --color-slate-100: #f2f2f7;
+}
+
+/* ─── Paper mode — warm cream light surface ──────────────────── */
+.paper {
+  color-scheme: light;
+  --color-slate-950: #fdfaf6;
+  --color-slate-900: #f7f3ec;
+  --color-slate-800: #ede8de;
+  --color-slate-700: #d8d2c6;
+  --color-slate-600: #a89f94;
+  --color-slate-500: #7a7068;
+  --color-slate-400: #524843;
+  --color-slate-300: #2e2a26;
+  --color-slate-200: #1c1915;
+  --color-slate-100: #110f0c;
+  --color-zinc-100: #1c1915;
+  --color-zinc-200: #2e2a26;
+  --color-zinc-300: #524843;
+  --color-zinc-400: #7a7068;
+  --color-zinc-500: #a89f94;
+  --color-zinc-600: #d8d2c6;
+  --color-zinc-700: #ede8de;
+  --color-zinc-800: #f7f3ec;
+  --color-zinc-900: #fdfaf6;
+  --color-zinc-950: #fffef9;
+}
+
+/* ─── Accent color system ─────────────────────────────────────── */
+/* --accent: RGB triplet for the primary accent (e.g. 14 165 233)  */
+/* --accent-fg: lighter foreground variant of the accent           */
+.accent-sky     { --accent: 14 165 233;  --accent-fg: 56 189 248;  }
+.accent-violet  { --accent: 139 92 246;  --accent-fg: 167 139 250; }
+.accent-emerald { --accent: 16 185 129;  --accent-fg: 52 211 153;  }
+.accent-amber   { --accent: 245 158 11;  --accent-fg: 251 191 36;  }
+.accent-rose    { --accent: 244 63 94;   --accent-fg: 251 113 133; }
+
+/* Accent utility classes used by components */
+.accent-fill          { background-color: rgb(var(--accent)); }
+.accent-text          { color: rgb(var(--accent-fg)); }
+.accent-border        { border-color: rgb(var(--accent) / 0.4); }
+.accent-bg            { background-color: rgb(var(--accent) / 0.12); }
+.accent-bg-subtle     { background-color: rgb(var(--accent) / 0.08); }
+.accent-border-subtle { border-color: rgb(var(--accent) / 0.25); }
+.accent-dot           { background-color: rgb(var(--accent)); }
+.accent-shadow        { box-shadow: 0 0 6px rgb(var(--accent) / 0.45); }
+.accent-stat          { color: rgb(var(--accent-fg)); }
+
+/* Primary button — accent fill, white label */
+.btn-primary {
+  background-color: rgb(var(--accent));
+  color: #fff;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.btn-primary:hover  { filter: brightness(1.08); }
+.btn-primary:active { transform: scale(0.98); }
+
+/* Focus ring using accent */
+.accent-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--accent) / 0.45);
+}
+
+/* Link that tints on hover */
+.link-accent { transition: color 0.15s ease; }
+.link-accent:hover { color: rgb(var(--accent-fg)); }
+
+/* Card / panel that picks up accent on hover */
+.card-accent-hover {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.card-accent-hover:hover {
+  border-color: rgb(var(--accent) / 0.35);
+  background-color: rgb(var(--accent) / 0.05);
+}
+
+/* Active tab — underline style (mentor dashboard, etc.) */
+.tab-active {
+  color: rgb(var(--accent-fg)) !important;
+  border-bottom-color: rgb(var(--accent)) !important;
+}
+
+/* Active tab — pill style (challenge workspace) */
+.tab-active-pill {
+  background-color: rgb(var(--accent) / 0.12) !important;
+  color: rgb(var(--accent-fg)) !important;
+}
+
 body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ─── Navigation active state — left accent bar ───────────────── */
+/* Add .nav-active-bar to the nav item wrapper, and .is-active to  */
+/* the element when it's the current page. Only active items show  */
+/* the left border indicator.                                       */
+.nav-active-bar {
+  position: relative;
+}
+
+.nav-active-bar.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 52%;
+  border-radius: 0 2px 2px 0;
+  background: rgb(var(--accent));
+}
+
+.nav-active-bar.is-active {
+  background-color: rgb(var(--accent) / 0.1);
+  color: rgb(var(--accent-fg));
+  font-weight: 500;
+}
+
+.nav-active-bar.is-active .nav-icon {
+  color: rgb(var(--accent-fg));
 }
 
 /* ─── Shiki syntax highlighting ──────────────────────────────── */
@@ -74,10 +209,10 @@ body {
 
 /* ─── Doc page prose ─────────────────────────────────────────── */
 .doc-content p {
-  color: rgb(148 163 184);
-  line-height: 1.75;
+  color: var(--color-slate-400);
+  line-height: 1.8;
   font-size: 0.9375rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.125rem;
 }
 
 .doc-content p:last-child {
@@ -85,51 +220,53 @@ body {
 }
 
 .doc-content h3 {
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 600;
-  color: rgb(226 232 240);
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
+  color: var(--color-slate-200);
+  margin-top: 1.75rem;
+  margin-bottom: 0.625rem;
+  letter-spacing: -0.01em;
 }
 
 .doc-content ul {
   list-style: none;
   padding: 0;
-  margin: 0.75rem 0;
+  margin: 1rem 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.625rem;
 }
 
 .doc-content ul li {
   display: flex;
   align-items: flex-start;
-  gap: 0.625rem;
-  color: rgb(148 163 184);
+  gap: 0.75rem;
+  color: var(--color-slate-400);
   font-size: 0.9375rem;
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 .doc-content ul li::before {
   content: "–";
-  color: rgb(100 116 139);
+  color: var(--color-slate-600);
   flex-shrink: 0;
   margin-top: 0.05rem;
+  font-weight: 300;
 }
 
 .doc-content ol {
   padding-left: 1.25rem;
-  margin: 0.75rem 0;
+  margin: 1rem 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.625rem;
   list-style: decimal;
 }
 
 .doc-content ol li {
-  color: rgb(148 163 184);
+  color: var(--color-slate-400);
   font-size: 0.9375rem;
-  line-height: 1.7;
+  line-height: 1.75;
   padding-left: 0.25rem;
 }
 
@@ -137,50 +274,53 @@ body {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.8125rem;
   background: rgb(255 255 255 / 0.06);
-  color: rgb(226 232 240);
-  padding: 0.1em 0.4em;
-  border-radius: 0.25rem;
-  border: 1px solid rgb(255 255 255 / 0.12);
+  color: var(--color-slate-300);
+  padding: 0.15em 0.45em;
+  border-radius: 0.3125rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
 }
 
 .doc-content table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
-  margin: 1rem 0;
+  margin: 1.25rem 0;
 }
 
 .doc-content th {
   text-align: left;
-  color: rgb(148 163 184);
-  font-weight: 600;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgb(39 39 42);
-  white-space: nowrap;
+  color: var(--color-slate-400);
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--color-slate-800);
 }
 
 .doc-content td {
-  color: rgb(100 116 139);
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgb(39 39 42 / 0.5);
+  color: var(--color-slate-500);
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate-800) 50%, transparent);
   vertical-align: top;
+  line-height: 1.6;
 }
 
 .doc-content td:first-child {
-  color: rgb(203 213 225);
+  color: var(--color-slate-300);
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.75rem;
 }
 
 .doc-content strong {
-  color: rgb(226 232 240);
+  color: var(--color-slate-200);
   font-weight: 600;
 }
 
 /* ─── Smooth scrollbar for sidebar ───────────────────────────── */
 .sidebar-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent;
+  scrollbar-color: var(--color-slate-700) transparent;
 }
 
 .sidebar-scroll::-webkit-scrollbar {
@@ -192,6 +332,29 @@ body {
 }
 
 .sidebar-scroll::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: var(--color-slate-700);
   border-radius: 9999px;
+}
+
+/* ─── Page fade-in animation ──────────────────────────────────── */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: page-enter 0.25s ease forwards;
+}
+
+/* ─── Stat number emphasis ────────────────────────────────────── */
+.stat-number {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.02em;
 }

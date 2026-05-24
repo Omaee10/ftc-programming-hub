@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { CheckCircle2, RotateCcw, Loader2 } from "lucide-react";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
+import { getSession } from "@/lib/auth";
 
 interface MarkCompleteButtonProps {
   challengeId: number;
@@ -20,6 +21,11 @@ export default function MarkCompleteButton({
     useChallengeProgress();
 
   const [justCompleted, setJustCompleted] = useState(false);
+  const [isMentor, setIsMentor] = useState(false);
+
+  useEffect(() => {
+    setIsMentor(getSession()?.role === "mentor");
+  }, []);
 
   // Reset animation flag when it plays through
   useEffect(() => {
@@ -28,11 +34,14 @@ export default function MarkCompleteButton({
     return () => clearTimeout(t);
   }, [justCompleted]);
 
+  // Mentors don't track personal progress — hide the button entirely
+  if (isMentor) return null;
+
   if (!hydrated) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-5 py-3 text-sm text-slate-600">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading progress…
+      <div className="flex items-center gap-2 text-xs text-slate-600">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Loading…
       </div>
     );
   }
@@ -41,27 +50,20 @@ export default function MarkCompleteButton({
 
   if (done) {
     return (
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        {/* Completed badge */}
-        <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-3">
-          <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2 rounded-md border border-emerald-500/15 bg-emerald-500/5 px-4 py-2.5">
+          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-semibold text-emerald-400">
-              Challenge Completed!
-            </span>
-            <span className="text-xs text-emerald-600">
-              +{xp} XP earned
-            </span>
+            <span className="text-sm font-medium text-emerald-400">Completed</span>
+            <span className="text-xs text-emerald-700">+{xp} XP earned</span>
           </div>
         </div>
-
-        {/* Reset button */}
         <button
           onClick={() => markIncomplete(challengeId)}
-          className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-xs font-medium text-slate-500 hover:border-slate-600 hover:text-slate-300 transition-all"
+          className="flex items-center gap-1.5 px-3 py-2 text-xs text-slate-600 hover:text-slate-300 transition-colors"
         >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Reset progress
+          <RotateCcw className="h-3 w-3" />
+          Reset
         </button>
       </div>
     );
@@ -83,29 +85,16 @@ export default function MarkCompleteButton({
   return (
     <button
       onClick={handleMarkComplete}
-      className={`group relative flex items-center gap-3 overflow-hidden rounded-xl border px-6 py-3.5 text-sm font-semibold transition-all duration-200 ${
+      className={`flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.98] ${
         justCompleted
-          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-          : "border-white/20 bg-white/8 text-zinc-100 hover:bg-white/12 hover:border-amber-500/50 hover:shadow-lg hover:shadow-white/10"
+          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/15"
+          : "btn-primary border border-transparent"
       }`}
     >
-      {/* Shimmer effect on hover */}
-      <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/5 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-
-      {justCompleted ? (
-        <CheckCircle2 className="h-4 w-4" />
-      ) : (
-        <CheckCircle2 className="h-4 w-4" />
-      )}
-
-      <span>
-        {justCompleted ? `+${xp} XP earned!` : "Mark as Complete"}
-      </span>
-
+      <CheckCircle2 className="h-4 w-4" />
+      <span>{justCompleted ? `+${xp} XP earned!` : "Mark as Complete"}</span>
       {!justCompleted && (
-        <span className="ml-1 rounded-full border border-white/20 bg-white/8 px-1.5 py-0.5 text-[10px] font-bold">
-          +{xp} XP
-        </span>
+        <span className="ml-0.5 text-xs text-slate-600 font-normal">+{xp} XP</span>
       )}
     </button>
   );

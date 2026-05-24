@@ -107,12 +107,14 @@ function NavLink({
   label,
   badge,
   onClick,
+  indent = false,
 }: {
   href: string;
   icon: React.ElementType;
   label: string;
   badge?: string;
   onClick?: () => void;
+  indent?: boolean;
 }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(href + "/");
@@ -121,25 +123,28 @@ function NavLink({
     <Link
       href={href}
       onClick={onClick}
-      className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
+      className={`nav-active-bar group flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-all duration-150 ${
         isActive
-          ? "bg-white/8 text-zinc-100 border border-white/15"
-          : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-transparent"
-      }`}
+          ? "is-active"
+          : "text-slate-500 hover:bg-slate-800/40 hover:text-slate-300 font-normal"
+      } ${indent ? "pl-3" : ""}`}
     >
       <Icon
-        className={`h-4 w-4 shrink-0 transition-colors ${
-          isActive ? "text-zinc-100" : "text-slate-500 group-hover:text-slate-300"
+        className={`nav-icon h-3.5 w-3.5 shrink-0 transition-colors ${
+          isActive ? "" : "text-slate-600 group-hover:text-slate-400"
         }`}
       />
-      <span className="flex-1">{label}</span>
+      <span className="flex-1 truncate">{label}</span>
       {badge && (
-        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-zinc-300 uppercase tracking-wide">
+        <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium tracking-wide ${
+          badge === "New"
+            ? "bg-blue-500/15 text-blue-400"
+            : badge === "Start Here"
+            ? "bg-amber-500/15 text-amber-400"
+            : "bg-slate-800 text-slate-500"
+        }`}>
           {badge}
         </span>
-      )}
-      {isActive && (
-        <span className="h-1.5 w-1.5 rounded-full bg-zinc-100 shrink-0" />
       )}
     </Link>
   );
@@ -149,9 +154,6 @@ function DocsGroup({ onLinkClick }: { onLinkClick?: () => void }) {
   const pathname = usePathname();
   const isDocsActive = pathname.startsWith("/docs");
 
-  // Tracks whether the user has manually toggled the section.
-  // The section is shown expanded whenever we're on a docs route OR the user
-  // has explicitly opened it — whichever is true.
   const [userExpanded, setUserExpanded] = useState(false);
   const isExpanded = isDocsActive || userExpanded;
 
@@ -161,27 +163,27 @@ function DocsGroup({ onLinkClick }: { onLinkClick?: () => void }) {
     <div>
       <button
         onClick={() => setUserExpanded((prev) => !prev)}
-        className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
+        className={`nav-active-bar group flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-all duration-150 ${
           isDocsActive
-            ? "bg-white/8 text-zinc-100 border border-white/15"
-            : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-transparent"
+            ? "is-active"
+            : "text-slate-500 hover:bg-slate-800/40 hover:text-slate-300 font-normal"
         }`}
       >
         <BookOpen
-          className={`h-4 w-4 shrink-0 ${
-            isDocsActive ? "text-zinc-100" : "text-slate-500 group-hover:text-slate-300"
+          className={`nav-icon h-3.5 w-3.5 shrink-0 transition-colors ${
+            isDocsActive ? "" : "text-slate-600 group-hover:text-slate-400"
           }`}
         />
         <span className="flex-1 text-left">Documentation Hub</span>
         {isExpanded ? (
-          <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+          <ChevronDown className="h-3 w-3 text-slate-600" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
+          <ChevronRight className="h-3 w-3 text-slate-600" />
         )}
       </button>
 
       {isExpanded && (
-        <div className="mt-1 ml-3 pl-3 border-l border-slate-800 space-y-0.5">
+        <div className="mt-0.5 ml-2.5 pl-3 border-l border-slate-800/80 space-y-0.5 py-0.5">
           {docsChildren.map((child) => (
             <NavLink
               key={child.href}
@@ -190,6 +192,7 @@ function DocsGroup({ onLinkClick }: { onLinkClick?: () => void }) {
               label={child.label}
               badge={child.badge}
               onClick={onLinkClick}
+              indent
             />
           ))}
         </div>
@@ -211,7 +214,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       {/* Mobile overlay */}
       {open && (
         <div
-          className="fixed inset-0 z-20 bg-black/70 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -219,39 +222,39 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
       {/* Sidebar panel */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-slate-900 border-r border-slate-800/80 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-slate-950 border-r border-slate-800/60 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Brand header */}
-        <div className="flex h-14 shrink-0 items-center justify-between px-4 border-b border-slate-800/80">
+        <div className="flex h-12 shrink-0 items-center justify-between px-4 border-b border-slate-800/60">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white/8 border border-white/15">
-              <Trophy className="h-3.5 w-3.5 text-zinc-100" />
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-800 border border-slate-700/60">
+              <Trophy className="h-3 w-3 text-slate-300" />
             </div>
-            <div className="flex flex-col leading-none">
-              <span className="text-sm font-bold text-slate-100 tracking-tight">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-sm font-semibold text-slate-200 tracking-tight">
                 FTC Hub
               </span>
-              <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">
+              <span className="text-[10px] text-slate-600 font-normal">
                 Programming
               </span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors lg:hidden"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-colors lg:hidden"
             aria-label="Close sidebar"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto sidebar-scroll py-4 px-3 space-y-6">
+        <nav className="flex-1 overflow-y-auto sidebar-scroll py-4 px-3 space-y-5">
           {navigation.map((section) => (
             <div key={section.section}>
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+              <p className="mb-1.5 px-3 text-[10px] font-medium uppercase tracking-widest text-slate-700">
                 {section.section}
               </p>
               <div className="space-y-0.5">
@@ -274,12 +277,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           ))}
         </nav>
 
-
         {/* Footer */}
-        <div className="shrink-0 border-t border-slate-800/80 px-4 py-3">
+        <div className="shrink-0 border-t border-slate-800/60 px-4 py-3">
           <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
-            <span className="text-xs text-slate-500">DECODE 2025–26</span>
+            <div className="h-1.5 w-1.5 rounded-full accent-dot accent-shadow" />
+            <span className="text-[10px] text-slate-600 font-medium">DECODE 2025–26</span>
           </div>
         </div>
       </aside>

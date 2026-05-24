@@ -67,16 +67,16 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+      className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-all duration-150 border-b-2 -mb-px ${
         active
-          ? "bg-white/8 text-zinc-100 border border-white/15"
-          : "text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent"
+          ? "tab-active"
+          : "border-transparent text-slate-600 hover:text-slate-400"
       }`}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-3.5 w-3.5" />
       {label}
       {badge != null && badge > 0 && (
-        <span className="ml-0.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold text-slate-900 leading-none">
+        <span className="rounded-sm bg-amber-500 px-1 py-0.5 text-[8px] font-bold text-slate-900 leading-none">
           {badge}
         </span>
       )}
@@ -167,7 +167,7 @@ function ProgressTab() {
         return (
           <div
             key={student.id}
-            className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden"
+            className="rounded-lg border border-slate-800/60 bg-slate-900/40 overflow-hidden"
           >
             <button
               onClick={() => toggle(student.id)}
@@ -858,7 +858,7 @@ function CreateChallengeTab() {
       <button
         type="submit"
         disabled={saving || !title.trim() || !instructions.trim()}
-        className="flex items-center gap-2 rounded-xl bg-zinc-100 px-6 py-3 text-sm font-semibold text-slate-950 hover:bg-white transition-all shadow-sm shadow-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-2 rounded-xl btn-primary px-6 py-3 text-sm font-semibold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {saving ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1229,25 +1229,20 @@ export default function MentorDashboardPage() {
   }, []);
 
   return (
-    <div className="min-h-full px-6 py-8 max-w-5xl mx-auto">
+    <div className="min-h-full px-6 py-10 max-w-5xl mx-auto page-enter">
       {/* Header */}
       <div className="mb-8">
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1">
-          <Shield className="h-3 w-3 text-zinc-300" />
-          <span className="text-xs font-medium uppercase tracking-widest text-zinc-300">
-            Mentor Dashboard
-          </span>
-        </div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-100">
+        <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-2">Mentor Dashboard</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-100">
           Team Management
         </h1>
-        <p className="mt-1 text-slate-400">
+        <p className="mt-1 text-sm text-slate-500">
           Monitor progress, manage access codes, and create new challenges.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="mb-8 flex flex-wrap gap-2">
+      <div className="mb-8 flex flex-wrap gap-1 border-b border-slate-800/60 pb-0">
         <TabButton
           active={tab === "progress"}
           onClick={() => setTab("progress")}
@@ -1300,7 +1295,7 @@ export default function MentorDashboardPage() {
         <CodeManager
           table="students"
           label="Student"
-          accentClass="bg-zinc-100 text-slate-950 hover:bg-white"
+          accentClass="btn-primary"
         />
       )}
       {tab === "challenges" && <ManageChallengesTab />}

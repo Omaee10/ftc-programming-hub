@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Trophy,
-  PlusCircle,
   Loader2,
   AlertCircle,
   CheckCircle2,
@@ -80,40 +79,42 @@ export default function CreateClassPage() {
   // ─── Success screen ────────────────────────────────────────────────────────
   if (createdCode) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-slate-950 px-4 py-12">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/5">
-            <Trophy className="h-5 w-5 text-zinc-100" />
+      <div className="flex min-h-screen bg-slate-950 px-4">
+        <div className="m-auto w-full max-w-sm py-16">
+          {/* Brand */}
+          <div className="mb-10 flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 border border-slate-700/60">
+              <Trophy className="h-4 w-4 text-slate-300" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-200">FTC Programming Hub</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-100">
-              Class Created!
+
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              <span className="text-sm font-medium text-emerald-400">Class created</span>
+            </div>
+            <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
+              {createdName} is ready
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              {createdName} is ready to go
-            </p>
-          </div>
-        </div>
-
-        <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900 p-8 flex flex-col gap-6">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-            <p className="text-sm text-slate-300 font-medium">
-              Your mentor account has been created
+              Save your mentor code — you&apos;ll need it to sign in.
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-5 mb-6">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-3">
               Your Mentor Code
             </p>
-            <div className="flex items-center gap-3 rounded-xl border border-white/20 bg-white/5 px-4 py-3">
-              <span className="flex-1 font-mono text-3xl font-bold tracking-[0.2em] text-zinc-100">
+            <div className="flex items-center gap-3">
+              <span className="flex-1 font-mono text-3xl font-bold tracking-[0.18em] text-slate-100 stat-number">
                 {createdCode}
               </span>
               <button
                 onClick={handleCopy}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-700/60 bg-slate-800/60 text-slate-500 hover:text-slate-200 hover:bg-slate-700/60 transition-all"
                 title="Copy code"
               >
                 {copied ? (
@@ -123,14 +124,14 @@ export default function CreateClassPage() {
                 )}
               </button>
             </div>
-            <p className="text-xs text-slate-500">
-              Save this code — you&apos;ll use it to sign in as mentor
+            <p className="mt-3 text-xs text-slate-600">
+              Share this code with co-mentors to give them access.
             </p>
           </div>
 
           <button
             onClick={() => router.push("/mentor/dashboard")}
-            className="flex items-center justify-center gap-2 rounded-xl bg-zinc-100 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-white transition-all shadow-sm shadow-white/10"
+            className="w-full flex items-center justify-center gap-2 rounded-lg btn-primary px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98]"
           >
             Go to Dashboard
             <ArrowRight className="h-4 w-4" />
@@ -142,78 +143,60 @@ export default function CreateClassPage() {
 
   // ─── Form screen ───────────────────────────────────────────────────────────
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 bg-slate-950 px-4 py-12">
-      {/* Back button */}
+    <div className="flex min-h-screen bg-slate-950 px-4">
+      {/* Back */}
       <button
         onClick={() => router.push("/onboarding")}
-        className="absolute top-5 left-5 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all"
+        className="absolute top-5 left-5 flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-300 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         Back
       </button>
 
-      {/* Logo */}
-      <div className="flex flex-col items-center gap-3 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/5">
-          <Trophy className="h-5 w-5 text-zinc-100" />
+      <div className="m-auto w-full max-w-sm py-16">
+        {/* Brand */}
+        <div className="mb-10 flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 border border-slate-700/60">
+            <Trophy className="h-4 w-4 text-slate-300" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-200">FTC Programming Hub</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">
-            Create a New Class
+
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
+            Create a class
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            We&apos;ll generate a unique 6-digit mentor access code for you
+            We&apos;ll generate a unique 6-digit mentor access code.
           </p>
         </div>
-      </div>
 
-      {/* Form card */}
-      <div className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 p-8">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-              Your Name
-            </label>
-            <input
-              type="text"
-              value={mentorName}
-              onChange={(e) => setMentorName(e.target.value)}
-              placeholder="e.g. Coach Smith"
-              disabled={isPending}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 disabled:opacity-50 transition-all"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-              Class Name
-            </label>
-            <input
-              type="text"
-              value={className}
-              onChange={(e) => setClassName(e.target.value)}
-              placeholder="e.g. Period 3 Robotics"
-              disabled={isPending}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 disabled:opacity-50 transition-all"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-              Robotics Team Name
-            </label>
-            <input
-              type="text"
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-              placeholder="e.g. Iron Wolves #12345"
-              disabled={isPending}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 disabled:opacity-50 transition-all"
-            />
-          </div>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {[
+            { label: "Your Name", value: mentorName, setter: setMentorName, placeholder: "e.g. Coach Smith" },
+            { label: "Class Name", value: className, setter: setClassName, placeholder: "e.g. Period 3 Robotics" },
+            { label: "Robotics Team Name", value: teamName, setter: setTeamName, placeholder: "e.g. Iron Wolves #12345" },
+          ].map(({ label, value, setter, placeholder }) => (
+            <div key={label} className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                {label}
+              </label>
+              <input
+                type="text"
+                value={value}
+                onChange={(e) => setter(e.target.value)}
+                placeholder={placeholder}
+                disabled={isPending}
+                className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all"
+              />
+            </div>
+          ))}
 
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+            <div className="flex items-center gap-2 rounded-md border border-red-500/15 bg-red-500/8 px-3 py-2">
               <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
               <span className="text-xs text-red-400">{error}</span>
             </div>
@@ -222,7 +205,7 @@ export default function CreateClassPage() {
           <button
             type="submit"
             disabled={isPending}
-            className="flex items-center justify-center gap-2 rounded-xl bg-zinc-100 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-white transition-all shadow-sm shadow-white/10 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+            className="mt-1 flex items-center justify-center gap-2 rounded-lg btn-primary px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isPending ? (
               <>
@@ -231,8 +214,8 @@ export default function CreateClassPage() {
               </>
             ) : (
               <>
-                <PlusCircle className="h-4 w-4" />
-                Create Class &amp; Get My Code
+                Create Class
+                <ArrowRight className="h-4 w-4" />
               </>
             )}
           </button>

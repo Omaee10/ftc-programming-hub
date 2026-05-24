@@ -340,34 +340,101 @@ function RequirementItem({
 // ─── Inline instruction renderer ──────────────────────────────────────────
 
 function InstructionBlock({ text }: { text: string }) {
-  return (
-    <div className="space-y-2.5 text-sm text-slate-400 leading-relaxed">
-      {text.split("\n\n").map((block, i) => {
-        const parts = block.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  // Split the raw text into segments: fenced code blocks vs plain paragraphs.
+  // A fenced block is opened by a line starting with ``` (with an optional language
+  // tag like ```java) and closed by a line that is exactly ```.
+  const segments: Array<{ type: "code"; content: string } | { type: "text"; content: string }> = [];
+  const lines = text.split("\n");
+  let inCode = false;
+  let buffer: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!inCode && /^```/.test(trimmed)) {
+      // Opening fence (``` or ```java, etc.)
+      if (buffer.length > 0) {
+        segments.push({ type: "text", content: buffer.join("\n") });
+        buffer = [];
+      }
+      inCode = true;
+    } else if (inCode && trimmed === "```") {
+      // Closing fence
+      segments.push({ type: "code", content: buffer.join("\n") });
+      buffer = [];
+      inCode = false;
+    } else {
+      buffer.push(line);
+    }
+  }
+  // Flush remaining content
+  if (buffer.length > 0) {
+    segments.push({ type: inCode ? "code" : "text", content: buffer.join("\n") });
+  }
+
+  // Render inline text: **bold** and `code` spans
+  function renderInline(raw: string, baseKey: number) {
+    return raw.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, j) => {
+      if (part.startsWith("**") && part.endsWith("**"))
+        return <strong key={`${baseKey}-${j}`} className="text-slate-200 font-semibold">{part.slice(2, -2)}</strong>;
+      if (part.startsWith("`") && part.endsWith("`"))
+        return <code key={`${baseKey}-${j}`} className="rounded bg-zinc-200/10 px-1 py-0.5 text-[0.8rem] font-mono text-zinc-200 border border-zinc-200/15">{part.slice(1, -1)}</code>;
+      return part;
+    });
+  }
+
+  // Render a block of text lines — handles paragraphs, numbered lists, and bullet lists
+  function renderTextBlock(raw: string, segIdx: number) {
+    const paras = raw.split("\n\n").filter((p) => p.trim());
+    return paras.map((para, j) => {
+      const paraLines = para.split("\n").map((l) => l.trimEnd());
+      // Numbered list: lines starting with "1." "2." etc.
+      if (paraLines.every((l) => /^\d+\.\s/.test(l.trim()) || l.trim() === "")) {
         return (
-          <p key={i}>
-            {parts.map((part, j) => {
-              if (part.startsWith("**") && part.endsWith("**")) {
-                return (
-                  <strong key={j} className="text-slate-200 font-semibold">
-                    {part.slice(2, -2)}
-                  </strong>
-                );
-              }
-              if (part.startsWith("`") && part.endsWith("`")) {
-                return (
-                  <code
-                    key={j}
-                    className="rounded bg-zinc-200/10 px-1 py-0.5 text-[0.8rem] font-mono text-zinc-200 border border-zinc-200/15"
-                  >
-                    {part.slice(1, -1)}
-                  </code>
-                );
-              }
-              return part;
-            })}
-          </p>
+          <ol key={`${segIdx}-${j}`} className="list-decimal list-inside space-y-1">
+            {paraLines.filter((l) => l.trim()).map((l, k) => (
+              <li key={k} className="text-slate-400 leading-relaxed">
+                {renderInline(l.replace(/^\d+\.\s/, "").trim(), segIdx * 10000 + j * 100 + k)}
+              </li>
+            ))}
+          </ol>
         );
+      }
+      // Bullet list: lines starting with "- " or "* "
+      if (paraLines.every((l) => /^[-*]\s/.test(l.trim()) || l.trim() === "")) {
+        return (
+          <ul key={`${segIdx}-${j}`} className="list-disc list-inside space-y-1">
+            {paraLines.filter((l) => l.trim()).map((l, k) => (
+              <li key={k} className="text-slate-400 leading-relaxed">
+                {renderInline(l.replace(/^[-*]\s/, "").trim(), segIdx * 10000 + j * 100 + k)}
+              </li>
+            ))}
+          </ul>
+        );
+      }
+      // Regular paragraph — preserve single-newline breaks within the paragraph
+      const inlineNodes: React.ReactNode[] = [];
+      paraLines.forEach((l, k) => {
+        if (k > 0) inlineNodes.push(<br key={`br-${k}`} />);
+        inlineNodes.push(...renderInline(l.trim(), segIdx * 10000 + j * 100 + k));
+      });
+      return <p key={`${segIdx}-${j}`}>{inlineNodes}</p>;
+    });
+  }
+
+  return (
+    <div className="space-y-3 text-sm text-slate-400 leading-relaxed">
+      {segments.map((seg, i) => {
+        if (seg.type === "code") {
+          return (
+            <pre
+              key={i}
+              className="rounded-lg bg-zinc-900 border border-zinc-700/50 px-4 py-3 text-xs font-mono text-zinc-300 overflow-x-auto whitespace-pre leading-5"
+            >
+              {seg.content}
+            </pre>
+          );
+        }
+        return renderTextBlock(seg.content, i);
       })}
     </div>
   );
@@ -448,8 +515,8 @@ export default function ChallengeWorkspace({
 }: {
   challenge: Challenge;
 }) {
-  const { resolvedTheme } = useTheme();
-  const monacoTheme = resolvedTheme === "light" ? "ftc-light" : "ftc-dark";
+  const { theme } = useTheme();
+  const monacoTheme = (theme === "light" || theme === "paper") ? "ftc-light" : "ftc-dark";
 
   const diff = difficultyConfig[challenge.difficulty];
   const prevChallenge = getChallengeById(challenge.id - 1);
@@ -830,69 +897,67 @@ export default function ChallengeWorkspace({
       style={{ height: "calc(100svh - 3.5rem)" }}
     >
       {/* ── Workspace top bar ──────────────────────────────────────────── */}
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/95 px-4 backdrop-blur">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/95 px-3 backdrop-blur-md">
         <Link
           href="/challenges"
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-600 link-accent transition-colors"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Challenges
+          <ArrowLeft className="h-3 w-3" />
+          <span>Challenges</span>
         </Link>
 
-        <span className="text-slate-800">/</span>
+        <span className="text-slate-800 text-xs">/</span>
 
         <div className="flex flex-1 items-center gap-2 min-w-0">
-          <span className="truncate text-sm font-medium text-slate-200">
+          <span className="truncate text-xs font-medium text-slate-300">
             {challenge.title}
           </span>
           <span
-            className={`hidden sm:inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${diff.badgeClass}`}
+            className={`hidden sm:inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${diff.badgeClass}`}
           >
             {diff.label}
           </span>
-          <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/4 px-2 py-0.5">
-            <Zap className="h-2.5 w-2.5 text-zinc-100" />
-            <span className="text-[10px] font-semibold text-zinc-100">
-              {challenge.xp} XP
-            </span>
+          <span className="hidden sm:flex shrink-0 items-center gap-1 text-[11px] text-slate-600">
+            <Zap className="h-3 w-3" />
+            <span>{challenge.xp} XP</span>
           </span>
 
-          {/* Show real-time grade badge after submission */}
+          {/* Real-time grade status */}
           {lastGrade === "good" || done ? (
-            <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-              <CheckCircle2 className="h-2.5 w-2.5" />
+            <span className="hidden sm:flex shrink-0 items-center gap-1 text-[11px] font-medium text-emerald-500">
+              <CheckCircle2 className="h-3 w-3" />
               Completed
             </span>
           ) : lastGrade === "needs-improvement" ? (
-            <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/4 px-2 py-0.5 text-[10px] font-semibold text-zinc-100">
-              <TriangleAlert className="h-2.5 w-2.5" />
+            <span className="hidden sm:flex shrink-0 items-center gap-1 text-[11px] font-medium text-amber-400">
+              <TriangleAlert className="h-3 w-3" />
               Needs work
             </span>
           ) : lastGrade === "wrong" ? (
-            <span className="hidden sm:flex shrink-0 items-center gap-1 rounded-full border border-red-500/20 bg-red-500/5 px-2 py-0.5 text-[10px] font-semibold text-red-400">
-              <XCircle className="h-2.5 w-2.5" />
+            <span className="hidden sm:flex shrink-0 items-center gap-1 text-[11px] font-medium text-red-400">
+              <XCircle className="h-3 w-3" />
               Not passing
             </span>
           ) : null}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           {prevChallenge && (
             <Link
               href={`/challenges/${prevChallenge.id}`}
               title={prevChallenge.title}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-800 hover:text-slate-300 transition-all"
+              className="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3.5 w-3.5" />
             </Link>
           )}
           {nextChallenge && (
             <Link
               href={`/challenges/${nextChallenge.id}`}
               title={nextChallenge.title}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-800 hover:text-zinc-100 transition-all"
+              className="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
             >
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           )}
         </div>
@@ -905,8 +970,8 @@ export default function ChallengeWorkspace({
           className="flex flex-col overflow-hidden border-r border-slate-800"
           style={{ width: `${leftPct}%` }}
         >
-          {/* ── TAB BAR — delete this block + leftTab state above to revert ── */}
-          <div className="flex shrink-0 items-end gap-1 border-b border-slate-800 bg-slate-950 px-3 pt-2">
+          {/* ── TAB BAR ─────────────────────────────────────────────────── */}
+          <div className="flex shrink-0 items-center gap-0.5 border-b border-slate-800/60 bg-slate-950/80 px-2 h-9">
             {(["task", "checks", "hints"] as const).map((tab) => {
               const labels = { task: "Task", checks: "Checks", hints: "Hints" };
               const isActive = leftTab === tab;
@@ -917,10 +982,10 @@ export default function ChallengeWorkspace({
                 <button
                   key={tab}
                   onClick={() => setLeftTab(tab)}
-                  className={`relative flex items-center gap-1.5 rounded-t-md px-3 py-1.5 text-xs font-mono font-medium transition-colors ${
+                  className={`relative flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
                     isActive
-                      ? "bg-slate-900 text-slate-100 border border-b-0 border-slate-700"
-                      : "text-slate-500 hover:text-slate-300"
+                      ? "tab-active-pill"
+                      : "text-slate-600 hover:text-slate-400"
                   }`}
                 >
                   {labels[tab]}
@@ -930,12 +995,11 @@ export default function ChallengeWorkspace({
                 </button>
               );
             })}
-            <span className="ml-auto flex items-center gap-1 pb-1.5 text-[10px] text-slate-600 font-mono">
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-slate-700">
               <Clock className="h-3 w-3" />
               {challenge.estimatedTime}
             </span>
           </div>
-          {/* ── END TAB BAR ─────────────────────────────────────────────── */}
 
           <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5">
 
@@ -951,9 +1015,8 @@ export default function ChallengeWorkspace({
                 <div>
                   <button
                     onClick={() => setShowObjectives((v) => !v)}
-                    className="flex w-full items-center gap-2 mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
+                    className="flex w-full items-center gap-2 mb-2 text-[10px] font-medium uppercase tracking-widest text-slate-600 hover:text-slate-400 transition-colors"
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
                     Objectives
                     {showObjectives ? (
                       <ChevronUp className="h-3 w-3 ml-auto" />
@@ -966,11 +1029,9 @@ export default function ChallengeWorkspace({
                       {challenge.objectives.map((obj, i) => (
                         <li
                           key={i}
-                          className="flex items-start gap-2.5 rounded-lg bg-slate-900/60 border border-slate-800/50 px-3 py-2"
+                          className="flex items-start gap-2.5 py-1.5"
                         >
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-[9px] font-bold font-mono text-slate-500 mt-0.5">
-                            {i + 1}
-                          </span>
+                          <span className="text-[10px] font-mono text-slate-700 mt-0.5 shrink-0 w-4 text-right">{i + 1}.</span>
                           <span className="text-xs text-slate-400 leading-relaxed">
                             {obj}
                           </span>
@@ -982,24 +1043,24 @@ export default function ChallengeWorkspace({
 
                 {/* Instructions */}
                 <div>
-                  <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                  <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-slate-600">
                     Problem Statement
                   </p>
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-4">
+                  <div className="rounded-md border border-slate-800/60 bg-slate-900/30 px-4 py-3.5">
                     <InstructionBlock text={challenge.instructions} />
                   </div>
                 </div>
 
                 {/* Concepts */}
                 <div>
-                  <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                  <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-slate-600">
                     Concepts Covered
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {challenge.conceptsCovered.map((c) => (
                       <span
                         key={c}
-                        className="rounded-md border border-blue-500/20 bg-blue-500/5 px-2 py-1 text-[10px] font-mono font-medium text-blue-400"
+                        className="rounded border border-slate-800/60 bg-slate-900/60 px-2 py-0.5 text-[10px] font-mono text-slate-500"
                       >
                         {c}
                       </span>
@@ -1014,7 +1075,7 @@ export default function ChallengeWorkspace({
               <>
                 {Object.keys(checkStatuses).length === 0 ? (
                   <div>
-                    <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                    <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-slate-600">
                       Requirements
                     </p>
                     <ul className="space-y-1.5">
@@ -1022,7 +1083,7 @@ export default function ChallengeWorkspace({
                         <RequirementItem key={i} label={obj} status="pending" />
                       ))}
                     </ul>
-                    <p className="mt-4 text-xs text-slate-600 font-mono">
+                    <p className="mt-4 text-xs text-slate-600">
                       Submit your code to see live results.
                     </p>
                   </div>
@@ -1072,8 +1133,8 @@ export default function ChallengeWorkspace({
             {leftTab === "hints" && (
               <>
                 <HintsAccordion hints={challenge.hints} />
-                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                <div className="rounded-md border border-slate-800/60 bg-slate-900/40 p-4">
+                  <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-slate-600">
                     Mark Complete
                   </p>
                   <MarkCompleteButton
@@ -1091,7 +1152,7 @@ export default function ChallengeWorkspace({
         {/* ── Drag handle ───────────────────────────────────────────────── */}
         <div
           onMouseDown={handleDividerDown}
-          className="group relative flex w-1 shrink-0 cursor-col-resize items-center justify-center bg-slate-800 hover:bg-zinc-100/40 active:bg-amber-500/60 transition-colors"
+          className="group relative flex w-1 shrink-0 cursor-col-resize items-center justify-center bg-slate-800 hover:accent-fill active:accent-fill transition-colors"
           title="Drag to resize"
         >
           <div className="absolute inset-y-0 -left-1 -right-1" />
@@ -1101,20 +1162,17 @@ export default function ChallengeWorkspace({
         {/* ── RIGHT: Editor + Console ───────────────────────────────────── */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Editor toolbar */}
-          <div className="flex h-9 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-900/80 px-3">
-            <FileCode className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-            <span className="font-mono text-xs text-slate-400 truncate">
+          <div className="flex h-8 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/80 px-3">
+            <FileCode className="h-3 w-3 text-slate-700 shrink-0" />
+            <span className="font-mono text-[11px] text-slate-600 truncate">
               Challenge{challenge.id}_{challenge.title.replace(/\s+/g, "")}.java
-            </span>
-            <span className="ml-1 rounded border border-white/12 bg-white/4 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-zinc-300">
-              Java
             </span>
 
             <div className="ml-auto flex items-center gap-1.5">
               <button
                 onClick={resetCode}
                 title="Reset to starter code"
-                className="flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-400 hover:border-slate-600 hover:text-slate-200 transition-all"
+                className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
               >
                 <RefreshCcw className="h-3 w-3" />
                 Reset
@@ -1269,7 +1327,7 @@ export default function ChallengeWorkspace({
                   className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all duration-150 ${
                     isRunning
                       ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                      : "bg-zinc-100 text-slate-900 hover:bg-zinc-200 shadow-sm shadow-white/20"
+                      : "btn-primary shadow-sm"
                   }`}
                 >
                   {isRunning ? (

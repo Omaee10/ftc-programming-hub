@@ -8,6 +8,8 @@ export interface Session {
   teamName?: string;
   /** Set for co-mentors — the ID of the mentor who owns the class */
   parentMentorId?: string;
+  /** Set for students — the ID of their mentor (used to filter mentor-created challenges) */
+  mentorId?: string;
 }
 
 export function getSession(): Session | null {
