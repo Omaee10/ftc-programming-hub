@@ -6,6 +6,8 @@ export interface Session {
   id: string;
   name: string;
   teamName?: string;
+  /** Mentor's class label (e.g. "Period 3 Robotics") — distinct from robotics team name */
+  className?: string;
   /** Set for co-mentors — the ID of the mentor who owns the class */
   parentMentorId?: string;
   /** Set for students — the ID of their mentor (used to filter mentor-created challenges) */

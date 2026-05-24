@@ -94,7 +94,7 @@ function LoginPanel({
   title: string;
   subtitle: string;
   buttonClass: string;
-  onSuccess: (id: string, name: string, teamName: string, extra?: { parentMentorId?: string; mentorId?: string }) => void;
+  onSuccess: (id: string, name: string, teamName: string, extra?: { parentMentorId?: string; mentorId?: string; className?: string }) => void;
 }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -113,26 +113,37 @@ function LoginPanel({
       if (role === "mentor") {
         const { data, error: dbErr } = await supabase
           .from("mentors")
-          .select("id, name, mentor_name, created_by")
+          .select("id, name, mentor_name, class_name, created_by")
           .eq("code", trimmed)
           .single();
         if (dbErr || !data) {
           setError(`Invalid code. (${dbErr?.message ?? "no data returned"})`);
           return;
         }
-        const row = data as { id: string; name: string; mentor_name?: string | null; created_by?: string | null };
+        const row = data as {
+          id: string;
+          name: string;
+          mentor_name?: string | null;
+          class_name?: string | null;
+          created_by?: string | null;
+        };
         const parentId = row.created_by ?? undefined;
         let personalName = row.mentor_name ?? row.name;
         let teamName = row.name;
+        let className = row.class_name ?? row.name;
         if (parentId) {
           const { data: parentData } = await supabase
             .from("mentors")
-            .select("name")
+            .select("name, class_name")
             .eq("id", parentId)
             .single();
-          if (parentData) teamName = (parentData as { name: string }).name;
+          if (parentData) {
+            const parent = parentData as { name: string; class_name?: string | null };
+            teamName = parent.name;
+            className = parent.class_name ?? parent.name;
+          }
         }
-        onSuccess(row.id, personalName, teamName, { parentMentorId: parentId });
+        onSuccess(row.id, personalName, teamName, { parentMentorId: parentId, className });
       } else {
         const { data, error: dbErr } = await supabase
           .from("students")
@@ -210,13 +221,14 @@ export default function SignInPage() {
     id: string,
     name: string,
     teamName: string,
-    extra?: { parentMentorId?: string; mentorId?: string }
+    extra?: { parentMentorId?: string; mentorId?: string; className?: string }
   ) => {
     setSession({
       role,
       id,
       name,
       teamName,
+      ...(extra?.className ? { className: extra.className } : {}),
       ...(extra?.parentMentorId ? { parentMentorId: extra.parentMentorId } : {}),
       ...(extra?.mentorId ? { mentorId: extra.mentorId } : {}),
     });

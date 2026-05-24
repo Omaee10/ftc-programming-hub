@@ -44,8 +44,13 @@ export default function CreateClassPage() {
       const tryInsert = async (c: string) => {
         const { data, error: dbErr } = await supabase
           .from("mentors")
-          .insert({ name: teamName.trim(), mentor_name: mentorName.trim(), code: c })
-          .select("id, name, mentor_name, code")
+          .insert({
+            name: teamName.trim(),
+            class_name: className.trim(),
+            mentor_name: mentorName.trim(),
+            code: c,
+          })
+          .select("id, name, class_name, mentor_name, code")
           .single();
         return { data, dbErr };
       };
@@ -63,9 +68,16 @@ export default function CreateClassPage() {
       }
 
       const personalName = (data as { mentor_name?: string | null }).mentor_name ?? (data.name as string);
-      setSession({ role: "mentor", id: data.id as string, name: personalName, teamName: data.name as string });
+      const savedClassName = (data as { class_name?: string | null }).class_name ?? className.trim();
+      setSession({
+        role: "mentor",
+        id: data.id as string,
+        name: personalName,
+        teamName: data.name as string,
+        className: savedClassName,
+      });
       setCreatedCode(data.code as string);
-      setCreatedName(teamName.trim());
+      setCreatedName(savedClassName);
     });
   };
 

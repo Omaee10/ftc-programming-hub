@@ -87,7 +87,7 @@ const quickLinks = [
 
 // ─── Mentor dashboard ──────────────────────────────────────────────────────
 
-function MentorDashboard({ displayName }: { displayName: string }) {
+function MentorDashboard({ classTitle }: { classTitle: string }) {
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [studentCount, setStudentCount] = useState<number | null>(null);
   const [challengeCount, setChallengeCount] = useState<number | null>(null);
@@ -132,7 +132,7 @@ function MentorDashboard({ displayName }: { displayName: string }) {
       <div className="mb-10">
         <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-2">{today}</p>
         <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
-          {displayName}
+          {classTitle}
         </h1>
         <p className="mt-1 text-sm text-slate-500">Here&apos;s what&apos;s happening in your class today.</p>
       </div>
@@ -275,14 +275,16 @@ export default function DashboardClient({ name }: { name?: string }) {
   }, []);
 
   const [displayName, setDisplayName] = useState<string>(name ?? "there");
+  const [classTitle, setClassTitle] = useState<string>("My Class");
   const [isMentor, setIsMentor] = useState(false);
 
   const syncFromSession = () => {
     const session = getSession();
     const resolvedName = session?.role === "mentor"
-      ? (session?.teamName || session?.name)
+      ? (session?.className || session?.name)
       : session?.name;
     setDisplayName(name ?? resolvedName ?? "there");
+    setClassTitle(session?.className || session?.name || "My Class");
     setIsMentor(session?.role === "mentor");
   };
 
@@ -294,7 +296,7 @@ export default function DashboardClient({ name }: { name?: string }) {
   }, [name]);
 
   if (isMentor) {
-    return <MentorDashboard displayName={displayName} />;
+    return <MentorDashboard classTitle={classTitle} />;
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────

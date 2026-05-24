@@ -33,29 +33,40 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       (async () => {
         const { data: mentorRow } = await supabase
           .from("mentors")
-          .select("name, mentor_name, created_by")
+          .select("name, mentor_name, class_name, created_by")
           .eq("id", stored.id)
           .single();
         if (!mentorRow) return;
 
-        const row = mentorRow as { name: string; mentor_name?: string | null; created_by?: string | null };
+        const row = mentorRow as {
+          name: string;
+          mentor_name?: string | null;
+          class_name?: string | null;
+          created_by?: string | null;
+        };
         let personalName: string = row.mentor_name ?? row.name;
         let teamName: string = row.name;
+        let className: string = row.class_name ?? row.name;
         let parentMentorId: string | undefined = row.created_by ?? undefined;
 
         if (parentMentorId) {
           const { data: parentRow } = await supabase
             .from("mentors")
-            .select("name")
+            .select("name, class_name")
             .eq("id", parentMentorId)
             .single();
-          if (parentRow) teamName = (parentRow as { name: string }).name;
+          if (parentRow) {
+            const parent = parentRow as { name: string; class_name?: string | null };
+            teamName = parent.name;
+            className = parent.class_name ?? parent.name;
+          }
         }
 
         const updated: Session = {
           ...stored,
           name: personalName,
           teamName,
+          className,
           ...(parentMentorId ? { parentMentorId } : {}),
         };
         setSession(updated);
