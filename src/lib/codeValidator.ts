@@ -1274,18 +1274,37 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "private static final double TICKS_PER_REV = 537.7;",
     },
     {
-      label: "ticksToDegrees() method",
-      description: "ticksToDegrees helper method implemented.",
+      label: "Conversion helper method defined and called",
+      description: "A helper method that converts ticks to degrees is defined and called in the loop.",
       tier: "required",
-      pattern: /ticksToDegrees\s*\(/,
-      tip: "private double ticksToDegrees(int ticks) { ... }",
+      pattern: (code) => {
+        // Accept any private double method taking an int or double ticks param
+        const m = code.match(/private\s+double\s+(\w+)\s*\(\s*(?:int|double)\s+\w+\s*\)/);
+        if (!m) return false;
+        return new RegExp(`\\b${m[1]}\\s*\\(`).test(code.replace(m[0], ''));
+      },
+      tip: "private double ticksToDegrees(int ticks) { ... } — define the helper and call it inside the loop.",
     },
     {
-      label: "Conversion formula uses 360",
-      description: "Formula divides by (TICKS_PER_REV * GEAR_RATIO) and multiplies by 360.",
+      label: "Formula: (ticks / (TICKS_PER_REV * GEAR_RATIO)) * 360",
+      description: "Return statement multiplies by 360 AND divides by the product of TICKS_PER_REV and GEAR_RATIO.",
       tier: "required",
-      pattern: /360(\.0)?/,
-      tip: "return (ticks / (TICKS_PER_REV * GEAR_RATIO)) * 360.0;",
+      pattern: (code) => {
+        // Must contain 360 multiplied (or divided into) a fraction involving TICKS_PER_REV
+        const has360 = /360(\.0)?/.test(code);
+        const hasRatio = /TICKS_PER_REV\s*\*\s*GEAR_RATIO|GEAR_RATIO\s*\*\s*TICKS_PER_REV/.test(code);
+        // Must appear in a return statement (inside a method), not just random constants
+        const inReturn = /return\s*[^;]*360|360[^;]*;\s*\}|\/\s*\(\s*TICKS_PER_REV|TICKS_PER_REV[\s\S]{0,60}360/.test(code);
+        return has360 && hasRatio && inReturn;
+      },
+      tip: "return (ticks / (TICKS_PER_REV * GEAR_RATIO)) * 360.0; — divide ticks by total ticks-per-output-revolution, then multiply by 360.",
+    },
+    {
+      label: "GEAR_RATIO constant defined",
+      description: "GEAR_RATIO constant declared alongside TICKS_PER_REV.",
+      tier: "required",
+      pattern: /GEAR_RATIO/,
+      tip: "private static final double GEAR_RATIO = 2.0;",
     },
     {
       label: "No leftover TODO comments",
@@ -1458,18 +1477,34 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "double fwdTPS = forwardMotor.getVelocity();",
     },
     {
-      label: "Speed magnitude computed",
-      description: "sqrt or hypot used to compute 2D speed magnitude.",
+      label: "TPS converted to mm/s using wheel circumference",
+      description: "getVelocity() result multiplied by wheel circumference to convert ticks/s → mm/s.",
       tier: "required",
-      pattern: /Math\.(sqrt|hypot)\s*\(/,
-      tip: "double speed = Math.sqrt(vxMMs * vxMMs + vyMMs * vyMMs);",
+      pattern: (code) =>
+        // Must multiply velocity by some circumference/scaling constant
+        /getVelocity\s*\(\s*\)[^;]*\*|[^;]*\*[^;]*getVelocity\s*\(\s*\)/.test(code) ||
+        /WHEEL_CIRCUMFERENCE|TICKS_PER_MM|ticksToMm|MM_PER_TICK/.test(code),
+      tip: "double vxMMs = forwardMotor.getVelocity() * WHEEL_CIRCUMFERENCE / TICKS_PER_REV; — TPS alone is not mm/s; you must scale by the wheel's physical distance per tick.",
+    },
+    {
+      label: "Speed magnitude: sqrt(vx² + vy²)",
+      description: "2D speed computed as Math.sqrt or Math.hypot of the two velocity components squared.",
+      tier: "required",
+      pattern: (code) => {
+        // Must use sqrt(a*a + b*b) or hypot(a, b) where a,b are velocity variables
+        if (/Math\.hypot\s*\(/.test(code)) return true;
+        // Check sqrt contains multiplication (squaring of terms)
+        return /Math\.sqrt\s*\([^)]*\*[^)]*\+[^)]*\*/.test(code) ||
+               /Math\.sqrt\s*\([^)]*\+[^)]*\)/.test(code);
+      },
+      tip: "double speed = Math.sqrt(vxMMs * vxMMs + vyMMs * vyMMs); — or Math.hypot(vxMMs, vyMMs).",
     },
     {
       label: "Speed threshold compared",
-      description: "Speed compared against SPEED_THRESHOLD constant.",
+      description: "Computed speed compared against a threshold constant.",
       tier: "required",
-      pattern: /SPEED_THRESHOLD/,
-      tip: "boolean robotSpeedOk = speed < SPEED_THRESHOLD;",
+      pattern: /SPEED_THRESHOLD|\bspeed\b\s*[<>]\s*\w+|\w+\s*[<>]\s*\bspeed\b/,
+      tip: "boolean robotSpeedOk = speed < SPEED_THRESHOLD; — compare the computed mm/s value against a meaningful limit.",
     },
     {
       label: "No leftover TODO comments",
@@ -1922,18 +1957,28 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
   // ── Challenge 19 ─ Field-Relative Mecanum ────────────────────────────────
   19: [
     {
-      label: "Math.cos() used for rotation",
-      description: "Math.cos(-heading) applied in the 2D rotation matrix.",
+      label: "2D rotation matrix applied (cos + sin)",
+      description: "Rotated drive uses drive*cos − strafe*sin; rotated strafe uses drive*sin + strafe*cos.",
       tier: "required",
-      pattern: /Math\.cos\s*\(/,
-      tip: "double rotDrive = drive * Math.cos(-heading) - strafe * Math.sin(-heading);",
+      pattern: (code) => {
+        // Require both cos and sin to appear in expressions that mix drive and strafe
+        const hasCos = /Math\.cos\s*\(/.test(code);
+        const hasSin = /Math\.sin\s*\(/.test(code);
+        if (!hasCos || !hasSin) return false;
+        // The rotation must mix the drive and strafe inputs (not just rotate a single value)
+        const mixesBoth =
+          /drive[^;]*Math\.(?:cos|sin)|strafe[^;]*Math\.(?:cos|sin)/.test(code) ||
+          /Math\.(?:cos|sin)[^;]*drive|Math\.(?:cos|sin)[^;]*strafe/.test(code);
+        return mixesBoth;
+      },
+      tip: "rotDrive = drive * Math.cos(-heading) - strafe * Math.sin(-heading);  rotStrafe = drive * Math.sin(-heading) + strafe * Math.cos(-heading); — both drive AND strafe must be mixed with cos/sin.",
     },
     {
-      label: "Math.sin() used for rotation",
-      description: "Math.sin(-heading) applied in the 2D rotation matrix.",
+      label: "Heading read from IMU",
+      description: "Robot heading obtained from IMU to compute field-relative rotation.",
       tier: "required",
-      pattern: /Math\.sin\s*\(/,
-      tip: "double rotStrafe = drive * Math.sin(-heading) + strafe * Math.cos(-heading);",
+      pattern: /imu|IMU|\bgetAngularOrientation\b|\bgetYaw\b|\bRobotAngularVelocity\b|\bgetRobotYawPitchRollAngles\b|\bYawPitchRollAngles\b/,
+      tip: "double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS); — heading must come from the IMU, not a hardcoded value.",
     },
     {
       label: "Rotated vectors used in wheel power formula",
