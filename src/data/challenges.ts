@@ -137,7 +137,7 @@ public class EncoderTarget extends LinearOpMode {
 
         while (opModeIsActive()) {
             telemetry.addData("Current Ticks", driveMotor.getCurrentPosition());
-            telemetry.addData("Target Ticks",  driveMotor.getTargetPosition());
+            telemetry.addData("Target Ticks", driveMotor.getTargetPosition());
             telemetry.update();
         }
 
@@ -223,7 +223,7 @@ public class TimerDrive extends LinearOpMode {
 
         while (opModeIsActive()) {
             telemetry.addData("Elapsed", 0.0);
-            telemetry.addData("Target",  DRIVE_DURATION);
+            telemetry.addData("Target", DRIVE_DURATION);
             telemetry.update();
         }
 
@@ -378,8 +378,8 @@ public class PedroChainAuto extends LinearOpMode {
         while (opModeIsActive()) {
 
             telemetry.addData("Path Segment", 0);
-            telemetry.addData("t value",      0.0);
-            telemetry.addData("At End",       false);
+            telemetry.addData("t value", 0.0);
+            telemetry.addData("At End", false);
             telemetry.update();
 
         }
@@ -757,7 +757,7 @@ public class ButtonDebounce extends LinearOpMode {
         while (opModeIsActive()) {
 
             telemetry.addData("Intake Running", false);
-            telemetry.addData("A Button",       gamepad1.a);
+            telemetry.addData("A Button", gamepad1.a);
             telemetry.update();
         }
     }
@@ -924,7 +924,7 @@ public class ZeroPowerBehaviorDemo extends LinearOpMode {
             double power = -gamepad1.left_stick_y;
             driveMotor.setPower(power);
 
-            telemetry.addData("Mode",  brakeMode ? "BRAKE" : "FLOAT");
+            telemetry.addData("Mode", brakeMode ? "BRAKE" : "FLOAT");
             telemetry.addData("Power", power);
             telemetry.update();
         }
@@ -1068,7 +1068,7 @@ public class EncoderDistance extends LinearOpMode {
 
         while (opModeIsActive()) {
             telemetry.addData("Current", driveMotor.getCurrentPosition());
-            telemetry.addData("Target",  TARGET_TICKS);
+            telemetry.addData("Target", TARGET_TICKS);
             telemetry.update();
         }
 
@@ -1164,9 +1164,9 @@ public class BulkCacheDemo extends LinearOpMode {
                 loopTimer.reset();
             }
 
-            telemetry.addData("Loop Hz",  loopsPerSecond);
-            telemetry.addData("Encoder",  encoder);
-            telemetry.addData("Power",    power);
+            telemetry.addData("Loop Hz", loopsPerSecond);
+            telemetry.addData("Encoder", encoder);
+            telemetry.addData("Power", power);
             telemetry.update();
         }
     }
@@ -1604,14 +1604,14 @@ public class StrafeTest extends LinearOpMode {
         timer.reset();
         while (timer.seconds() < 1.0 && opModeIsActive()) {
             telemetry.addData("Phase", "Strafe RIGHT");
-            telemetry.addData("Time",  timer.seconds());
+            telemetry.addData("Time", timer.seconds());
             telemetry.update();
         }
 
         timer.reset();
         while (timer.seconds() < 1.0 && opModeIsActive()) {
             telemetry.addData("Phase", "Strafe LEFT");
-            telemetry.addData("Time",  timer.seconds());
+            telemetry.addData("Time", timer.seconds());
             telemetry.update();
         }
 
@@ -1710,7 +1710,7 @@ public class MagnitudeBraking extends LinearOpMode {
             backLeft.setPower(bl);  backRight.setPower(br);
 
             telemetry.addData("Magnitude", magnitude);
-            telemetry.addData("State",     active ? "ACTIVE" : "DEADBAND");
+            telemetry.addData("State", active ? "ACTIVE" : "DEADBAND");
             telemetry.update();
         }
     }
@@ -1794,10 +1794,10 @@ public class VelocityControl extends LinearOpMode {
 
             double actual = 0;
 
-            telemetry.addData("Mode",    velocityMode ? "VELOCITY" : "OPEN LOOP");
-            telemetry.addData("Target",  TARGET_TPS);
-            telemetry.addData("Actual",  actual);
-            telemetry.addData("Error",   TARGET_TPS - actual);
+            telemetry.addData("Mode", velocityMode ? "VELOCITY" : "OPEN LOOP");
+            telemetry.addData("Target", TARGET_TPS);
+            telemetry.addData("Actual", actual);
+            telemetry.addData("Error", TARGET_TPS - actual);
             telemetry.update();
         }
     }
@@ -1888,10 +1888,10 @@ public class PController extends LinearOpMode {
 
             double clampedPower = 0;
 
-            telemetry.addData("Target",  targetTicks);
+            telemetry.addData("Target", targetTicks);
             telemetry.addData("Current", current);
-            telemetry.addData("Error",   error);
-            telemetry.addData("Power",   clampedPower);
+            telemetry.addData("Error", error);
+            telemetry.addData("Power", clampedPower);
             telemetry.update();
         }
     }
@@ -1972,7 +1972,7 @@ public class TicksToDegrees extends LinearOpMode {
 
             double degrees = 0;
 
-            telemetry.addData("Ticks",   ticks);
+            telemetry.addData("Ticks", ticks);
             telemetry.addData("Degrees", degrees);
             telemetry.update();
         }
@@ -2064,7 +2064,7 @@ public class TPSCalibration extends LinearOpMode {
             double targetTPS = interpolateTPS(simulatedDistance);
 
             telemetry.addData("Distance (in)", simulatedDistance);
-            telemetry.addData("Target TPS",    targetTPS);
+            telemetry.addData("Target TPS", targetTPS);
             telemetry.update();
         }
     }
@@ -2185,10 +2185,10 @@ public class PIDFVelocity extends LinearOpMode {
             shooterMotor.setPower(output);
             lastError = error;
 
-            telemetry.addData("Running",   running);
+            telemetry.addData("Running", running);
             telemetry.addData("Current TPS", currentTPS);
-            telemetry.addData("Error",     error);
-            telemetry.addData("Output",    output);
+            telemetry.addData("Error", error);
+            telemetry.addData("Output", output);
             telemetry.update();
         }
     }
@@ -2267,9 +2267,9 @@ public class LoopHzMeter extends LinearOpMode {
             double power = -gamepad1.left_stick_y;
             driveMotor.setPower(power);
 
-            telemetry.addData("Loop Hz",       0.0);
+            telemetry.addData("Loop Hz", 0.0);
             telemetry.addData("Avg Loop (ms)", 0.0);
-            telemetry.addData("Total Loops",   0L);
+            telemetry.addData("Total Loops", 0L);
             telemetry.update();
         }
     }
@@ -2363,8 +2363,8 @@ public class ShootLatch extends LinearOpMode {
 
             feederMotor.setPower(feeding ? 1.0 : 0.0);
 
-            telemetry.addData("TPS",     simulatedTPS);
-            telemetry.addData("Ready",   shooterReady);
+            telemetry.addData("TPS", simulatedTPS);
+            telemetry.addData("Ready", shooterReady);
             telemetry.addData("Latched", shootingLatched);
             telemetry.addData("Feeding", feeding);
             telemetry.update();
@@ -2459,8 +2459,8 @@ public class TurretStateMachine extends LinearOpMode {
 
             lastGamepad2A = gamepad2.a;
 
-            telemetry.addData("State",   "TBD");
-            telemetry.addData("Sensor",  limitSwitch.isPressed() ? "PRESSED" : "open");
+            telemetry.addData("State", "TBD");
+            telemetry.addData("Sensor", limitSwitch.isPressed() ? "PRESSED" : "open");
             telemetry.addData("Encoder", turretMotor.getCurrentPosition());
             telemetry.update();
         }
@@ -2541,7 +2541,7 @@ public class StateMachineAuto extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            telemetry.addData("State",      "TBD");
+            telemetry.addData("State", "TBD");
             telemetry.addData("State Time", stateTimer.seconds());
             telemetry.update();
         }
@@ -2647,9 +2647,9 @@ public class MultiShotAuto extends LinearOpMode {
                     break;
             }
 
-            telemetry.addData("State",     state.name());
+            telemetry.addData("State", state.name());
             telemetry.addData("Remaining", remainingCycles);
-            telemetry.addData("Time",      stateTimer.seconds());
+            telemetry.addData("Time", stateTimer.seconds());
             telemetry.update();
         }
     }
@@ -2733,7 +2733,7 @@ public class ModeSwitchTeleOp extends LinearOpMode {
             leftDrive.setPower(leftPower * scale);
             rightDrive.setPower(rightPower * scale);
 
-            telemetry.addData("Mode",  safeMode ? "** SAFE MODE **" : "NORMAL");
+            telemetry.addData("Mode", safeMode ? "** SAFE MODE **" : "NORMAL");
             telemetry.addData("Scale", scale);
             telemetry.update();
         }
@@ -2809,8 +2809,8 @@ public class DistanceToGoal extends LinearOpMode {
 
             double distInches = dist / 25.4;
 
-            telemetry.addData("Robot (mm)",  "(%.0f, %.0f)", robotX, robotY);
-            telemetry.addData("Goal  (mm)",  "(%.0f, %.0f)", GOAL_X, GOAL_Y);
+            telemetry.addData("Robot (mm)", "(%.0f, %.0f)", robotX, robotY);
+            telemetry.addData("Goal  (mm)", "(%.0f, %.0f)", GOAL_X, GOAL_Y);
             telemetry.addData("Distance mm", dist);
             telemetry.addData("Distance in", distInches);
             telemetry.update();
@@ -2907,7 +2907,7 @@ public class TurretBearing extends LinearOpMode {
 
             telemetry.addData("Robot Heading", robotHeading);
             telemetry.addData("Field Bearing", fieldBearingDeg);
-            telemetry.addData("Turret Angle",  turretAngle);
+            telemetry.addData("Turret Angle", turretAngle);
             telemetry.update();
         }
     }
@@ -2982,13 +2982,13 @@ public class CoordinateMirror extends LinearOpMode {
             double redGoalX    = 0;
 
             telemetry.addLine("=== BLUE ===");
-            telemetry.addData("Shot X",    BLUE_SHOT_X);
+            telemetry.addData("Shot X", BLUE_SHOT_X);
             telemetry.addData("Collect X", BLUE_COLLECT_X);
-            telemetry.addData("Goal X",    BLUE_GOAL_X);
+            telemetry.addData("Goal X", BLUE_GOAL_X);
             telemetry.addLine("=== RED ===");
-            telemetry.addData("Shot X",    redShotX);
+            telemetry.addData("Shot X", redShotX);
             telemetry.addData("Collect X", redCollectX);
-            telemetry.addData("Goal X",    redGoalX);
+            telemetry.addData("Goal X", redGoalX);
             telemetry.update();
         }
     }
@@ -3152,8 +3152,8 @@ public class PinpointOdometry extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            telemetry.addData("X (mm)",       0.0);
-            telemetry.addData("Y (mm)",       0.0);
+            telemetry.addData("X (mm)", 0.0);
+            telemetry.addData("Y (mm)", 0.0);
             telemetry.addData("Heading (deg)", 0.0);
             telemetry.update();
         }
@@ -3238,10 +3238,10 @@ public class PositionReset extends LinearOpMode {
 
             Pose2D pos = odo.getPosition();
 
-            telemetry.addData("X (mm)",   pos.getX(DistanceUnit.MM));
-            telemetry.addData("Y (mm)",   pos.getY(DistanceUnit.MM));
-            telemetry.addData("Hdg (°)",  pos.getHeading(AngleUnit.DEGREES));
-            telemetry.addData("Press X",  "to reset to field center");
+            telemetry.addData("X (mm)", pos.getX(DistanceUnit.MM));
+            telemetry.addData("Y (mm)", pos.getY(DistanceUnit.MM));
+            telemetry.addData("Hdg (°)", pos.getHeading(AngleUnit.DEGREES));
+            telemetry.addData("Press X", "to reset to field center");
             telemetry.update();
         }
     }
@@ -3403,9 +3403,9 @@ public class StaleFrameDetect extends LinearOpMode {
 
                 double health = 0;
 
-                telemetry.addData("Stale Frames",  0);
-                telemetry.addData("Total Frames",  0);
-                telemetry.addData("Health %",      health);
+                telemetry.addData("Stale Frames", 0);
+                telemetry.addData("Total Frames", 0);
+                telemetry.addData("Health %", health);
                 telemetry.addData("Camera Status", 0 > 5 ? "FROZEN" : "OK");
             } else {
                 telemetry.addData("Status", "No result");
@@ -3514,9 +3514,9 @@ public class AprilTagTarget extends LinearOpMode {
 
             }
 
-            telemetry.addData("Alliance",   useRedAlliance ? "RED (24)" : "BLUE (20)");
-            telemetry.addData("Target",     targetFound ? "FOUND" : "NOT FOUND");
-            telemetry.addData("tx (deg)",   targetFound ? targetTx : Double.NaN);
+            telemetry.addData("Alliance", useRedAlliance ? "RED (24)" : "BLUE (20)");
+            telemetry.addData("Target", targetFound ? "FOUND" : "NOT FOUND");
+            telemetry.addData("tx (deg)", targetFound ? targetTx : Double.NaN);
             telemetry.update();
         }
 
@@ -3630,10 +3630,10 @@ public class VisionServoLoop extends LinearOpMode {
 
             onTargetStreak = onTarget ? onTargetStreak + 1 : 0;
 
-            telemetry.addData("tx (deg)",    tx);
-            telemetry.addData("Power",       correctionPower);
-            telemetry.addData("Status",      !hasTarget ? "NO TARGET" : onTarget ? "ON TARGET" : "TRACKING");
-            telemetry.addData("Streak",      onTargetStreak);
+            telemetry.addData("tx (deg)", tx);
+            telemetry.addData("Power", correctionPower);
+            telemetry.addData("Status", !hasTarget ? "NO TARGET" : onTarget ? "ON TARGET" : "TRACKING");
+            telemetry.addData("Streak", onTargetStreak);
             telemetry.update();
         }
 
@@ -3727,8 +3727,8 @@ public class PollRateCycle extends LinearOpMode {
 
             telemetry.addData("Poll Rate Hz", rates[rateIdx]);
             telemetry.addData("Latency (ms)", lastLatency);
-            telemetry.addData("Frames",       frameCount);
-            telemetry.addData("Press Y",      "to cycle rate");
+            telemetry.addData("Frames", frameCount);
+            telemetry.addData("Press Y", "to cycle rate");
             telemetry.update();
         }
 
@@ -3800,8 +3800,8 @@ public class PoseConstruction extends LinearOpMode {
         while (opModeIsActive()) {
             if (startPose != null) {
                 telemetry.addLine("--- Start Pose ---");
-                telemetry.addData("X",       startPose.getX());
-                telemetry.addData("Y",       startPose.getY());
+                telemetry.addData("X", startPose.getX());
+                telemetry.addData("Y", startPose.getY());
                 telemetry.addData("Hdg rad", startPose.getHeading());
                 telemetry.addData("Hdg deg", Math.toDegrees(startPose.getHeading()));
             }
@@ -3891,7 +3891,7 @@ public class BezierLineFollow extends LinearOpMode {
         while (opModeIsActive()) {
 
             telemetry.addData("t value", 0.0);
-            telemetry.addData("Busy",    true);
+            telemetry.addData("Busy", true);
             telemetry.update();
         }
 
@@ -3981,15 +3981,15 @@ public class TapeDetour extends LinearOpMode {
         double endY     = 36.0;
 
         telemetry.addData("Control Y", controlY);
-        telemetry.addData("End",       "(" + endX + ", " + endY + ")");
+        telemetry.addData("End", "(" + endX + ", " + endY + ")");
         telemetry.update();
 
         waitForStart();
 
         while (opModeIsActive()) {
-            telemetry.addData("t value",  0.0);
-            telemetry.addData("X pos",    0.0);
-            telemetry.addData("Y pos",    0.0);
+            telemetry.addData("t value", 0.0);
+            telemetry.addData("X pos", 0.0);
+            telemetry.addData("Y pos", 0.0);
             telemetry.update();
         }
 
@@ -4068,7 +4068,7 @@ public class ReversedPath extends LinearOpMode {
         follower = new Follower(hardwareMap);
 
         Pose humanStation = new Pose(6.689, 8.874, Math.toRadians(0));
-        Pose shotPose     = new Pose(46.5,  10.5,  Math.toRadians(180));
+        Pose shotPose     = new Pose(46.5, 10.5, Math.toRadians(180));
 
         follower.setStartingPose(humanStation);
 
@@ -4077,7 +4077,7 @@ public class ReversedPath extends LinearOpMode {
         while (opModeIsActive()) {
 
             telemetry.addData("Heading (deg)", 0.0);
-            telemetry.addData("t value",       0.0);
+            telemetry.addData("t value", 0.0);
             telemetry.update();
         }
 
@@ -4156,9 +4156,9 @@ public class DynamicPaths extends LinearOpMode {
 
         follower = new Follower(hardwareMap);
 
-        Pose posA = new Pose(64,    8.35,  Math.toRadians(180));
+        Pose posA = new Pose(64, 8.35, Math.toRadians(180));
         Pose posB = new Pose(6.689, 8.874, Math.toRadians(0));
-        Pose posC = new Pose(46.5,  10.5,  Math.toRadians(180));
+        Pose posC = new Pose(46.5, 10.5, Math.toRadians(180));
 
         follower.setStartingPose(posA);
 
@@ -4182,7 +4182,7 @@ public class DynamicPaths extends LinearOpMode {
             follower.followPath(path, true);
             while (opModeIsActive() && follower.isBusy()) {
                 follower.update();
-                telemetry.addData("Target",  "(" + target.getX() + ", " + target.getY() + ")");
+                telemetry.addData("Target", "(" + target.getX() + ", " + target.getY() + ")");
                 telemetry.addData("t value", follower.getCurrentTValue());
                 telemetry.update();
             }
@@ -4262,10 +4262,10 @@ public class UnitConversion extends LinearOpMode {
             double centerMm    = inchesToMm(72);
             double backToInch  = mmToInches(fieldMm);
 
-            telemetry.addData("Field (in)",  FIELD_INCHES);
-            telemetry.addData("Field (mm)",  fieldMm);
+            telemetry.addData("Field (in)", FIELD_INCHES);
+            telemetry.addData("Field (mm)", fieldMm);
             telemetry.addData("Center (mm)", centerMm);
-            telemetry.addData("Round-trip",  backToInch);
+            telemetry.addData("Round-trip", backToInch);
             telemetry.addData("1 in = ? mm", inchesToMm(1.0));
             telemetry.update();
         }
@@ -4347,9 +4347,9 @@ public class DotProductDemo extends LinearOpMode {
             double cosAngle = (magDrive > 0.01) ? dotProduct / (magDrive * magRef) : 0;
 
             telemetry.addData("Drive Vector", "(%.2f, %.2f)", driveX, driveY);
-            telemetry.addData("Dot Product",  dotProduct);
-            telemetry.addData("Cos Angle",    cosAngle);
-            telemetry.addData("Alignment",    cosAngle > 0 ? "aligned" : cosAngle < 0 ? "opposed" : "perpendicular");
+            telemetry.addData("Dot Product", dotProduct);
+            telemetry.addData("Cos Angle", cosAngle);
+            telemetry.addData("Alignment", cosAngle > 0 ? "aligned" : cosAngle < 0 ? "opposed" : "perpendicular");
             telemetry.update();
         }
     }
@@ -4440,9 +4440,9 @@ public class LerpRamp extends LinearOpMode {
             driveMotor.setPower(power);
 
             telemetry.addData("Elapsed (s)", elapsed);
-            telemetry.addData("t",           t);
-            telemetry.addData("Power",       power);
-            telemetry.addData("Ramp done",   t >= 1.0 ? "YES" : "NO");
+            telemetry.addData("t", t);
+            telemetry.addData("Power", power);
+            telemetry.addData("Ramp done", t >= 1.0 ? "YES" : "NO");
             telemetry.update();
 
             if (t >= 1.0 && elapsed > RAMP_DURATION + 1.0) break;
@@ -4631,9 +4631,9 @@ public class VelocityMagnitude extends LinearOpMode {
 
             boolean robotSpeedOk = false;
 
-            telemetry.addData("Speed (mm/s)",  speed);
-            telemetry.addData("Threshold",     SPEED_THRESHOLD);
-            telemetry.addData("Status",        robotSpeedOk ? "SPEED OK" : "TOO FAST TO SHOOT");
+            telemetry.addData("Speed (mm/s)", speed);
+            telemetry.addData("Threshold", SPEED_THRESHOLD);
+            telemetry.addData("Status", robotSpeedOk ? "SPEED OK" : "TOO FAST TO SHOOT");
             telemetry.update();
         }
     }
