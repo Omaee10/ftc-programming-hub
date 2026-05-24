@@ -53,15 +53,8 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 @TeleOp(name = "Basic TeleOp", group = "Challenge 1")
 public class BasicTeleOp extends LinearOpMode {
 
-    // TODO 1: Declare a DcMotor variable named "leftMotor"
-
-
     @Override
     public void runOpMode() {
-
-        // TODO 2: Initialize leftMotor from hardwareMap
-        //   Hint: hardwareMap.get(DcMotor.class, "left_motor")
-
 
         telemetry.addData("Status", "Initialized — waiting for start");
         telemetry.update();
@@ -70,11 +63,6 @@ public class BasicTeleOp extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 3: Read gamepad1.left_stick_y, negate it, and call leftMotor.setPower()
-            //   Hint: double power = -gamepad1.left_stick_y;
-
-
-            // TODO 4: Add a telemetry line showing the current motor power
             telemetry.update();
         }
     }
@@ -142,32 +130,17 @@ public class EncoderTarget extends LinearOpMode {
     public void runOpMode() {
         driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
 
-        // TODO 1: Reset the encoder to zero
-        //   driveMotor.setMode(DcMotor.RunMode.???);
-
-        // TODO 2: Switch to RUN_TO_POSITION mode
-        //   driveMotor.setMode(DcMotor.RunMode.???);
-
         telemetry.addData("Status", "Ready");
         telemetry.update();
 
         waitForStart();
 
-        // TODO 3: Set the target position
-        //   driveMotor.setTargetPosition(???);
-
-        // TODO 4: Apply motor power to start moving
-        //   driveMotor.setPower(???);
-
-        // TODO 5: Replace the condition below — add driveMotor.isBusy() &&
         while (opModeIsActive()) {
-            // TODO 5b: Update condition above to: while (driveMotor.isBusy() && opModeIsActive())
             telemetry.addData("Current Ticks", driveMotor.getCurrentPosition());
             telemetry.addData("Target Ticks",  driveMotor.getTargetPosition());
             telemetry.update();
         }
 
-        // TODO 6: Stop the motor
         driveMotor.setPower(0);
 
         telemetry.addData("Final Position", driveMotor.getCurrentPosition());
@@ -233,15 +206,14 @@ public class TimerDrive extends LinearOpMode {
     private DcMotor leftMotor;
     private DcMotor rightMotor;
 
-    private static final double DRIVE_SPEED    = 0.5;  // 50% power
-    private static final double DRIVE_DURATION = 2.0;  // seconds
+    private static final double DRIVE_SPEED    = 0.5;
+    private static final double DRIVE_DURATION = 2.0;
 
     @Override
     public void runOpMode() {
         leftMotor  = hardwareMap.get(DcMotor.class, "left_motor");
         rightMotor = hardwareMap.get(DcMotor.class, "right_motor");
 
-        // Left motor is reversed so both motors produce forward motion
         leftMotor.setDirection(DcMotorSimple.Direction.REVERSE);
 
         telemetry.addData("Status", "Ready");
@@ -249,22 +221,12 @@ public class TimerDrive extends LinearOpMode {
 
         waitForStart();
 
-        // TODO 1: Create an ElapsedTime instance and reset it
-        //   ElapsedTime timer = new ElapsedTime();
-
-        // TODO 2: Set both motors to DRIVE_SPEED to start moving forward
-        //   leftMotor.setPower(???);
-        //   rightMotor.setPower(???);
-
-        // TODO 3: Loop while the timer has not yet reached DRIVE_DURATION
-        //   AND while the OpMode is still active (safety check)
-        while (/* timer.seconds() < ??? && */ opModeIsActive()) {
-            telemetry.addData("Elapsed", /* timer.seconds() */ 0.0);
+        while (opModeIsActive()) {
+            telemetry.addData("Elapsed", 0.0);
             telemetry.addData("Target",  DRIVE_DURATION);
             telemetry.update();
         }
 
-        // TODO 4: Stop both motors
         leftMotor.setPower(0);
         rightMotor.setPower(0);
 
@@ -334,31 +296,10 @@ public class RRSplineAuto extends LinearOpMode {
     @Override
     public void runOpMode() throws InterruptedException {
 
-        // TODO 1: Create a MecanumDrive starting at the origin (0, 0, heading 0)
-        //   MecanumDrive drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
-
         telemetry.addData("Status", "Initialized");
         telemetry.update();
 
         waitForStart();
-
-        // TODO 2: Build the trajectory using drive.actionBuilder(startPose)
-        //
-        //   Action trajectory = drive.actionBuilder(new Pose2d(0, 0, 0))
-        //
-        //       // Segment 1: spline to (30, 30) with end tangent 90°
-        //       .splineTo(new Vector2d(???, ???), Math.PI / 2)
-        //
-        //       // Segment 2: pause for mechanism
-        //       .waitSeconds(???)
-        //
-        //       // Segment 3: drive back to x = 0
-        //       .lineToX(???)
-        //
-        //       .build();
-
-        // TODO 3: Run the trajectory (blocking — waits for completion)
-        //   Actions.runBlocking(trajectory);
 
         telemetry.addData("Status", "Trajectory complete!");
         telemetry.update();
@@ -427,63 +368,20 @@ public class PedroChainAuto extends LinearOpMode {
     @Override
     public void runOpMode() throws InterruptedException {
 
-        // TODO 1: Create a Follower instance
-        //   follower = new Follower(hardwareMap);
-
-        // Define start and key poses
         Pose startPose = new Pose(0, 0, 0);
-
-        // TODO 2: Set the follower's starting pose
-        //   follower.setStartingPose(startPose);
-
-        // TODO 3: Build the PathChain
-        //
-        //   PathChain chain = follower.pathBuilder()
-        //
-        //       // Leg 1: BezierCurve from (0,0) curving via (10,15) to (24,0)
-        //       .addPath(new BezierCurve(
-        //           new Point(???, ???, Point.CARTESIAN),   // start
-        //           new Point(???, ???, Point.CARTESIAN),   // control
-        //           new Point(???, ???, Point.CARTESIAN)    // end
-        //       ))
-        //       .setLinearHeadingInterpolation(???, Math.PI / 2) // 0° → 90°
-        //
-        //       // Leg 2: BezierLine from (24,0) straight to (48,0)
-        //       .addPath(new BezierLine(
-        //           new Point(???, ???, Point.CARTESIAN),
-        //           new Point(???, ???, Point.CARTESIAN)
-        //       ))
-        //       .setConstantHeadingInterpolation(Math.PI / 2)   // hold 90°
-        //
-        //       // Leg 3: BezierCurve from (48,0) curving via (36,-15) back to (0,0)
-        //       .addPath(new BezierCurve(
-        //           new Point(???, ???, Point.CARTESIAN),
-        //           new Point(???, ???, Point.CARTESIAN),
-        //           new Point(???, ???, Point.CARTESIAN)
-        //       ))
-        //       .setLinearHeadingInterpolation(Math.PI / 2, ???) // 90° → 0°
-        //
-        //       .build();
 
         telemetry.addData("Status", "Path built, waiting for start");
         telemetry.update();
 
         waitForStart();
 
-        // TODO 4: Start following the chain (true = hold end position)
-        //   follower.followPath(chain, true);
-
-        // TODO 5: Update the follower in a loop until the path is complete
         while (opModeIsActive()) {
-            // follower.update();
 
-            telemetry.addData("Path Segment", /* follower.getCurrentPathNumber() */ 0);
-            telemetry.addData("t value",      /* follower.getCurrentTValue() */ 0.0);
-            telemetry.addData("At End",       /* follower.atParametricEnd() */ false);
+            telemetry.addData("Path Segment", 0);
+            telemetry.addData("t value",      0.0);
+            telemetry.addData("At End",       false);
             telemetry.update();
 
-            // TODO 6: Break when the follower reaches the end of the chain
-            // if (follower.atParametricEnd()) break;
         }
 
         telemetry.addData("Status", "Chain complete!");
@@ -544,21 +442,8 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 @TeleOp(name = "Dual Motor TeleOp", group = "Challenge 6")
 public class DualMotorTeleOp extends LinearOpMode {
 
-    // TODO 1: Declare two DcMotor fields: leftDrive and rightDrive
-
-
     @Override
     public void runOpMode() {
-
-        // TODO 2: Initialize leftDrive ("left_drive") and rightDrive ("right_drive")
-        //         from hardwareMap
-
-
-        // TODO 3: Reverse leftDrive so both motors drive the robot forward
-        //   leftDrive.setDirection(DcMotorSimple.Direction.REVERSE);
-
-        // TODO 4: Set BRAKE zero-power behavior on both motors
-        //   .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE)
 
         telemetry.addData("Status", "Ready — use both sticks");
         telemetry.update();
@@ -567,11 +452,8 @@ public class DualMotorTeleOp extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 5: Read gamepad1 left_stick_y and right_stick_y, negate both
-            double leftPower  = 0; // replace with -gamepad1.left_stick_y
-            double rightPower = 0; // replace with -gamepad1.right_stick_y
-
-            // TODO 6: Apply powers to leftDrive and rightDrive
+            double leftPower  = 0;
+            double rightPower = 0;
 
             telemetry.addData("Left  Power", leftPower);
             telemetry.addData("Right Power", rightPower);
@@ -631,14 +513,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 @TeleOp(name = "Servo Control", group = "Challenge 7")
 public class ServoControl extends LinearOpMode {
 
-    // TODO 1: Declare a Servo field named "blockerServo"
-
-
     @Override
     public void runOpMode() {
-
-        // TODO 2: Initialize blockerServo from hardwareMap
-        //   blockerServo = hardwareMap.get(Servo.class, "blocker_servo");
 
         telemetry.addData("Status", "A=open  B=close  X=mid");
         telemetry.update();
@@ -647,23 +523,16 @@ public class ServoControl extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 3: If A is pressed, move servo to 0.0 (open)
             if (gamepad1.a) {
-                // blockerServo.setPosition(???);
             }
 
-            // TODO 4: If B is pressed, move servo to 1.0 (closed)
             if (gamepad1.b) {
-                // blockerServo.setPosition(???);
             }
 
-            // TODO 5: If X is pressed, move servo to 0.5 (midpoint)
             if (gamepad1.x) {
-                // blockerServo.setPosition(???);
             }
 
-            // TODO 6: Display the servo's current position
-            telemetry.addData("Position", 0.0); // replace with blockerServo.getPosition()
+            telemetry.addData("Position", 0.0);
             telemetry.update();
         }
     }
@@ -720,14 +589,8 @@ import com.qualcomm.robotcore.hardware.CRServo;
 @TeleOp(name = "CRServo Intake", group = "Challenge 8")
 public class CRServoIntake extends LinearOpMode {
 
-    // TODO 1: Declare a CRServo field named "intakeServo"
-
-
     @Override
     public void runOpMode() {
-
-        // TODO 2: Initialize intakeServo from hardwareMap
-        //   intakeServo = hardwareMap.get(CRServo.class, "intake_servo");
 
         telemetry.addData("Status", "RT=intake  LT=reverse");
         telemetry.update();
@@ -737,15 +600,6 @@ public class CRServoIntake extends LinearOpMode {
         while (opModeIsActive()) {
 
             double intakePower = 0.0;
-
-            // TODO 3: If right trigger > 0.05, set intakePower to the trigger value
-            //         (forward intake)
-
-            // TODO 4: Else if left trigger > 0.05, set intakePower to NEGATIVE trigger
-            //         (reverse / unjam)
-
-            // TODO 5: Apply intakePower to intakeServo
-            //   intakeServo.setPower(intakePower);
 
             telemetry.addData("Intake Power", intakePower);
             telemetry.update();
@@ -819,31 +673,13 @@ public class TelemetryDashboard extends LinearOpMode {
 
         driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
 
-        // TODO 1: Create an ElapsedTime and reset it after waitForStart()
-
-        // TODO 2: Declare an int loopCount = 0 before the main loop
-
         waitForStart();
 
-        // Reset timer here so elapsed time starts from START, not init
-        // timer.reset();
-
         while (opModeIsActive()) {
-
-            // TODO 3: Increment loopCount each iteration
 
             double motorPower = -gamepad1.left_stick_y;
             driveMotor.setPower(motorPower);
 
-            // TODO 4: Build the telemetry display using addLine() and addData()
-            //   Section 1 header: "RUNTIME"
-            //   Data: Loop Count, Elapsed (timer.seconds())
-            //   Section 2 header: "MOTOR"
-            //   Data: Power, Encoder (driveMotor.getCurrentPosition())
-            //   Section 3 header: "STATUS"
-            //   Data: "Running"
-
-            // TODO 5: Call telemetry.update() once at the end of the loop
         }
     }
 }`,
@@ -913,9 +749,6 @@ public class ButtonDebounce extends LinearOpMode {
 
         intakeServo = hardwareMap.get(CRServo.class, "intake_servo");
 
-        // TODO 1: Declare boolean lastAButton = false
-        // TODO 2: Declare boolean intakeRunning = false
-
         telemetry.addData("Status", "Press A to toggle intake");
         telemetry.update();
 
@@ -923,18 +756,7 @@ public class ButtonDebounce extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 3: Detect rising edge — button just transitioned false→true
-            //   if (gamepad1.a && !lastAButton) {
-            //       intakeRunning = !intakeRunning;
-            //   }
-
-            // TODO 4: Update lastAButton to current state
-            //   lastAButton = gamepad1.a;
-
-            // TODO 5: Apply intake power based on intakeRunning flag
-            //   intakeServo.setPower(intakeRunning ? 1.0 : 0.0);
-
-            telemetry.addData("Intake Running", false); // replace with intakeRunning
+            telemetry.addData("Intake Running", false);
             telemetry.addData("A Button",       gamepad1.a);
             telemetry.update();
         }
@@ -1013,28 +835,17 @@ public class ElapsedTimeDemo extends LinearOpMode {
 
         waitForStart();
 
-        // TODO 1: Create an ElapsedTime and reset it
-        //   ElapsedTime timer = new ElapsedTime();
-        //   timer.reset();
-
-        // TODO 2: Wait 1 second — loop while timer.seconds() < 1.0 and opModeIsActive()
-        //   Print the elapsed time inside the loop
-        while (/* replace condition */ opModeIsActive()) {
-            telemetry.addData("Waiting", 0.0); // replace with timer.seconds()
+        while (opModeIsActive()) {
+            telemetry.addData("Waiting", 0.0);
             telemetry.update();
         }
 
-        // TODO 3: Reset the timer for the next phase
-        //   timer.reset();
-
-        // TODO 4: Drive at 0.6 power for 0.5 seconds
-        driveMotor.setPower(0); // replace 0 with 0.6 when timer runs
-        while (/* replace condition */ opModeIsActive()) {
-            telemetry.addData("Driving", 0.0); // replace with timer.seconds()
+        driveMotor.setPower(0);
+        while (opModeIsActive()) {
+            telemetry.addData("Driving", 0.0);
             telemetry.update();
         }
 
-        // TODO 5: Stop the motor
         driveMotor.setPower(0);
         telemetry.addData("Status", "Done");
         telemetry.update();
@@ -1100,9 +911,6 @@ public class ZeroPowerBehaviorDemo extends LinearOpMode {
 
         driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
 
-        // TODO 1: Set initial behavior to BRAKE
-        //   driveMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
         boolean brakeMode   = true;
         boolean lastXButton = false;
 
@@ -1113,20 +921,9 @@ public class ZeroPowerBehaviorDemo extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 2: Detect rising edge on X button
-            //   if (gamepad1.x && !lastXButton) {
-            //       brakeMode = !brakeMode;
-            //       // TODO 3: Apply the new behavior based on brakeMode
-            //       //   driveMotor.setZeroPowerBehavior(brakeMode ?
-            //       //       DcMotor.ZeroPowerBehavior.BRAKE :
-            //       //       DcMotor.ZeroPowerBehavior.FLOAT);
-            //   }
-            //   lastXButton = gamepad1.x;
-
             double power = -gamepad1.left_stick_y;
             driveMotor.setPower(power);
 
-            // TODO 4: Display mode and power in telemetry
             telemetry.addData("Mode",  brakeMode ? "BRAKE" : "FLOAT");
             telemetry.addData("Power", power);
             telemetry.update();
@@ -1192,28 +989,9 @@ public class AllianceSelect extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        // TODO 1: Declare boolean isRedAlliance = true (default RED)
-
-        // TODO 2: Write the init loop — runs until isStarted() OR isStopRequested()
-        //   while (!isStarted() && !isStopRequested()) {
-
-            // TODO 3: B button → RED, X button → BLUE
-            //   if (gamepad1.b) isRedAlliance = true;
-            //   else if (gamepad1.x) isRedAlliance = false;
-
-            // TODO 4: Display selection and target tag ID
-            //   int targetTag = isRedAlliance ? 24 : 20;
-            //   telemetry.addData("Alliance",   isRedAlliance ? "RED" : "BLUE");
-            //   telemetry.addData("Target Tag", targetTag);
-            //   telemetry.addData(">>> Press START when ready <<<", "");
-            //   telemetry.update();
-
-        //   } // end init loop
-
         waitForStart();
 
-        // TODO 5: After start, log the final selection
-        telemetry.addData("Running as", "TBD"); // replace with alliance string
+        telemetry.addData("Running as", "TBD");
         telemetry.update();
         sleep(2000);
     }
@@ -1286,30 +1064,15 @@ public class EncoderDistance extends LinearOpMode {
 
         waitForStart();
 
-        // TODO 1: Reset the encoder
         driveMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
-        // TODO 2: Set the target position to TARGET_TICKS
-        // driveMotor.setTargetPosition(???);
-
-        // TODO 3: Switch to RUN_TO_POSITION mode
-        // driveMotor.setMode(DcMotor.RunMode.???);
-
-        // TODO 4: Apply motor power to start movement
-        // driveMotor.setPower(???);
-
-        // TODO 5: Wait until motor reaches target (isBusy() check)
-        while (opModeIsActive()) { // add isBusy() to condition
+        while (opModeIsActive()) {
             telemetry.addData("Current", driveMotor.getCurrentPosition());
             telemetry.addData("Target",  TARGET_TICKS);
             telemetry.update();
         }
 
-        // TODO 6: Stop motor
         driveMotor.setPower(0);
-
-        // TODO 7: Switch back to RUN_USING_ENCODER
-        // driveMotor.setMode(DcMotor.RunMode.???);
 
         telemetry.addData("Final Position", driveMotor.getCurrentPosition());
         telemetry.update();
@@ -1381,15 +1144,6 @@ public class BulkCacheDemo extends LinearOpMode {
 
         driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
 
-        // TODO 1: Get all LynxModule hubs
-        //   List<LynxModule> hubs = hardwareMap.getAll(LynxModule.class);
-
-        // TODO 2: Set MANUAL bulk caching on every hub
-        //   for (LynxModule hub : hubs) {
-        //       hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
-        //   }
-
-        // Hz measurement variables
         ElapsedTime loopTimer  = new ElapsedTime();
         int   loopsThisSecond  = 0;
         double loopsPerSecond  = 0;
@@ -1399,15 +1153,10 @@ public class BulkCacheDemo extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 3: Clear bulk cache at the TOP of the loop (before any reads)
-            //   for (LynxModule hub : hubs) hub.clearBulkCache();
-
-            // Normal reads — these all share the single bulk read from above
             double power   = -gamepad1.left_stick_y;
             int    encoder = driveMotor.getCurrentPosition();
             driveMotor.setPower(power);
 
-            // TODO 4: Count loops and update Hz once per second
             loopsThisSecond++;
             if (loopTimer.seconds() >= 1.0) {
                 loopsPerSecond   = loopsThisSecond / loopTimer.seconds();
@@ -1480,38 +1229,28 @@ public class TouchSensorHoming extends LinearOpMode {
     private DcMotor  turretMotor;
     private TouchSensor touchSensor;
 
-    private static final double HOMING_POWER = -0.2; // slow toward limit
+    private static final double HOMING_POWER = -0.2;
 
     @Override
     public void runOpMode() {
-
-        // TODO 1: Initialize turretMotor from hardwareMap ("turret_motor")
-        // TODO 2: Initialize touchSensor from hardwareMap ("touch_sensor")
 
         telemetry.addData("Status", "Press START to home turret");
         telemetry.update();
 
         waitForStart();
 
-        // TODO 3: Apply HOMING_POWER to the turret motor
-        //   turretMotor.setPower(HOMING_POWER);
-
-        // TODO 4: Loop until the touch sensor is pressed (AND opModeIsActive)
         while (opModeIsActive()) {
             telemetry.addData("Sensor", touchSensor.isPressed() ? "PRESSED" : "open");
             telemetry.addData("Encoder", turretMotor.getCurrentPosition());
             telemetry.update();
 
-            if (/* touchSensor.isPressed() */ false) break;
+            if (false) break;
         }
 
-        // TODO 5: Stop the motor immediately
         turretMotor.setPower(0);
 
-        // TODO 6: Reset encoder to zero
         turretMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
-        // TODO 7: Switch back to RUN_USING_ENCODER
         turretMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         telemetry.addData("Homing", "Complete — encoder zeroed");
@@ -1577,41 +1316,27 @@ import org.firstinspires.ftc.teamcode.MecanumDrive;
 @TeleOp(name = "Mecanum Drive", group = "Challenge 17")
 public class MecanumDrive extends LinearOpMode {
 
-    // TODO 1: Declare four DcMotor fields: frontLeft, frontRight, backLeft, backRight
-
     @Override
     public void runOpMode() {
-
-        // TODO 2: Initialize all four motors from hardwareMap
-
-        // TODO 3: Reverse the two left-side motors
-        //   frontLeft.setDirection(DcMotorSimple.Direction.REVERSE);
-        //   backLeft.setDirection(DcMotorSimple.Direction.REVERSE);
 
         waitForStart();
 
         while (opModeIsActive()) {
 
-            // TODO 4: Read driver inputs (negate left_stick_y for forward)
             double drive   = -gamepad1.left_stick_y;
             double strafe  =  gamepad1.left_stick_x;
             double rotate  = -gamepad1.right_stick_x;
 
-            // TODO 5: Apply the mecanum formula to compute raw wheel powers
             double fl = drive + strafe + rotate;
-            double fr = 0; // replace with correct formula
-            double bl = 0; // replace with correct formula
-            double br = 0; // replace with correct formula
+            double fr = 0;
+            double bl = 0;
+            double br = 0;
 
-            // TODO 6: Normalize — divide all by max if max > 1.0
             double max = Math.max(Math.abs(fl),
                          Math.max(Math.abs(fr),
                          Math.max(Math.abs(bl), Math.abs(br))));
             if (max > 1.0) {
-                // divide all four by max
             }
-
-            // TODO 7: Apply powers to motors
 
             telemetry.addData("FL", fl); telemetry.addData("FR", fr);
             telemetry.addData("BL", bl); telemetry.addData("BR", br);
@@ -1699,7 +1424,6 @@ public class NormalizeDemo extends LinearOpMode {
             double rawBL = drive - strafe + rotate;
             double rawBR = drive + strafe - rotate;
 
-            // TODO: Call normalize() and unpack the result
             double[] norm = normalize(rawFL, rawFR, rawBL, rawBR);
             frontLeft.setPower(norm[0]);
             frontRight.setPower(norm[1]);
@@ -1712,12 +1436,8 @@ public class NormalizeDemo extends LinearOpMode {
         }
     }
 
-    // TODO: Implement the normalize() helper method here
     private double[] normalize(double fl, double fr, double bl, double br) {
-        // Step 1: find max absolute value
-        // Step 2: if max > 1.0, divide all four by max
-        // Step 3: return new double[]{fl, fr, bl, br}
-        return new double[]{fl, fr, bl, br}; // placeholder — fix this
+        return new double[]{fl, fr, bl, br};
     }
 }`,
     hints: [
@@ -1784,7 +1504,7 @@ public class FieldRelativeDrive extends LinearOpMode {
         frontLeft.setDirection(DcMotorSimple.Direction.REVERSE);
         backLeft.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        double simulatedHeading = 0.0; // radians — replaces IMU in this demo
+        double simulatedHeading = 0.0;
 
         waitForStart();
 
@@ -1794,22 +1514,16 @@ public class FieldRelativeDrive extends LinearOpMode {
             double strafe =  gamepad1.left_stick_x;
             double rotate = -gamepad1.right_stick_x;
 
-            // Simulate heading rotation (right stick X tweaks heading)
             simulatedHeading += rotate * 0.01;
 
-            // TODO 1: Apply the rotation matrix to drive and strafe
-            //   double rotDrive  = drive  * Math.cos(-simulatedHeading) - strafe * Math.sin(-simulatedHeading);
-            //   double rotStrafe = drive  * Math.sin(-simulatedHeading) + strafe * Math.cos(-simulatedHeading);
-            double rotDrive  = drive;  // replace with rotated value
-            double rotStrafe = strafe; // replace with rotated value
+            double rotDrive  = drive;
+            double rotStrafe = strafe;
 
-            // TODO 2: Compute mecanum powers using rotDrive and rotStrafe
             double fl = rotDrive + rotStrafe + rotate;
-            double fr = 0; // complete the formula
+            double fr = 0;
             double bl = 0;
             double br = 0;
 
-            // TODO 3: Normalize and apply
             double max = Math.max(Math.abs(fl),Math.max(Math.abs(fr),Math.max(Math.abs(bl),Math.abs(br))));
             if (max > 1.0) { fl/=max; fr/=max; bl/=max; br/=max; }
 
@@ -1882,41 +1596,31 @@ public class StrafeTest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        // TODO 1: Initialize all four motors (names: front_left, front_right, back_left, back_right)
-        // TODO 2: Reverse frontLeft and backLeft
 
         waitForStart();
 
         ElapsedTime timer = new ElapsedTime();
 
-        // TODO 3: Strafe right for 1 second
-        //   drive=0, strafe=+0.5, rotate=0
-        //   Apply to all four wheels using the mecanum formula
         timer.reset();
         while (timer.seconds() < 1.0 && opModeIsActive()) {
-            // set motor powers here
             telemetry.addData("Phase", "Strafe RIGHT");
             telemetry.addData("Time",  timer.seconds());
             telemetry.update();
         }
 
-        // TODO 4: Strafe left for 1 second (strafe = -0.5)
         timer.reset();
         while (timer.seconds() < 1.0 && opModeIsActive()) {
-            // set motor powers here
             telemetry.addData("Phase", "Strafe LEFT");
             telemetry.addData("Time",  timer.seconds());
             telemetry.update();
         }
 
-        // TODO 5: Stop all motors
         telemetry.addData("Status", "Complete");
         telemetry.update();
         sleep(1000);
     }
 
     private void setMecanumPowers(double drive, double strafe, double rotate) {
-        // TODO 6: Implement — compute fl, fr, bl, br and call setPower on each
     }
 }`,
     hints: [
@@ -1994,19 +1698,14 @@ public class MagnitudeBraking extends LinearOpMode {
             double strafe =  gamepad1.left_stick_x;
             double rotate = -gamepad1.right_stick_x;
 
-            // TODO 1: Compute input magnitude (drive and strafe only, not rotate)
-            double magnitude = 0; // replace with Math.sqrt(drive*drive + strafe*strafe)
+            double magnitude = 0;
 
-            // TODO 2: Apply deadband — zero drive and strafe if magnitude < DEADBAND
-            boolean active = false; // replace with magnitude >= DEADBAND
+            boolean active = false;
 
-            // TODO 3: Compute mecanum wheel powers only when active
             double fl = 0, fr = 0, bl = 0, br = 0;
             if (active) {
-                // apply mecanum formula here
             }
 
-            // TODO 4: Apply powers (all zero when in deadband)
             frontLeft.setPower(fl); frontRight.setPower(fr);
             backLeft.setPower(bl);  backRight.setPower(br);
 
@@ -2073,18 +1772,11 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 @TeleOp(name = "Velocity Control", group = "Challenge 22")
 public class VelocityControl extends LinearOpMode {
 
-    // TODO 1: Declare a DcMotorEx (not DcMotor) named "shooterMotor"
     private static final double TARGET_TPS    = 1400.0;
     private static final double OPEN_LOOP_PWR = 0.8;
 
     @Override
     public void runOpMode() {
-
-        // TODO 2: Initialize shooterMotor as DcMotorEx.class from hardwareMap
-        //   shooterMotor = hardwareMap.get(DcMotorEx.class, "shooter_motor");
-
-        // TODO 3: Set RUN_USING_ENCODER mode (required for velocity control)
-        //   shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         boolean velocityMode = true;
         boolean lastAButton  = false;
@@ -2093,20 +1785,14 @@ public class VelocityControl extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // Toggle mode with A button
             if (gamepad1.a && !lastAButton) velocityMode = !velocityMode;
             lastAButton = gamepad1.a;
 
             if (velocityMode) {
-                // TODO 4: Command closed-loop velocity
-                //   shooterMotor.setVelocity(TARGET_TPS);
             } else {
-                // TODO 5: Open-loop power for comparison
-                //   shooterMotor.setPower(OPEN_LOOP_PWR);
             }
 
-            // TODO 6: Read and display actual velocity
-            double actual = 0; // replace with shooterMotor.getVelocity()
+            double actual = 0;
 
             telemetry.addData("Mode",    velocityMode ? "VELOCITY" : "OPEN LOOP");
             telemetry.addData("Target",  TARGET_TPS);
@@ -2189,7 +1875,6 @@ public class PController extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // Dpad adjusts target position (debounced)
             if (gamepad1.dpad_up && !lastDpadUp)   targetTicks += TICK_STEP;
             if (gamepad1.dpad_down && !lastDpadDown) targetTicks -= TICK_STEP;
             lastDpadUp   = gamepad1.dpad_up;
@@ -2197,17 +1882,11 @@ public class PController extends LinearOpMode {
 
             int current = turretMotor.getCurrentPosition();
 
-            // TODO 1: Compute error
-            int error = 0; // replace: targetTicks - current
+            int error = 0;
 
-            // TODO 2: Compute raw proportional power
-            double rawPower = 0; // replace: Kp * error
+            double rawPower = 0;
 
-            // TODO 3: Clamp power to [-MAX_POWER, +MAX_POWER]
-            double clampedPower = 0; // replace with Math.max/Math.min clamp
-
-            // TODO 4: Apply clamped power to turretMotor
-            // turretMotor.setPower(clampedPower);
+            double clampedPower = 0;
 
             telemetry.addData("Target",  targetTicks);
             telemetry.addData("Current", current);
@@ -2273,8 +1952,8 @@ public class TicksToDegrees extends LinearOpMode {
 
     private DcMotor turretMotor;
 
-    private static final double TICKS_PER_REV = 537.7; // goBILDA 19.2:1
-    private static final double GEAR_RATIO    = 2.0;   // external 2:1 reduction
+    private static final double TICKS_PER_REV = 537.7;
+    private static final double GEAR_RATIO    = 2.0;
 
     @Override
     public void runOpMode() {
@@ -2287,13 +1966,11 @@ public class TicksToDegrees extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // Left stick X manually drives the turret for testing
             turretMotor.setPower(gamepad1.left_stick_x * 0.4);
 
             int ticks = turretMotor.getCurrentPosition();
 
-            // TODO 1: Call ticksToDegrees and store in a variable
-            double degrees = 0; // replace with ticksToDegrees(ticks)
+            double degrees = 0;
 
             telemetry.addData("Ticks",   ticks);
             telemetry.addData("Degrees", degrees);
@@ -2301,16 +1978,12 @@ public class TicksToDegrees extends LinearOpMode {
         }
     }
 
-    // TODO 2: Implement this helper method
     private double ticksToDegrees(int ticks) {
-        // Formula: (ticks / (TICKS_PER_REV * GEAR_RATIO)) * 360.0
-        return 0; // replace with correct calculation
+        return 0;
     }
 
-    // BONUS: Implement the inverse
     private int degreesToTicks(double degrees) {
-        // Formula: (degrees / 360.0) * TICKS_PER_REV * GEAR_RATIO
-        return 0; // replace with correct calculation
+        return 0;
     }
 }`,
     hints: [
@@ -2373,7 +2046,6 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 @TeleOp(name = "TPS Calibration", group = "Challenge 25")
 public class TPSCalibration extends LinearOpMode {
 
-    // Calibration table — parallel arrays
     private static final double[] DIST_TABLE = {30.0, 40.0, 50.0, 60.0};
     private static final double[] TPS_TABLE  = {1200.0, 1350.0, 1500.0, 1650.0};
 
@@ -2381,16 +2053,14 @@ public class TPSCalibration extends LinearOpMode {
     public void runOpMode() {
         waitForStart();
 
-        double simulatedDistance = 30.0; // inches — adjust with triggers
+        double simulatedDistance = 30.0;
 
         while (opModeIsActive()) {
 
-            // Simulate distance input with triggers
             simulatedDistance += gamepad1.right_trigger * 0.1;
             simulatedDistance -= gamepad1.left_trigger  * 0.1;
             simulatedDistance = Math.max(20, Math.min(70, simulatedDistance));
 
-            // TODO: Call your interpolation method
             double targetTPS = interpolateTPS(simulatedDistance);
 
             telemetry.addData("Distance (in)", simulatedDistance);
@@ -2399,23 +2069,18 @@ public class TPSCalibration extends LinearOpMode {
         }
     }
 
-    // TODO: Implement linear interpolation with clamping
     private double interpolateTPS(double distanceInches) {
-        // Step 1: Clamp below minimum
         if (distanceInches <= DIST_TABLE[0]) return TPS_TABLE[0];
 
-        // Step 2: Clamp above maximum
         if (distanceInches >= DIST_TABLE[DIST_TABLE.length - 1]) return TPS_TABLE[TPS_TABLE.length - 1];
 
-        // Step 3: Find bracketing pair and interpolate
         for (int i = 0; i < DIST_TABLE.length - 1; i++) {
             if (distanceInches >= DIST_TABLE[i] && distanceInches <= DIST_TABLE[i + 1]) {
-                // TODO: compute t, interpolate, return result
-                double t = 0; // (distanceInches - DIST_TABLE[i]) / (DIST_TABLE[i+1] - DIST_TABLE[i])
-                return 0;     // DIST_TABLE[i] + t * (TPS_TABLE[i+1] - TPS_TABLE[i]) -- fix types
+                double t = 0;
+                return 0;
             }
         }
-        return TPS_TABLE[0]; // fallback
+        return TPS_TABLE[0];
     }
 }`,
     hints: [
@@ -2486,7 +2151,6 @@ public class PIDFVelocity extends LinearOpMode {
         shooterMotor = hardwareMap.get(DcMotorEx.class, "shooter_motor");
         shooterMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-        // PIDF state
         double integral   = 0;
         double lastError  = 0;
         ElapsedTime loopTimer = new ElapsedTime();
@@ -2507,20 +2171,14 @@ public class PIDFVelocity extends LinearOpMode {
             double currentTPS = shooterMotor.getVelocity();
             double error      = running ? (TARGET_TPS - currentTPS) : 0;
 
-            // TODO 1: Accumulate integral with anti-windup clamp
             integral += error * dt;
-            // integral = Math.max(-WINDUP, Math.min(WINDUP, integral));
 
-            // TODO 2: Compute derivative term
-            double derivative = 0; // (error - lastError) / dt
+            double derivative = 0;
 
-            // TODO 3: Compute feedforward
-            double feedforward = 0; // Kf * (running ? TARGET_TPS : 0)
+            double feedforward = 0;
 
-            // TODO 4: Sum all PIDF terms
-            double output = 0; // Kp*error + Ki*integral + Kd*derivative + feedforward
+            double output = 0;
 
-            // TODO 5: Clamp output to [0, 1] for a one-direction flywheel
             output = Math.max(0, Math.min(1, output));
 
             if (!running) output = 0;
@@ -2602,36 +2260,16 @@ public class LoopHzMeter extends LinearOpMode {
 
         driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
 
-        // TODO 1: Create loopTimer ElapsedTime and initialize counters
-        //   ElapsedTime loopTimer = new ElapsedTime();
-        //   int loopsThisSecond = 0;
-        //   double hz = 0;
-        //   long totalLoops = 0;
-
         waitForStart();
 
-        // loopTimer.reset();
-
         while (opModeIsActive()) {
-
-            // TODO 2: Increment loop counters
-            //   loopsThisSecond++;
-            //   totalLoops++;
-
-            // TODO 3: Once a second, compute Hz, reset counter and timer
-            //   if (loopTimer.seconds() >= 1.0) {
-            //       hz = loopsThisSecond / loopTimer.seconds();
-            //       loopsThisSecond = 0;
-            //       loopTimer.reset();
-            //   }
 
             double power = -gamepad1.left_stick_y;
             driveMotor.setPower(power);
 
-            // TODO 4: Display Hz, avg loop time (ms), and total loops
-            telemetry.addData("Loop Hz",       0.0);   // replace
-            telemetry.addData("Avg Loop (ms)", 0.0);   // 1000 / hz
-            telemetry.addData("Total Loops",   0L);    // replace
+            telemetry.addData("Loop Hz",       0.0);
+            telemetry.addData("Avg Loop (ms)", 0.0);
+            telemetry.addData("Total Loops",   0L);
             telemetry.update();
         }
     }
@@ -2714,26 +2352,15 @@ public class ShootLatch extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // Simulate flywheel spooling up / down
             if (gamepad1.a) simulatedTPS = Math.min(simulatedTPS + 50, 1800);
             else            simulatedTPS = Math.max(simulatedTPS - 30, 0);
 
-            // TODO 1: Compute shooterReady (simulatedTPS within TOLERANCE of TARGET_TPS)
-            boolean shooterReady = false; // replace
+            boolean shooterReady = false;
 
             boolean shootButtonPressed = gamepad1.left_bumper;
 
-            // TODO 2: Implement the latch logic
-            //   if (!shootButtonPressed) {
-            //       shootingLatched = false;
-            //   } else {
-            //       if (!shootingLatched && shooterReady) shootingLatched = true;
-            //   }
+            boolean feeding = false;
 
-            // TODO 3: Feeding = button pressed AND latched
-            boolean feeding = false; // replace
-
-            // TODO 4: Set feeder power
             feederMotor.setPower(feeding ? 1.0 : 0.0);
 
             telemetry.addData("TPS",     simulatedTPS);
@@ -2817,8 +2444,6 @@ public class TurretStateMachine extends LinearOpMode {
     private DcMotor     turretMotor;
     private TouchSensor limitSwitch;
 
-    // TODO 1: Define an enum TurretState with IDLE and ZEROING values
-
     @Override
     public void runOpMode() {
 
@@ -2826,23 +2451,15 @@ public class TurretStateMachine extends LinearOpMode {
         limitSwitch = hardwareMap.get(TouchSensor.class, "touch_sensor");
         turretMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        // TODO 2: Declare state = TurretState.IDLE and lastGamepad2A = false
         boolean lastGamepad2A = false;
 
         waitForStart();
 
         while (opModeIsActive()) {
 
-            // TODO 3: Implement the switch statement on state
-            //   case IDLE: check rising edge of gamepad2.a → start zeroing
-            //   case ZEROING: check limitSwitch → stop motor, reset encoder, go IDLE
-
             lastGamepad2A = gamepad2.a;
 
-            // Regular turret control (only when IDLE)
-            // if (state == TurretState.IDLE) { turretMotor.setPower(gamepad1.left_stick_x * 0.4); }
-
-            telemetry.addData("State",   "TBD"); // replace with state.name()
+            telemetry.addData("State",   "TBD");
             telemetry.addData("Sensor",  limitSwitch.isPressed() ? "PRESSED" : "open");
             telemetry.addData("Encoder", turretMotor.getCurrentPosition());
             telemetry.update();
@@ -2910,8 +2527,6 @@ public class StateMachineAuto extends LinearOpMode {
 
     private DcMotor leftDrive, rightDrive, flywheel;
 
-    // TODO 1: Define a State enum with DRIVE_TO_SHOOT, SHOOTING, DRIVE_TO_COLLECT, DONE
-
     @Override
     public void runOpMode() {
 
@@ -2922,18 +2537,11 @@ public class StateMachineAuto extends LinearOpMode {
 
         waitForStart();
 
-        // TODO 2: Initialize state = State.DRIVE_TO_SHOOT and create stateTimer
         ElapsedTime stateTimer = new ElapsedTime();
 
         while (opModeIsActive()) {
 
-            // TODO 3: Implement switch on state
-            //   DRIVE_TO_SHOOT: drive forward, transition after 1.5 s
-            //   SHOOTING: stop drive, run flywheel, transition after 1.0 s
-            //   DRIVE_TO_COLLECT: drive backward, transition after 1.5 s
-            //   DONE: all motors off
-
-            telemetry.addData("State",      "TBD"); // replace with state.name()
+            telemetry.addData("State",      "TBD");
             telemetry.addData("State Time", stateTimer.seconds());
             telemetry.update();
         }
@@ -3013,9 +2621,7 @@ public class MultiShotAuto extends LinearOpMode {
         flywheel   = hardwareMap.get(DcMotor.class, "shooter_motor");
         leftDrive.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        // TODO 1: Init loop — configure cycleCount with Dpad Up/Down (1–8)
         int cycleCount = 4;
-        // while (!isStarted() ...) { ... }
 
         int remainingCycles = cycleCount;
 
@@ -3028,19 +2634,12 @@ public class MultiShotAuto extends LinearOpMode {
 
             switch (state) {
                 case TO_HUMAN:
-                    // Drive toward human player (0.4 power, 1.5 s)
-                    // TODO 2: Set drive powers and transition after 1.5 s → SHOOT
                     break;
 
                 case SHOOT:
-                    // Stop drive, run flywheel for 1.0 s
-                    // TODO 3: On timer expiry, decrement remainingCycles
-                    //         if remainingCycles > 0 → TO_HUMAN, else → LEAVE
                     break;
 
                 case LEAVE:
-                    // Drive away for 1.0 s → DONE
-                    // TODO 4: Implement leave movement
                     break;
 
                 case DONE:
@@ -3120,7 +2719,6 @@ public class ModeSwitchTeleOp extends LinearOpMode {
         rightDrive = hardwareMap.get(DcMotor.class, "right_drive");
         leftDrive.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        // TODO 1: Declare safeMode = false and lastBButton = false
         boolean safeMode   = false;
         boolean lastBButton = false;
 
@@ -3128,22 +2726,13 @@ public class ModeSwitchTeleOp extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 2: Enter safe mode on B rising edge
-            //   if (gamepad1.b && !lastBButton) safeMode = true;
-            //   lastBButton = gamepad1.b;
-
-            // TODO 3: Exit safe mode on Y press
-            //   if (gamepad1.y) safeMode = false;
-
-            // TODO 4: Cap drive power at 50% when safeMode is active
             double leftPower  = -gamepad1.left_stick_y;
             double rightPower = -gamepad1.right_stick_y;
-            double scale = 1.0; // replace: safeMode ? 0.5 : 1.0
+            double scale = 1.0;
 
             leftDrive.setPower(leftPower * scale);
             rightDrive.setPower(rightPower * scale);
 
-            // TODO 5: Prominent telemetry warning in safe mode
             telemetry.addData("Mode",  safeMode ? "** SAFE MODE **" : "NORMAL");
             telemetry.addData("Scale", scale);
             telemetry.update();
@@ -3201,7 +2790,6 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 @TeleOp(name = "Distance to Goal", group = "Challenge 33")
 public class DistanceToGoal extends LinearOpMode {
 
-    // Goal position in mm (72 in × 25.4 mm/in)
     private static final double GOAL_X = 72 * 25.4;
     private static final double GOAL_Y = 72 * 25.4;
 
@@ -3209,17 +2797,15 @@ public class DistanceToGoal extends LinearOpMode {
     public void runOpMode() {
         waitForStart();
 
-        double robotX = 46.5 * 25.4; // start at known shot point
+        double robotX = 46.5 * 25.4;
         double robotY = 10.5 * 25.4;
 
         while (opModeIsActive()) {
 
-            // Simulate movement with joysticks (mm per loop)
             robotX += gamepad1.left_stick_x  * 10;
             robotY += -gamepad1.left_stick_y * 10;
 
-            // TODO: Call distanceToGoal with the current robot position
-            double dist = 0; // replace with distanceToGoal(robotX, robotY)
+            double dist = 0;
 
             double distInches = dist / 25.4;
 
@@ -3231,10 +2817,7 @@ public class DistanceToGoal extends LinearOpMode {
         }
     }
 
-    // TODO: Implement this method
     private double distanceToGoal(double x, double y) {
-        // dx = GOAL_X - x, dy = GOAL_Y - y
-        // return Math.hypot(dx, dy)
         return 0;
     }
 }`,
@@ -3298,7 +2881,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 @TeleOp(name = "Turret Bearing", group = "Challenge 34")
 public class TurretBearing extends LinearOpMode {
 
-    private static final double GOAL_X = 72 * 25.4; // mm
+    private static final double GOAL_X = 72 * 25.4;
     private static final double GOAL_Y = 72 * 25.4;
 
     @Override
@@ -3307,28 +2890,20 @@ public class TurretBearing extends LinearOpMode {
 
         double robotX       = 46.5 * 25.4;
         double robotY       = 10.5 * 25.4;
-        double robotHeading = 180.0; // degrees — simulated
+        double robotHeading = 180.0;
 
         while (opModeIsActive()) {
 
-            // Simulate robot movement and rotation
             robotX       += gamepad1.left_stick_x  * 10;
             robotY       += -gamepad1.left_stick_y * 10;
             robotHeading += gamepad1.right_stick_x * 2;
 
-            // TODO 1: Compute dx and dy to goal (in mm)
-            double dx = 0; // GOAL_X - robotX
-            double dy = 0; // GOAL_Y - robotY
+            double dx = 0;
+            double dy = 0;
 
-            // TODO 2: Compute field bearing in degrees using atan2
-            double fieldBearingDeg = 0; // Math.toDegrees(Math.atan2(dy, dx))
+            double fieldBearingDeg = 0;
 
-            // TODO 3: Compute turret angle = fieldBearing - robotHeading
             double turretAngle = 0;
-
-            // TODO 4: Wrap turret angle to [-180, 180]
-            //   while (turretAngle >  180) turretAngle -= 360;
-            //   while (turretAngle < -180) turretAngle += 360;
 
             telemetry.addData("Robot Heading", robotHeading);
             telemetry.addData("Field Bearing", fieldBearingDeg);
@@ -3390,9 +2965,8 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 @TeleOp(name = "Coordinate Mirror", group = "Challenge 35")
 public class CoordinateMirror extends LinearOpMode {
 
-    private static final double FIELD_MM = 144.0 * 25.4; // 3657.6 mm
+    private static final double FIELD_MM = 144.0 * 25.4;
 
-    // BLUE alliance coordinates (in mm)
     private static final double BLUE_SHOT_X    = 46.5 * 25.4;
     private static final double BLUE_COLLECT_X = 6.689 * 25.4;
     private static final double BLUE_GOAL_X    = 72 * 25.4;
@@ -3403,10 +2977,9 @@ public class CoordinateMirror extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 1: Compute RED coordinates using mirrorX()
-            double redShotX    = 0; // mirrorX(BLUE_SHOT_X)
-            double redCollectX = 0; // mirrorX(BLUE_COLLECT_X)
-            double redGoalX    = 0; // mirrorX(BLUE_GOAL_X) — should equal BLUE_GOAL_X
+            double redShotX    = 0;
+            double redCollectX = 0;
+            double redGoalX    = 0;
 
             telemetry.addLine("=== BLUE ===");
             telemetry.addData("Shot X",    BLUE_SHOT_X);
@@ -3420,9 +2993,8 @@ public class CoordinateMirror extends LinearOpMode {
         }
     }
 
-    // TODO 2: Implement mirrorX() — reflects x across the field center
     private double mirrorX(double x) {
-        return 0; // FIELD_MM - x
+        return 0;
     }
 }`,
     hints: [
@@ -3487,7 +3059,6 @@ public class AngleConversion extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO: Call your helpers and display the conversion table
             double[] degreesTable = {0, 90, 180, 270, 360};
 
             for (double deg : degreesTable) {
@@ -3496,21 +3067,18 @@ public class AngleConversion extends LinearOpMode {
                 telemetry.addData(deg + "°", "rad=%.4f  back=%.1f°", rad, roundTrip);
             }
 
-            // Also verify the Pedro Pathing use case
-            double poseHeading = toRadians(180); // robot facing backward
+            double poseHeading = toRadians(180);
             telemetry.addData("Pose heading (180°)", poseHeading);
             telemetry.update();
         }
     }
 
-    // TODO 1: Implement toRadians without Math.toRadians
     private double toRadians(double degrees) {
-        return 0; // degrees * Math.PI / 180.0
+        return 0;
     }
 
-    // TODO 2: Implement toDegrees without Math.toDegrees
     private double toDegrees(double radians) {
-        return 0; // radians * 180.0 / Math.PI
+        return 0;
     }
 }`,
     hints: [
@@ -3577,22 +3145,6 @@ public class PinpointOdometry extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        // TODO 1: Get GoBildaPinpointDriver from hardwareMap ("odo")
-        //   odo = hardwareMap.get(GoBildaPinpointDriver.class, "odo");
-
-        // TODO 2: Set pod offsets (X = -84.0 mm, Y = -168.0 mm)
-        //   odo.setOffsets(-84.0, -168.0);
-
-        // TODO 3: Set encoder resolution to goBILDA_4_BAR_POD
-        //   odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-
-        // TODO 4: Set encoder directions to FORWARD, FORWARD
-        //   odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
-        //                            GoBildaPinpointDriver.EncoderDirection.FORWARD);
-
-        // TODO 5: Reset position and IMU
-        //   odo.resetPosAndIMU();
-
         telemetry.addData("Status", "Pinpoint initialized");
         telemetry.update();
 
@@ -3600,18 +3152,9 @@ public class PinpointOdometry extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 6: Update the odometry computer each loop
-            //   odo.update();
-
-            // TODO 7: Read position and heading
-            //   Pose2D pos = odo.getPosition();
-            //   double xMm      = pos.getX(DistanceUnit.MM);
-            //   double yMm      = pos.getY(DistanceUnit.MM);
-            //   double headingDeg = pos.getHeading(AngleUnit.DEGREES);
-
-            telemetry.addData("X (mm)",       0.0); // replace
-            telemetry.addData("Y (mm)",       0.0); // replace
-            telemetry.addData("Heading (deg)", 0.0); // replace
+            telemetry.addData("X (mm)",       0.0);
+            telemetry.addData("Y (mm)",       0.0);
+            telemetry.addData("Heading (deg)", 0.0);
             telemetry.update();
         }
     }
@@ -3689,9 +3232,7 @@ public class PositionReset extends LinearOpMode {
 
             odo.update();
 
-            // TODO 1: On gamepad1.x rising edge, reset position to (RESET_X_MM, RESET_Y_MM, 0°)
             if (gamepad1.x && !lastX) {
-                // odo.setPosition(new Pose2D(DistanceUnit.MM, RESET_X_MM, RESET_Y_MM, AngleUnit.DEGREES, 0));
             }
             lastX = gamepad1.x;
 
@@ -3768,19 +3309,8 @@ import com.qualcomm.hardware.limelightvision.LLResult;
 @TeleOp(name = "Limelight Basic", group = "Challenge 39")
 public class LimelightBasic extends LinearOpMode {
 
-    // TODO 1: Declare a Limelight3A field named "limelight"
-
     @Override
     public void runOpMode() {
-
-        // TODO 2: Initialize limelight from hardwareMap
-        //   limelight = hardwareMap.get(Limelight3A.class, "limelight");
-
-        // TODO 3: Set pipeline to 0
-        //   limelight.pipelineSwitch(0);
-
-        // TODO 4: Start the camera
-        //   limelight.start();
 
         telemetry.addData("Status", "Limelight initialized");
         telemetry.update();
@@ -3789,26 +3319,9 @@ public class LimelightBasic extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 5: Get the latest result
-            //   LLResult result = limelight.getLatestResult();
-
-            // TODO 6: If result != null and result.isValid(), display tx, ty, ta, latency
-            //   if (result != null && result.isValid()) {
-            //       double tx = result.getTx();
-            //       double ty = result.getTy();
-            //       double ta = result.getTa();
-            //       double lat = result.getCaptureLatency();
-            //       telemetry.addData("tx (deg)", tx);
-            //       ...
-            //   } else {
-            //       telemetry.addData("Status", "No target");
-            //   }
-
             telemetry.update();
         }
 
-        // TODO 7: Stop limelight when done
-        //   limelight.stop();
     }
 }`,
     hints: [
@@ -3880,10 +3393,6 @@ public class StaleFrameDetect extends LinearOpMode {
         limelight.pipelineSwitch(0);
         limelight.start();
 
-        // TODO 1: Declare stale-frame tracking variables
-        //   int staleFrames = 0, totalFrames = 0;
-        //   double lastTx = -999, lastTy = -999, lastLatency = -999;
-
         waitForStart();
 
         while (opModeIsActive()) {
@@ -3891,19 +3400,13 @@ public class StaleFrameDetect extends LinearOpMode {
             LLResult result = limelight.getLatestResult();
 
             if (result != null) {
-                // TODO 2: Check if tx, ty, latency all match last loop's values
-                //         If yes: staleFrames++
-                //         If no:  staleFrames = 0, update lastTx/ty/latency
-                // totalFrames++;
 
-                // TODO 3: Compute health percentage
-                double health = 0; // (1.0 - (double)staleFrames / Math.max(1, totalFrames)) * 100
+                double health = 0;
 
-                // TODO 4: Display diagnostics
-                telemetry.addData("Stale Frames",  0); // replace
-                telemetry.addData("Total Frames",  0); // replace
+                telemetry.addData("Stale Frames",  0);
+                telemetry.addData("Total Frames",  0);
                 telemetry.addData("Health %",      health);
-                telemetry.addData("Camera Status", 0 > 5 ? "FROZEN" : "OK"); // replace 0 with staleFrames
+                telemetry.addData("Camera Status", 0 > 5 ? "FROZEN" : "OK");
             } else {
                 telemetry.addData("Status", "No result");
             }
@@ -3997,7 +3500,6 @@ public class AprilTagTarget extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // Toggle alliance with B button (debounced)
             if (gamepad1.b && !lastBButton) useRedAlliance = !useRedAlliance;
             lastBButton = gamepad1.b;
 
@@ -4009,15 +3511,9 @@ public class AprilTagTarget extends LinearOpMode {
             double  targetTx    = 0;
 
             if (result != null && result.isValid()) {
-                // TODO 1: Get the fiducial results list
-                //   List<LLResultTypes.FiducialResult> tags = result.getFiducialResults();
-
-                // TODO 2: Loop through tags, find the one with getFiducialId() == expectedId
-                //         Set targetTx = tag.getTargetXDegrees(), targetFound = true, break
 
             }
 
-            // TODO 3: Display result
             telemetry.addData("Alliance",   useRedAlliance ? "RED (24)" : "BLUE (20)");
             telemetry.addData("Target",     targetFound ? "FOUND" : "NOT FOUND");
             telemetry.addData("tx (deg)",   targetFound ? targetTx : Double.NaN);
@@ -4095,7 +3591,7 @@ public class VisionServoLoop extends LinearOpMode {
 
     private static final double Kp                 = 0.02;
     private static final double MAX_POWER          = 0.4;
-    private static final double ON_TARGET_THRESHOLD = 2.0; // degrees
+    private static final double ON_TARGET_THRESHOLD = 2.0;
 
     @Override
     public void runOpMode() {
@@ -4124,18 +3620,14 @@ public class VisionServoLoop extends LinearOpMode {
             boolean onTarget = false;
 
             if (hasTarget) {
-                // TODO 1: Compute correctionPower = Kp * tx
-                correctionPower = 0; // replace
+                correctionPower = 0;
 
-                // TODO 2: Clamp to [-MAX_POWER, MAX_POWER]
-                correctionPower = 0; // replace with clamped value
+                correctionPower = 0;
 
-                // TODO 3: If |tx| < ON_TARGET_THRESHOLD, set power to 0 and onTarget = true
             }
 
             turretMotor.setPower(correctionPower);
 
-            // Track consecutive on-target count
             onTargetStreak = onTarget ? onTargetStreak + 1 : 0;
 
             telemetry.addData("tx (deg)",    tx);
@@ -4213,10 +3705,9 @@ public class PollRateCycle extends LinearOpMode {
         limelight.pipelineSwitch(0);
         limelight.start();
 
-        // TODO 1: Create rates array and rateIdx = 0
         int[] rates   = {100, 50, 25, 10};
         int   rateIdx = 0;
-        limelight.setPollRateHz(rates[rateIdx]); // set initial rate
+        limelight.setPollRateHz(rates[rateIdx]);
 
         boolean lastY    = false;
         int     frameCount = 0;
@@ -4226,11 +3717,6 @@ public class PollRateCycle extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 2: On Y rising edge, advance rateIdx and update poll rate
-            //   if (gamepad1.y && !lastY) {
-            //       rateIdx = (rateIdx + 1) % rates.length;
-            //       limelight.setPollRateHz(rates[rateIdx]);
-            //   }
             lastY = gamepad1.y;
 
             LLResult result = limelight.getLatestResult();
@@ -4239,7 +3725,6 @@ public class PollRateCycle extends LinearOpMode {
                 frameCount++;
             }
 
-            // TODO 3: Display current poll rate, latency, frame count
             telemetry.addData("Poll Rate Hz", rates[rateIdx]);
             telemetry.addData("Latency (ms)", lastLatency);
             telemetry.addData("Frames",       frameCount);
@@ -4304,19 +3789,15 @@ public class PoseConstruction extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        // TODO 1: Construct startPose at (64, 8.35, 180°)
-        Pose startPose = null; // replace with new Pose(64, 8.35, Math.toRadians(180))
+        Pose startPose = null;
 
-        // TODO 2: Construct shotPose at (46.5, 10.5, 180°)
-        Pose shotPose = null;  // replace
+        Pose shotPose = null;
 
-        // TODO 3: Construct humanStation at (6.689, 8.874, 180°)
-        Pose humanStation = null; // replace
+        Pose humanStation = null;
 
         waitForStart();
 
         while (opModeIsActive()) {
-            // TODO 4: Display all three poses
             if (startPose != null) {
                 telemetry.addLine("--- Start Pose ---");
                 telemetry.addData("X",       startPose.getX());
@@ -4324,7 +3805,6 @@ public class PoseConstruction extends LinearOpMode {
                 telemetry.addData("Hdg rad", startPose.getHeading());
                 telemetry.addData("Hdg deg", Math.toDegrees(startPose.getHeading()));
             }
-            // Repeat for shotPose and humanStation
             telemetry.update();
         }
     }
@@ -4403,38 +3883,15 @@ public class BezierLineFollow extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        // TODO 1: Create follower and set starting pose
-        //   follower = new Follower(hardwareMap);
-        //   Pose startPose = new Pose(64, 8.35, Math.toRadians(180));
-        //   follower.setStartingPose(startPose);
-
-        // TODO 2: Define the shot pose destination
-        //   Pose shotPose = new Pose(46.5, 10.5, Math.toRadians(180));
-
         telemetry.addData("Status", "Ready");
         telemetry.update();
 
         waitForStart();
 
-        // TODO 3: Build the PathChain with a BezierLine from start to shot
-        //   PathChain drivePath = follower.pathBuilder()
-        //       .addPath(new BezierLine(
-        //           new Point(startPose, Point.POSE),
-        //           new Point(shotPose,  Point.POSE)
-        //       ))
-        //       .setConstantHeadingInterpolation(startPose.getHeading())
-        //       .build();
-
-        // TODO 4: Follow the path
-        //   follower.followPath(drivePath, true);
-
-        // TODO 5: Update follower in a loop until path is complete
         while (opModeIsActive()) {
-            //   follower.update();
-            //   if (!follower.isBusy()) break;
 
-            telemetry.addData("t value", 0.0); // follower.getCurrentTValue()
-            telemetry.addData("Busy",    true); // follower.isBusy()
+            telemetry.addData("t value", 0.0);
+            telemetry.addData("Busy",    true);
             telemetry.update();
         }
 
@@ -4519,20 +3976,9 @@ public class TapeDetour extends LinearOpMode {
         Pose startPose = new Pose(64, 8.35, Math.toRadians(180));
         follower.setStartingPose(startPose);
 
-        // Define control and end points for the tape detour curve
-        double controlY = 35.864; // pulls the path up to tape height
+        double controlY = 35.864;
         double endX     = 19.0;
         double endY     = 36.0;
-
-        // TODO 1: Build the BezierCurve PathChain
-        //   PathChain tapeCurve = follower.pathBuilder()
-        //       .addPath(new BezierCurve(
-        //           new Point(64.0,  8.35,      Point.CARTESIAN),  // start
-        //           new Point(64.0,  controlY,  Point.CARTESIAN),  // control
-        //           new Point(endX,  endY,      Point.CARTESIAN)   // end
-        //       ))
-        //       .setTangentHeadingInterpolation()
-        //       .build();
 
         telemetry.addData("Control Y", controlY);
         telemetry.addData("End",       "(" + endX + ", " + endY + ")");
@@ -4540,14 +3986,10 @@ public class TapeDetour extends LinearOpMode {
 
         waitForStart();
 
-        // TODO 2: Follow the path (same pattern as BezierLine challenge)
-        // follower.followPath(tapeCurve, true);
         while (opModeIsActive()) {
-            // follower.update();
-            // if (!follower.isBusy()) break;
-            telemetry.addData("t value",  0.0); // replace
-            telemetry.addData("X pos",    0.0); // follower.getPose().getX()
-            telemetry.addData("Y pos",    0.0); // follower.getPose().getY()
+            telemetry.addData("t value",  0.0);
+            telemetry.addData("X pos",    0.0);
+            telemetry.addData("Y pos",    0.0);
             telemetry.update();
         }
 
@@ -4628,29 +4070,13 @@ public class ReversedPath extends LinearOpMode {
         Pose humanStation = new Pose(6.689, 8.874, Math.toRadians(0));
         Pose shotPose     = new Pose(46.5,  10.5,  Math.toRadians(180));
 
-        // Start at human station
         follower.setStartingPose(humanStation);
-
-        // TODO 1: Build a reversed BezierLine from humanStation to shotPose
-        //   PathChain returnPath = follower.pathBuilder()
-        //       .addPath(new BezierLine(
-        //           new Point(humanStation, Point.POSE),
-        //           new Point(shotPose,     Point.POSE)
-        //       ))
-        //       .setReversed(true)  // <--- drives backward
-        //       .setLinearHeadingInterpolation(humanStation.getHeading(), shotPose.getHeading())
-        //       .build();
 
         waitForStart();
 
-        // TODO 2: Follow the reversed path
-        // follower.followPath(returnPath, true);
         while (opModeIsActive()) {
-            // follower.update();
-            // if (!follower.isBusy()) break;
 
-            // Display heading to confirm robot faces backward during travel
-            telemetry.addData("Heading (deg)", 0.0); // Math.toDegrees(follower.getPose().getHeading())
+            telemetry.addData("Heading (deg)", 0.0);
             telemetry.addData("t value",       0.0);
             telemetry.update();
         }
@@ -4730,21 +4156,18 @@ public class DynamicPaths extends LinearOpMode {
 
         follower = new Follower(hardwareMap);
 
-        Pose posA = new Pose(64,    8.35,  Math.toRadians(180)); // start / shot
-        Pose posB = new Pose(6.689, 8.874, Math.toRadians(0));   // human station
-        Pose posC = new Pose(46.5,  10.5,  Math.toRadians(180)); // mid-field
+        Pose posA = new Pose(64,    8.35,  Math.toRadians(180));
+        Pose posB = new Pose(6.689, 8.874, Math.toRadians(0));
+        Pose posC = new Pose(46.5,  10.5,  Math.toRadians(180));
 
         follower.setStartingPose(posA);
 
         waitForStart();
 
-        // Leg 1: A → B (forward, robot nose leads)
         followTo(posB, false);
 
-        // Leg 2: B → C (reversed, robot back leads)
         followTo(posC, true);
 
-        // Leg 3: C → A (forward)
         followTo(posA, false);
 
         telemetry.addData("Status", "Triangle complete");
@@ -4753,10 +4176,8 @@ public class DynamicPaths extends LinearOpMode {
     }
 
     private void followTo(Pose target, boolean reversed) {
-        // TODO 1: Build path using buildPathTo()
-        PathChain path = null; // buildPathTo(target, reversed)
+        PathChain path = null;
 
-        // TODO 2: Follow the path and wait for completion
         if (path != null) {
             follower.followPath(path, true);
             while (opModeIsActive() && follower.isBusy()) {
@@ -4768,11 +4189,8 @@ public class DynamicPaths extends LinearOpMode {
         }
     }
 
-    // TODO 3: Implement buildPathTo() helper
     private PathChain buildPathTo(Pose target, boolean reversed) {
-        // Use follower.getPose() as start, target as end
-        // setReversed(reversed), setConstantHeadingInterpolation(target.getHeading())
-        return null; // replace with correct implementation
+        return null;
     }
 }`,
     hints: [
@@ -4840,28 +4258,25 @@ public class UnitConversion extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // TODO 1: Call your helpers to convert field dimensions
             double fieldMm     = inchesToMm(FIELD_INCHES);
             double centerMm    = inchesToMm(72);
-            double backToInch  = mmToInches(fieldMm); // verify round trip
+            double backToInch  = mmToInches(fieldMm);
 
             telemetry.addData("Field (in)",  FIELD_INCHES);
             telemetry.addData("Field (mm)",  fieldMm);
             telemetry.addData("Center (mm)", centerMm);
-            telemetry.addData("Round-trip",  backToInch); // should be 144.0
+            telemetry.addData("Round-trip",  backToInch);
             telemetry.addData("1 in = ? mm", inchesToMm(1.0));
             telemetry.update();
         }
     }
 
-    // TODO 2: Implement inchesToMm
     private double inchesToMm(double inches) {
-        return 0; // inches * 25.4
+        return 0;
     }
 
-    // TODO 3: Implement mmToInches
     private double mmToInches(double mm) {
-        return 0; // mm / 25.4
+        return 0;
     }
 }`,
     hints: [
@@ -4919,18 +4334,15 @@ public class DotProductDemo extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
-            double driveX = gamepad1.left_stick_x;    // strafe component
-            double driveY = -gamepad1.left_stick_y;   // forward component
+            double driveX = gamepad1.left_stick_x;
+            double driveY = -gamepad1.left_stick_y;
 
-            // Reference vector: (1, 0) = pure right strafe
             double refX = 1.0, refY = 0.0;
 
-            // TODO 1: Compute the dot product of drive and reference vectors
             double dotProduct = dot(driveX, driveY, refX, refY);
 
-            // TODO 2: Compute magnitudes for cosine similarity
             double magDrive = Math.hypot(driveX, driveY);
-            double magRef   = Math.hypot(refX, refY); // = 1.0 for unit reference
+            double magRef   = Math.hypot(refX, refY);
 
             double cosAngle = (magDrive > 0.01) ? dotProduct / (magDrive * magRef) : 0;
 
@@ -4942,9 +4354,8 @@ public class DotProductDemo extends LinearOpMode {
         }
     }
 
-    // TODO 3: Implement the dot product helper
     private double dot(double ax, double ay, double bx, double by) {
-        return 0; // ax*bx + ay*by
+        return 0;
     }
 }`,
     hints: [
@@ -5006,7 +4417,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 public class LerpRamp extends LinearOpMode {
 
     private DcMotor driveMotor;
-    private static final double RAMP_DURATION = 2.0; // seconds
+    private static final double RAMP_DURATION = 2.0;
 
     @Override
     public void runOpMode() {
@@ -5022,11 +4433,9 @@ public class LerpRamp extends LinearOpMode {
 
             double elapsed = timer.seconds();
 
-            // TODO 1: Compute t, clamped to [0, 1]
-            double t = 0; // Math.min(1.0, elapsed / RAMP_DURATION)
+            double t = 0;
 
-            // TODO 2: Compute ramped power using lerp(0, 1, t)
-            double power = 0; // lerp(0.0, 1.0, t)
+            double power = 0;
 
             driveMotor.setPower(power);
 
@@ -5036,16 +4445,15 @@ public class LerpRamp extends LinearOpMode {
             telemetry.addData("Ramp done",   t >= 1.0 ? "YES" : "NO");
             telemetry.update();
 
-            if (t >= 1.0 && elapsed > RAMP_DURATION + 1.0) break; // run for 1 extra second at full
+            if (t >= 1.0 && elapsed > RAMP_DURATION + 1.0) break;
         }
 
         driveMotor.setPower(0);
         sleep(1000);
     }
 
-    // TODO 3: Implement lerp
     private double lerp(double a, double b, double t) {
-        return 0; // a + t * (b - a)
+        return 0;
     }
 }`,
     hints: [
@@ -5116,7 +4524,6 @@ public class TpsToDistance extends LinearOpMode {
         double simulatedTPS = 1200.0;
 
         while (opModeIsActive()) {
-            // Adjust simulated TPS with triggers
             simulatedTPS += gamepad1.right_trigger * 2.0;
             simulatedTPS -= gamepad1.left_trigger  * 2.0;
             simulatedTPS = Math.max(1100, Math.min(1750, simulatedTPS));
@@ -5125,25 +4532,20 @@ public class TpsToDistance extends LinearOpMode {
 
             telemetry.addData("Simulated TPS", simulatedTPS);
             telemetry.addData("Distance (in)", dist);
-            telemetry.addData("Test: TPS=1425", tpsToDistance(1425)); // should be 45.0
+            telemetry.addData("Test: TPS=1425", tpsToDistance(1425));
             telemetry.update();
         }
     }
 
     private double tpsToDistance(double tps) {
-        // Clamp below minimum TPS
         if (tps <= TPS_TABLE[0]) return DIST_TABLE[0];
 
-        // Clamp above maximum TPS
         if (tps >= TPS_TABLE[TPS_TABLE.length - 1]) return DIST_TABLE[DIST_TABLE.length - 1];
 
-        // TODO: Find bracket and interpolate in DISTANCE direction
         for (int i = 0; i < TPS_TABLE.length - 1; i++) {
             if (tps >= TPS_TABLE[i] && tps <= TPS_TABLE[i + 1]) {
-                // t = (tps - TPS_TABLE[i]) / (TPS_TABLE[i+1] - TPS_TABLE[i])
-                // return DIST_TABLE[i] + t * (DIST_TABLE[i+1] - DIST_TABLE[i])
-                double t = 0; // replace
-                return 0;     // replace
+                double t = 0;
+                return 0;
             }
         }
         return DIST_TABLE[0];
@@ -5207,36 +4609,27 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 @TeleOp(name = "Velocity Magnitude", group = "Challenge 53")
 public class VelocityMagnitude extends LinearOpMode {
 
-    // TODO 1: Declare two DcMotorEx fields: forwardMotor, strafeMotor
     private static final double WHEEL_DIAMETER_MM = 96.0;
     private static final double TICKS_PER_REV     = 537.7;
     private static final double MM_PER_TICK       = (WHEEL_DIAMETER_MM * Math.PI) / TICKS_PER_REV;
-    private static final double SPEED_THRESHOLD   = 1000.0; // mm/s
+    private static final double SPEED_THRESHOLD   = 1000.0;
 
     @Override
     public void runOpMode() {
-
-        // TODO 2: Initialize both motors as DcMotorEx
-        //   forwardMotor = hardwareMap.get(DcMotorEx.class, "front_left");
-        //   strafeMotor  = hardwareMap.get(DcMotorEx.class, "back_left");
 
         waitForStart();
 
         while (opModeIsActive()) {
 
-            // TODO 3: Read velocities in ticks/s
-            double fwdTPS    = 0; // forwardMotor.getVelocity()
-            double strafeTPS = 0; // strafeMotor.getVelocity()
+            double fwdTPS    = 0;
+            double strafeTPS = 0;
 
-            // TODO 4: Convert to mm/s
-            double vxMMs = 0; // fwdTPS    * MM_PER_TICK
-            double vyMMs = 0; // strafeTPS * MM_PER_TICK
+            double vxMMs = 0;
+            double vyMMs = 0;
 
-            // TODO 5: Compute speed magnitude
-            double speed = 0; // Math.sqrt(vxMMs*vxMMs + vyMMs*vyMMs)
+            double speed = 0;
 
-            // TODO 6: Check threshold
-            boolean robotSpeedOk = false; // speed < SPEED_THRESHOLD
+            boolean robotSpeedOk = false;
 
             telemetry.addData("Speed (mm/s)",  speed);
             telemetry.addData("Threshold",     SPEED_THRESHOLD);
