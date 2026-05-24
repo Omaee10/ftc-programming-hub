@@ -108,7 +108,7 @@ function ProgressTab() {
     const [{ data: students }, { data: challenges }, { data: progress }] =
       await Promise.all([
         supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-        supabase.from("challenges").select("id, title").order("id"),
+        supabase.from("challenges").select("id, title").eq("created_by", ownerId).order("id"),
         supabase.from("student_challenge_progress").select("*"),
       ]);
 
@@ -482,10 +482,14 @@ function ManageChallengesTab() {
   const session = typeof window !== "undefined" ? getSession() : null;
 
   const load = useCallback(async () => {
+    const s = getSession();
+    if (!s?.id) { setLoading(false); return; }
     setLoading(true);
+    const ownerId = classOwner(s);
     const { data } = await supabase
       .from("challenges")
       .select("id, title, difficulty, xp, created_by")
+      .eq("created_by", ownerId)
       .order("id");
     setRows((data ?? []) as ChallengeRow[]);
     setLoading(false);
