@@ -46,7 +46,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         };
         let personalName: string = row.mentor_name ?? row.name;
         let teamName: string = row.name;
-        let className: string = row.class_name ?? row.name;
+        let resolvedClassName: string | undefined = row.class_name?.trim() || undefined;
         let parentMentorId: string | undefined = row.created_by ?? undefined;
 
         if (parentMentorId) {
@@ -58,7 +58,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           if (parentRow) {
             const parent = parentRow as { name: string; class_name?: string | null };
             teamName = parent.name;
-            className = parent.class_name ?? parent.name;
+            resolvedClassName = parent.class_name?.trim() || undefined;
           }
         }
 
@@ -66,7 +66,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           ...stored,
           name: personalName,
           teamName,
-          className,
+          ...(resolvedClassName ? { className: resolvedClassName } : {}),
           ...(parentMentorId ? { parentMentorId } : {}),
         };
         setSession(updated);

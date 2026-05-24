@@ -130,7 +130,7 @@ function LoginPanel({
         const parentId = row.created_by ?? undefined;
         let personalName = row.mentor_name ?? row.name;
         let teamName = row.name;
-        let className = row.class_name ?? row.name;
+        let className: string | undefined = row.class_name?.trim() || undefined;
         if (parentId) {
           const { data: parentData } = await supabase
             .from("mentors")
@@ -140,10 +140,13 @@ function LoginPanel({
           if (parentData) {
             const parent = parentData as { name: string; class_name?: string | null };
             teamName = parent.name;
-            className = parent.class_name ?? parent.name;
+            className = parent.class_name?.trim() || undefined;
           }
         }
-        onSuccess(row.id, personalName, teamName, { parentMentorId: parentId, className });
+        onSuccess(row.id, personalName, teamName, {
+          parentMentorId: parentId,
+          ...(className ? { className } : {}),
+        });
       } else {
         const { data, error: dbErr } = await supabase
           .from("students")

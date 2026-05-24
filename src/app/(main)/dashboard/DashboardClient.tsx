@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -87,10 +87,40 @@ const quickLinks = [
 
 // ─── Mentor dashboard ──────────────────────────────────────────────────────
 
-function MentorDashboard({ classTitle }: { classTitle: string }) {
+function MentorDashboard() {
+  const [classTitle, setClassTitle] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [studentCount, setStudentCount] = useState<number | null>(null);
   const [challengeCount, setChallengeCount] = useState<number | null>(null);
+
+  const loadClassTitle = useCallback(async () => {
+    const session = getSession();
+    if (!session) return;
+
+    const ownerId = session.parentMentorId ?? session.id;
+    const { data } = await supabase
+      .from("mentors")
+      .select("class_name")
+      .eq("id", ownerId)
+      .single();
+
+    const fromDb = (data as { class_name?: string | null } | null)?.class_name?.trim();
+    if (fromDb) {
+      setClassTitle(fromDb);
+      return;
+    }
+
+    const fromSession = session.className?.trim();
+    if (fromSession) {
+      setClassTitle(fromSession);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadClassTitle();
+    window.addEventListener("ftc-session-updated", loadClassTitle);
+    return () => window.removeEventListener("ftc-session-updated", loadClassTitle);
+  }, [loadClassTitle]);
 
   useEffect(() => {
     const session = getSession();
@@ -132,7 +162,7 @@ function MentorDashboard({ classTitle }: { classTitle: string }) {
       <div className="mb-10">
         <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-2">{today}</p>
         <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
-          {classTitle}
+          {classTitle ?? "…"}
         </h1>
         <p className="mt-1 text-sm text-slate-500">Here&apos;s what&apos;s happening in your class today.</p>
       </div>
@@ -275,16 +305,11 @@ export default function DashboardClient({ name }: { name?: string }) {
   }, []);
 
   const [displayName, setDisplayName] = useState<string>(name ?? "there");
-  const [classTitle, setClassTitle] = useState<string>("My Class");
   const [isMentor, setIsMentor] = useState(false);
 
   const syncFromSession = () => {
     const session = getSession();
-    const resolvedName = session?.role === "mentor"
-      ? (session?.className || session?.name)
-      : session?.name;
-    setDisplayName(name ?? resolvedName ?? "there");
-    setClassTitle(session?.className || session?.name || "My Class");
+    setDisplayName(name ?? session?.name ?? "there");
     setIsMentor(session?.role === "mentor");
   };
 
@@ -296,7 +321,7 @@ export default function DashboardClient({ name }: { name?: string }) {
   }, [name]);
 
   if (isMentor) {
-    return <MentorDashboard classTitle={classTitle} />;
+    return <MentorDashboard />;
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────
