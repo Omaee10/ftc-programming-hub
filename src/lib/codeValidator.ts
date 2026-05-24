@@ -1286,18 +1286,33 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "private double ticksToDegrees(int ticks) { ... } — define the helper and call it inside the loop.",
     },
     {
-      label: "Formula: (ticks / (TICKS_PER_REV * GEAR_RATIO)) * 360",
-      description: "Return statement multiplies by 360 AND divides by the product of TICKS_PER_REV and GEAR_RATIO.",
+      label: "Formula: return expression contains 360 ÷ TICKS_PER_REV",
+      description: "The conversion method's return expression must multiply by 360 AND divide by TICKS_PER_REV (directly or via a named constant).",
       tier: "required",
       pattern: (code) => {
-        // Must contain 360 multiplied (or divided into) a fraction involving TICKS_PER_REV
-        const has360 = /360(\.0)?/.test(code);
-        const hasRatio = /TICKS_PER_REV\s*\*\s*GEAR_RATIO|GEAR_RATIO\s*\*\s*TICKS_PER_REV/.test(code);
-        // Must appear in a return statement (inside a method), not just random constants
-        const inReturn = /return\s*[^;]*360|360[^;]*;\s*\}|\/\s*\(\s*TICKS_PER_REV|TICKS_PER_REV[\s\S]{0,60}360/.test(code);
-        return has360 && hasRatio && inReturn;
+        // Find the first private double helper method body
+        const methodMatch = code.match(/private\s+double\s+\w+\s*\(\s*(?:int|double)\s+\w+\s*\)\s*\{([^}]*)\}/);
+        if (!methodMatch) return false;
+        const body = methodMatch[1];
+        const returnExpr = body.match(/return\s*([^;]+);/)?.[1] ?? '';
+
+        // 1. The literal 360 must appear in the return expression itself
+        if (!/\b360(?:\.0*)?\b/.test(returnExpr)) return false;
+
+        // 2. A division must be present in the return expression
+        if (!/\//.test(returnExpr)) return false;
+
+        // 3. The divisor must trace back to TICKS_PER_REV:
+        //    a) TICKS_PER_REV appears directly in the return expression, OR
+        if (/TICKS_PER_REV/.test(returnExpr)) return true;
+
+        //    b) A constant defined as TICKS_PER_REV * GEAR_RATIO is used in the return expression
+        const definedConsts = [
+          ...code.matchAll(/\b(\w+)\s*=\s*(?:TICKS_PER_REV\s*\*\s*GEAR_RATIO|GEAR_RATIO\s*\*\s*TICKS_PER_REV)\s*;/g),
+        ];
+        return definedConsts.some((m) => returnExpr.includes(m[1]));
       },
-      tip: "return (ticks / (TICKS_PER_REV * GEAR_RATIO)) * 360.0; — divide ticks by total ticks-per-output-revolution, then multiply by 360.",
+      tip: "return (ticks / (TICKS_PER_REV * GEAR_RATIO)) * 360.0; — both 360 and division by TICKS_PER_REV must appear in the return expression.",
     },
     {
       label: "GEAR_RATIO constant defined",
