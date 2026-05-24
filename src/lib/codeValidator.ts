@@ -2042,11 +2042,11 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tip: "Reverse the motors on the side that drives backward: e.g. frontLeft.setDirection(DcMotor.Direction.REVERSE); — which side depends on your hardware.",
     },
     {
-      label: "ElapsedTime used for timed strafe",
-      description: "ElapsedTime controls each 1-second strafe phase.",
+      label: "sleep() used for timed strafe",
+      description: "sleep(1000) holds each strafe phase for 1 second.",
       tier: "required",
-      pattern: /ElapsedTime\s+\w+\s*=/,
-      tip: "ElapsedTime timer = new ElapsedTime(); timer.reset();",
+      pattern: /\bsleep\s*\(\s*1000\s*\)/,
+      tip: "setMecanumPowers(0, 0.5, 0); sleep(1000); — apply powers then call sleep(1000) to hold for 1 second.",
     },
     {
       label: "setMecanumPowers() or strafe formula applied",
@@ -2054,23 +2054,22 @@ const CHALLENGE_CHECKS: Record<number, ValidationCheck[]> = {
       tier: "required",
       pattern: (code) =>
         /setMecanumPowers\s*\(/.test(code) ||
-        // Accept inline mecanum strafe: at least one motor gets negative of another's value
         /strafe/.test(code),
-      tip: "Call setMecanumPowers(0, strafe, 0) or set frontLeft = -frontRight = backLeft = -backRight for pure strafe.",
+      tip: "Call setMecanumPowers(0, 0.5, 0) for right and setMecanumPowers(0, -0.5, 0) for left — implement the formula inside the helper.",
     },
     {
-      label: "Two timed strafe phases",
-      description: "Separate right-strafe and left-strafe timed segments with timer.reset() between them.",
+      label: "Two sleep() calls for two strafe phases",
+      description: "sleep() called twice — once for right strafe, once for left strafe.",
       tier: "required",
-      pattern: (code) => (code.match(/\w+\.seconds\s*\(\s*\)\s*[<>]/g) ?? []).length >= 2,
-      tip: "Strafe right for 1 s, call timer.reset(), then strafe left for 1 s.",
+      pattern: (code) => (code.match(/\bsleep\s*\(\s*1000\s*\)/g) ?? []).length >= 2,
+      tip: "setMecanumPowers(0, 0.5, 0); sleep(1000); setMecanumPowers(0, -0.5, 0); sleep(1000);",
     },
     {
       label: "All motors stopped at end",
       description: "All four wheels set to zero power after both strafe phases.",
       tier: "required",
       pattern: /\.setPower\(\s*0(?:\.0*)?\s*\)/,
-      tip: "Stop all four motors: frontLeft.setPower(0); frontRight.setPower(0); backLeft.setPower(0); backRight.setPower(0);",
+      tip: "Stop all four motors after the second sleep: setMecanumPowers(0, 0, 0); or set each to 0.",
     },
     {
       label: "No leftover TODO comments",

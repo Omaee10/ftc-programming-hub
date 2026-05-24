@@ -1561,12 +1561,12 @@ public class FieldRelativeDrive extends LinearOpMode {
       "Write an autonomous that strafes right for 1 second then strafes left for 1 second, returning to the start — pure strafing tests that your mecanum formula and reversals are correct.",
     xp: 75,
     estimatedTime: "25 min",
-    tags: ["Autonomous", "Mecanum Drive", "Strafing", "ElapsedTime"],
+    tags: ["Autonomous", "Mecanum Drive", "Strafing", "sleep()"],
     objectives: [
       "Initialize all four mecanum motors with correct direction reversals.",
       "Apply the strafing-only formula (drive=0, rotate=0, strafe=±1.0).",
-      "Use ElapsedTime to strafe right for 1 second.",
-      "Reset the timer and strafe left for 1 second.",
+      "Use sleep(1000) to strafe right for 1 second.",
+      "Use sleep(1000) to strafe left for 1 second.",
       "Stop all motors at the end.",
     ],
     instructions: `Pure strafing uses the mecanum formula with \`drive=0\` and \`rotate=0\`, only varying \`strafe\`. The powers are:
@@ -1577,8 +1577,8 @@ strafing left  (strafe = -1.0):  FL=-1  FR=+1  BL=+1  BR=-1
 If your robot drives diagonally instead of sideways, check two things: (1) the direction reversals on the left-side motors, and (2) whether backLeft and backRight use the correct sign.
 
 **Sequence:**
-1. Strafe **right** (\`strafe = +0.5\`) for **1.0 s**
-2. Strafe **left** (\`strafe = -0.5\`) for **1.0 s**
+1. Set strafing-right powers, then call \`sleep(1000)\` to hold for 1 second
+2. Set strafing-left powers, then call \`sleep(1000)\` to hold for 1 second
 3. Stop all motors
 
 The robot should return to approximately its starting position if the field is flat.`,
@@ -1587,7 +1587,6 @@ The robot should return to approximately its starting position if the field is f
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
 @Autonomous(name = "Strafe Test", group = "Challenge 20")
 public class StrafeTest extends LinearOpMode {
@@ -1599,34 +1598,26 @@ public class StrafeTest extends LinearOpMode {
 
         waitForStart();
 
-        ElapsedTime timer = new ElapsedTime();
+        setMecanumPowers(0, 0, 0);
+        sleep(1000);
 
-        timer.reset();
-        while (timer.seconds() < 1.0 && opModeIsActive()) {
-            telemetry.addData("Phase", "Strafe RIGHT");
-            telemetry.addData("Time", timer.seconds());
-            telemetry.update();
-        }
+        setMecanumPowers(0, 0, 0);
+        sleep(1000);
 
-        timer.reset();
-        while (timer.seconds() < 1.0 && opModeIsActive()) {
-            telemetry.addData("Phase", "Strafe LEFT");
-            telemetry.addData("Time", timer.seconds());
-            telemetry.update();
-        }
+        setMecanumPowers(0, 0, 0);
 
         telemetry.addData("Status", "Complete");
         telemetry.update();
-        sleep(1000);
     }
 
     private void setMecanumPowers(double drive, double strafe, double rotate) {
     }
 }`,
     hints: [
-      "For pure strafe right: `fl=+strafe, fr=-strafe, bl=-strafe, br=+strafe` (with drive=0, rotate=0).",
-      "Call your `setMecanumPowers(0, 0.5, 0)` helper for right and `setMecanumPowers(0, -0.5, 0)` for left — but implement the formula inside first.",
-      "Stop all motors after both loops: `frontLeft.setPower(0); frontRight.setPower(0); backLeft.setPower(0); backRight.setPower(0);`",
+      "For pure strafe right: `setMecanumPowers(0, 0.5, 0)` — strafe=+0.5, drive=0, rotate=0.",
+      "For pure strafe left: `setMecanumPowers(0, -0.5, 0)` — strafe=-0.5.",
+      "Inside setMecanumPowers: fl=drive+strafe+rotate, fr=drive-strafe-rotate, bl=drive-strafe+rotate, br=drive+strafe-rotate.",
+      "Stop all motors by calling `setMecanumPowers(0, 0, 0)` after the second sleep.",
     ],
     conceptsCovered: [
       "Pure strafe mecanum formula",
