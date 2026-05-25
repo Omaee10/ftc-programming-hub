@@ -90,7 +90,17 @@ export interface MentorRuleSpec {
 
 // ─── Implementation ──────────────────────────────────────────────────────
 
-const CLIENT_TIMEOUT_MS = 15_000;
+const CLIENT_TIMEOUT_MS = 60_000;
+
+function errorFromResponseBody(status: number, txt: string): string {
+  try {
+    const parsed = JSON.parse(txt) as { error?: string };
+    if (parsed.error) return parsed.error;
+  } catch {
+    /* use raw text */
+  }
+  return txt || `HTTP ${status}`;
+}
 
 async function postJson<T>(
   url: string,
@@ -112,13 +122,12 @@ async function postJson<T>(
     throw new GraderUnreachableError();
   }
   if (res.status === 503 || res.status === 504) {
-    throw new GraderUnreachableError(
-      res.status === 504 ? "Analyzer timed out." : "Analyzer is offline. Try again."
-    );
+    const txt = await res.text().catch(() => "");
+    throw new GraderUnreachableError(errorFromResponseBody(res.status, txt));
   }
   if (res.status === 401 || res.status === 403) {
     throw new GraderUnreachableError(
-      "Grader auth failed — restart `npm run dev` after updating GRADER_SECRET in .env.local."
+      "Grader auth failed — GRADER_SECRET on Vercel must match Render."
     );
   }
   if (res.status === 429) {
@@ -126,7 +135,7 @@ async function postJson<T>(
   }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`Grader returned ${res.status}: ${txt || res.statusText}`);
+    throw new GraderUnreachableError(errorFromResponseBody(res.status, txt));
   }
   return (await res.json()) as T;
 }
@@ -141,7 +150,7 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`Grader returned ${res.status}: ${txt || res.statusText}`);
+    throw new GraderUnreachableError(errorFromResponseBody(res.status, txt));
   }
   return (await res.json()) as T;
 }

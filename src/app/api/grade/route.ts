@@ -45,20 +45,20 @@ export async function POST(request: Request) {
     if (err instanceof GraderError) {
       const hint =
         err.status === 401
-          ? "Grader rejected the request — check that GRADER_SECRET in .env.local matches the grader container, then restart `npm run dev`."
-          : "Analyzer is unreachable. Try again in a moment.";
-      return NextResponse.json({ error: hint }, { status: 503 });
+          ? "Grader auth failed — GRADER_SECRET on Vercel must match Render."
+          : err.message;
+      return NextResponse.json({ error: hint }, { status: err.status >= 500 ? 503 : err.status });
     }
     if (err instanceof Error && err.name === "AbortError") {
       return NextResponse.json(
-        { error: "Analyzer timed out. Try again." },
+        { error: "Analyzer timed out — the grader may still be waking up. Wait a moment and try again." },
         { status: 504 }
       );
     }
     console.error("grade route failed:", err);
     return NextResponse.json(
-      { error: "Internal grader error." },
-      { status: 500 }
+      { error: err instanceof Error ? err.message : "Internal grader error." },
+      { status: 503 }
     );
   }
 }

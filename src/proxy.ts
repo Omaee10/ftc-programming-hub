@@ -10,6 +10,11 @@ export function proxy(request: NextRequest) {
     | "student"
     | undefined;
 
+  // Server routes (grader proxy, health, etc.) — never gate behind session cookie.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   // Public paths — always allow (redirect to dashboard if already signed in)
   if (
     pathname.startsWith("/signin") ||

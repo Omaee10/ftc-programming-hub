@@ -15,7 +15,24 @@ import { createHash } from "node:crypto";
 
 const GRADER_URL = process.env.GRADER_URL ?? "http://localhost:8080";
 const GRADER_SECRET = process.env.GRADER_SECRET ?? "";
-const GRADER_TIMEOUT_MS = Number(process.env.GRADER_TIMEOUT_MS ?? 15_000);
+const GRADER_TIMEOUT_MS = Number(process.env.GRADER_TIMEOUT_MS ?? 60_000);
+
+function graderMisconfigured(): string | null {
+  const url = process.env.GRADER_URL?.trim();
+  if (!url) {
+    return "GRADER_URL is not set on the server. Add it in Vercel → Settings → Environment Variables, then redeploy.";
+  }
+  if (
+    (process.env.VERCEL || process.env.NODE_ENV === "production") &&
+    /localhost|127\.0\.0\.1/.test(url)
+  ) {
+    return "GRADER_URL still points at localhost. Set it to your Render grader URL in Vercel, then redeploy.";
+  }
+  if ((process.env.VERCEL || process.env.NODE_ENV === "production") && !GRADER_SECRET) {
+    return "GRADER_SECRET is not set on the server. Add the same secret as Render in Vercel, then redeploy.";
+  }
+  return null;
+}
 
 const CACHE_MAX = 256;
 const RATE_WINDOW_MS = 60_000;
@@ -87,6 +104,13 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") throw e;
+    const reason = e instanceof Error ? e.message : "network error";
+    throw new GraderError(
+      `Cannot reach grader at ${GRADER_URL} (${reason}). If Render is on the free tier, wait ~60s and try again.`,
+      503
+    );
   } finally {
     clearTimeout(timer);
   }
@@ -103,6 +127,9 @@ export async function gradeViaService<T = unknown>(payload: {
   challengeId: number;
   mentorRules?: unknown[];
 }): Promise<T> {
+  const configError = graderMisconfigured();
+  if (configError) throw new GraderError(configError, 503);
+
   const key = cacheKey(
     payload.challengeId,
     payload.code,
@@ -130,6 +157,9 @@ export async function requirementsViaService<T = unknown>(
   challengeId: number,
   mentorRules?: unknown[]
 ): Promise<T> {
+  const configError = graderMisconfigured();
+  if (configError) throw new GraderError(configError, 503);
+
   // GET when no mentor rules, POST otherwise — the Java side supports both.
   if (!mentorRules || mentorRules.length === 0) {
     const res = await fetchWithTimeout(
@@ -161,6 +191,9 @@ export async function requirementsViaService<T = unknown>(
 }
 
 export async function graderHealth(): Promise<GraderHealth> {
+  const configError = graderMisconfigured();
+  if (configError) return { ok: false, error: configError };
+
   try {
     const res = await fetchWithTimeout(
       `${GRADER_URL}/healthz`,

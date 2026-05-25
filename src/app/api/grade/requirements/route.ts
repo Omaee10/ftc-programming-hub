@@ -45,11 +45,17 @@ export async function POST(request: Request) {
 
 function handleErr(err: unknown) {
   if (err instanceof GraderError) {
+    return NextResponse.json({ error: err.message }, { status: 503 });
+  }
+  if (err instanceof Error && err.name === "AbortError") {
     return NextResponse.json(
-      { error: "Analyzer is unreachable. Try again in a moment." },
-      { status: 503 }
+      { error: "Analyzer timed out — the grader may still be waking up." },
+      { status: 504 }
     );
   }
   console.error("requirements route failed:", err);
-  return NextResponse.json({ error: "Internal grader error." }, { status: 500 });
+  return NextResponse.json(
+    { error: err instanceof Error ? err.message : "Internal grader error." },
+    { status: 503 }
+  );
 }
