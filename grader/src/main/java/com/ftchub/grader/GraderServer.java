@@ -68,7 +68,7 @@ public final class GraderServer {
         Javalin app = Javalin.create(cfg -> {
             cfg.showJavalinBanner = false;
             cfg.http.defaultContentType = "application/json";
-        }).start(port);
+        }).start("0.0.0.0", port);
 
         // ── /healthz ──────────────────────────────────────────────────────
         app.get("/healthz", ctx -> ctx.json(java.util.Map.of(

@@ -23,12 +23,12 @@ RUN apt-get update \
 
 USER grader
 
-ENV PORT=8080 \
-    JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+UseG1GC"
+# Render injects PORT at runtime — do not hardcode it here.
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=70.0 -XX:+UseSerialGC"
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/healthz || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
+    CMD curl -fsS "http://127.0.0.1:${PORT:-8080}/healthz" || exit 1
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/ftc-grader.jar"]

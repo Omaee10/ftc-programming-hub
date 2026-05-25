@@ -73,23 +73,55 @@ real jars can coexist — the JDK classpath resolution picks the first match.
 
 ## Deploying to Render (free tier)
 
-1. Sign up at [render.com](https://render.com) and connect this repo.
-2. **New → Web Service** with:
-   - **Root Directory:** `grader`
-   - **Runtime:** Docker
-   - **Instance type:** Free
-   - **Health Check Path:** `/healthz`
-3. Add env var `GRADER_SECRET` (generate with `openssl rand -hex 32`).
-4. After deploy, set the same values in Vercel:
+### Option A — Blueprint (recommended)
+
+1. [render.com](https://render.com) → **New → Blueprint**
+2. Connect repo `ftc-programming-hub`
+3. Render reads [`render.yaml`](../render.yaml) at the repo root — creates a Docker
+   web service with root directory `grader`
+4. When prompted, set **`GRADER_SECRET`** (same value as Vercel)
+5. Wait for deploy to finish (**Live** status). First Docker build can take 10–15 min.
+
+### Option B — Manual web service
+
+1. **New → Web Service** → connect repo
+2. Settings:
+
+| Field | Value |
+|---|---|
+| **Root Directory** | `grader` |
+| **Runtime** | **Docker** (not Node) |
+| **Instance type** | Free |
+| **Health Check Path** | `/healthz` |
+
+3. Env var: `GRADER_SECRET`
+4. After deploy, set in Vercel:
    - `GRADER_URL` → your Render URL (e.g. `https://ftc-grader.onrender.com`)
-   - `GRADER_SECRET` → same secret as above
+   - `GRADER_SECRET` → same secret
 
 The free tier sleeps after ~15 minutes idle; the first request after that may
 take 30–60 seconds while the container wakes up.
 
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `curl: (35) Connection reset by peer` | Service not **Live**, still building, or crash-looping | Render dashboard → **Logs**. Wait for build to finish or fix the error in logs. |
+| `Not Found` + `x-render-routing: no-server` | Wrong URL or service deleted | Copy URL from Render dashboard → your service → top of page. |
+| Redirect to `/onboarding` | You deployed the **Next.js app** on Render, not the grader | Delete that service; deploy only `grader/` via Docker. Keep Next.js on Vercel. |
+| Build fails / out of memory | Free tier is 512 MB | Re-deploy; the image uses SerialGC to fit. Check logs for `OutOfMemoryError`. |
+| `401` from grader | Secret mismatch | `GRADER_SECRET` must match on Render and Vercel exactly. |
+
+Test when **Live**:
+
+```bash
+curl https://YOUR-SERVICE.onrender.com/healthz
+# → {"ok":true,"stubs":48,"libs":0}
+```
+
 CI (`.github/workflows/grader-test.yml`) still builds and smoke-tests the
-grader on every push to `grader/**`; deploy is manual from the Render dashboard
-(or connect Render auto-deploy on push).
+grader on every push to `grader/**`; deploy is from the Render dashboard
+(or Blueprint auto-deploy on push).
 
 ## Adding or tuning challenge rubrics
 

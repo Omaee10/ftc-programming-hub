@@ -1,0 +1,13 @@
+# Render Blueprint — deploy ONLY the Java grader (not the Next.js app).
+# In Render: Dashboard → New → Blueprint → connect this repo.
+# Vercel continues to host the Next.js frontend.
+services:
+  - type: web
+    name: ftc-grader
+    runtime: docker
+    rootDir: grader
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: GRADER_SECRET
+        sync: false
