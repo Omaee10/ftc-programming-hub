@@ -172,8 +172,10 @@ public final class ChallengeRubrics {
                 "setTargetPosition() must execute before switching the motor to RUN_TO_POSITION.",
                 "Call setTargetPosition() first, then setMode(RUN_TO_POSITION), then setPower().",
                 ctx -> {
-                    long target = firstCallLine(ctx, "setTargetPosition");
-                    long runTo = TreeHelpers.firstRunToPositionSetModeLine(ctx);
+                    long target = TreeHelpers.firstSourceLineMatching(
+                            ctx, Pattern.compile("\\.setTargetPosition\\s*\\("));
+                    long runTo = TreeHelpers.firstSourceLineMatching(
+                            ctx, Pattern.compile("\\.setMode\\s*\\([^)]*RUN_TO_POSITION"));
                     if (target < 0 || runTo < 0) return true;
                     return target < runTo;
                 }),

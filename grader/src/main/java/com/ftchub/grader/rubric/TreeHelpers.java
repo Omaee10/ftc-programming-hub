@@ -197,6 +197,17 @@ public final class TreeHelpers {
 
     // ── Ordering ───────────────────────────────────────────────────────────
 
+    /** First 1-based source line matching {@code pattern} (comments stripped). */
+    public static long firstSourceLineMatching(RubricContext ctx, Pattern pattern) {
+        for (int i = 0; i < ctx.sourceLines.size(); i++) {
+            String line = ctx.sourceLines.get(i);
+            int comment = line.indexOf("//");
+            if (comment >= 0) line = line.substring(0, comment);
+            if (pattern.matcher(line).find()) return i + 1L;
+        }
+        return -1;
+    }
+
     /** Returns the starting line of the first {@code setMode(...RUN_TO_POSITION...)} call, or -1. */
     public static long firstRunToPositionSetModeLine(RubricContext ctx) {
         if (!ctx.astAvailable()) return -1;
