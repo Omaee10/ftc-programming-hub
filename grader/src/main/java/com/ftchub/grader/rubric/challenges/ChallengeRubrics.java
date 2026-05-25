@@ -173,10 +173,9 @@ public final class ChallengeRubrics {
                 "Call setTargetPosition() first, then setMode(RUN_TO_POSITION), then setPower().",
                 ctx -> {
                     long target = firstCallLine(ctx, "setTargetPosition");
-                    if (target < 0) return true;
-                    var lines = TreeHelpers.lineNumbersMatching(ctx, Pattern.compile("RUN_TO_POSITION"));
-                    if (lines.isEmpty()) return true;
-                    return lines.get(0) >= target;
+                    long runTo = TreeHelpers.firstRunToPositionSetModeLine(ctx);
+                    if (target < 0 || runTo < 0) return true;
+                    return target < runTo;
                 }),
             Rules.required("Non-zero power applied",
                 "setPower() called with a non-zero value to start movement.",

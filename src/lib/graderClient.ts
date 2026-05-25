@@ -31,7 +31,26 @@ function graderMisconfigured(): string | null {
   if ((process.env.VERCEL || process.env.NODE_ENV === "production") && !GRADER_SECRET) {
     return "GRADER_SECRET is not set on the server. Add the same secret as Render in Vercel, then redeploy.";
   }
+  if (url.includes("vercel.app")) {
+    return "GRADER_URL must be your Render grader URL (https://….onrender.com), not your Vercel website URL.";
+  }
   return null;
+}
+
+function graderResponseError(status: number, text: string): GraderError {
+  if (status === 404) {
+    return new GraderError(
+      "GRADER_URL points to the wrong server (404 on /compile). " +
+        "In Vercel, set GRADER_URL to your Render Docker grader URL — copy it from the Render dashboard. " +
+        `Test first: curl ${GRADER_URL.replace(/\/$/, "")}/healthz`,
+      503
+    );
+  }
+  const httpStatus = status >= 500 ? 503 : status;
+  return new GraderError(
+    `Grader returned ${status}: ${text || "error"}`,
+    httpStatus
+  );
 }
 
 const CACHE_MAX = 256;
@@ -146,7 +165,7 @@ export async function gradeViaService<T = unknown>(payload: {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new GraderError(`Grader returned ${res.status}: ${text || res.statusText}`, res.status);
+    throw graderResponseError(res.status, text);
   }
   const json = (await res.json()) as T;
   cacheSet(key, json);
@@ -169,7 +188,7 @@ export async function requirementsViaService<T = unknown>(
     );
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new GraderError(`Grader returned ${res.status}: ${text || res.statusText}`, res.status);
+      throw graderResponseError(res.status, text);
     }
     return (await res.json()) as T;
   }
@@ -185,7 +204,7 @@ export async function requirementsViaService<T = unknown>(
   );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new GraderError(`Grader returned ${res.status}: ${text || res.statusText}`, res.status);
+    throw graderResponseError(res.status, text);
   }
   return (await res.json()) as T;
 }

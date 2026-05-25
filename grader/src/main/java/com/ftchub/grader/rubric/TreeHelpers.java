@@ -197,6 +197,27 @@ public final class TreeHelpers {
 
     // ── Ordering ───────────────────────────────────────────────────────────
 
+    /** Returns the starting line of the first {@code setMode(...RUN_TO_POSITION...)} call, or -1. */
+    public static long firstRunToPositionSetModeLine(RubricContext ctx) {
+        if (!ctx.astAvailable()) return -1;
+        var line = new long[]{-1};
+        new TreeScanner<Void, Void>() {
+            @Override public Void visitMethodInvocation(MethodInvocationTree node, Void p) {
+                if (line[0] != -1) return null;
+                if (!"setMode".equals(simpleMethodName(node))) return super.visitMethodInvocation(node, p);
+                for (ExpressionTree arg : node.getArguments()) {
+                    if (arg.toString().contains("RUN_TO_POSITION")) {
+                        long start = ctx.trees().getSourcePositions().getStartPosition(ctx.tree(), node);
+                        if (start >= 0) line[0] = ctx.tree().getLineMap().getLineNumber(start);
+                        return null;
+                    }
+                }
+                return super.visitMethodInvocation(node, p);
+            }
+        }.scan(ctx.tree(), null);
+        return line[0];
+    }
+
     /** Returns the starting line of the first method call to {@code methodName}, or -1 if absent. */
     public static long firstCallLine(RubricContext ctx, String methodName) {
         if (!ctx.astAvailable()) return -1;
