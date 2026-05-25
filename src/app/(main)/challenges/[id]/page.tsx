@@ -20,6 +20,7 @@ function rowToChallenge(row: ChallengeRow): Challenge {
     starterCode: row.starter_code,
     hints: row.hints,
     conceptsCovered: row.concepts_covered,
+    mentorRules: row.rubric_json ?? undefined,
   };
 }
 

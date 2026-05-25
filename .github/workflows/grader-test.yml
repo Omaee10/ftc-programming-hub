@@ -1,0 +1,47 @@
+name: Test FTC Grader
+
+on:
+  pull_request:
+    paths:
+      - "grader/**"
+  push:
+    branches: [main]
+    paths:
+      - "grader/**"
+
+jobs:
+  compile:
+    name: Compile and start grader smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build shadow jar
+        working-directory: grader
+        run: gradle --no-daemon shadowJar
+
+      - name: Smoke test (start, hit /healthz, stop)
+        working-directory: grader
+        run: |
+          java -jar build/libs/ftc-grader.jar &
+          SERVER_PID=$!
+          for i in {1..30}; do
+            if curl -sf http://localhost:8080/healthz > /dev/null; then
+              echo "Grader is up."
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://localhost:8080/healthz | tee /dev/stderr
+          kill $SERVER_PID

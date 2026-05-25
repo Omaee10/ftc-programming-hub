@@ -64,9 +64,18 @@ CREATE TABLE IF NOT EXISTS challenges (
   starter_code     text NOT NULL DEFAULT '',
   hints            text[] NOT NULL DEFAULT '{}',
   concepts_covered text[] NOT NULL DEFAULT '{}',
+  -- Mentor-authored rubric rules, evaluated by the Java grader (see
+  -- grader/src/.../rubric/mentor/JsonRule.java). Each entry is a small DSL:
+  --   { "kind": "callsMethod", "arg": "DcMotor.setDirection",
+  --     "label": "Sets motor direction", "tier": "improvement" }
+  rubric_json      jsonb,
   created_by       uuid REFERENCES mentors(id) ON DELETE SET NULL,
   created_at       timestamptz DEFAULT now()
 );
+
+-- ─── Migration: add rubric_json to existing challenges table ─────────────
+-- Run this if the table already exists:
+-- ALTER TABLE challenges ADD COLUMN IF NOT EXISTS rubric_json jsonb;
 
 -- Student progress
 -- NOTE: challenge_id is a plain integer with NO foreign key constraint so that

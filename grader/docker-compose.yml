@@ -1,0 +1,13 @@
+# Local development helper. From the repo root:
+#   docker compose -f grader/docker-compose.yml up --build
+# Then set GRADER_URL=http://localhost:8080 in your Next.js .env.local
+services:
+  grader:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - ../.env.local
+    environment:
+      - PORT=8080
+    restart: unless-stopped

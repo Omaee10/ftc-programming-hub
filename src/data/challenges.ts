@@ -1,5 +1,22 @@
 export type Difficulty = "Beginner" | "Intermediate" | "Advanced";
 
+/** Mentor-authored grader rule (mirrors {@link MentorRuleSpec} in graderClient). */
+export interface ChallengeMentorRule {
+  kind:
+    | "callsMethod"
+    | "declaresField"
+    | "containsLiteral"
+    | "extendsClass"
+    | "hasAnnotation"
+    | "instantiates"
+    | "forbidsCall";
+  arg: string;
+  label?: string;
+  description?: string;
+  tip?: string;
+  tier?: "required" | "improvement" | "style";
+}
+
 export interface Challenge {
   id: number;
   title: string;
@@ -13,6 +30,11 @@ export interface Challenge {
   starterCode: string;
   hints: string[];
   conceptsCovered: string[];
+  /**
+   * Optional mentor-supplied rubric rules. Built-in challenges leave this
+   * undefined and rely on the per-challenge rules baked into the grader.
+   */
+  mentorRules?: ChallengeMentorRule[];
 }
 
 export const challenges: Challenge[] = [

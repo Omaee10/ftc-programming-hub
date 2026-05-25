@@ -36,6 +36,23 @@ export interface StudentRow {
   created_at: string;
 }
 
+/** Shape of a single mentor-authored rubric rule, mirrored on the Java side. */
+export interface MentorRubricRule {
+  kind:
+    | "callsMethod"
+    | "declaresField"
+    | "containsLiteral"
+    | "extendsClass"
+    | "hasAnnotation"
+    | "instantiates"
+    | "forbidsCall";
+  arg: string;
+  label?: string;
+  description?: string;
+  tip?: string;
+  tier?: "required" | "improvement" | "style";
+}
+
 export interface ChallengeRow {
   id: number;
   title: string;
@@ -49,6 +66,8 @@ export interface ChallengeRow {
   starter_code: string;
   hints: string[];
   concepts_covered: string[];
+  /** Optional mentor rubric, evaluated by the Java grader. */
+  rubric_json: MentorRubricRule[] | null;
   created_by: string | null;
   created_at: string;
 }

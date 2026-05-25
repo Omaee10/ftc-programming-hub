@@ -39,7 +39,13 @@ import {
 
 import type { Challenge } from "@/data/challenges";
 import { challenges as staticChallenges, difficultyConfig, getChallengeById } from "@/data/challenges";
-import { type GradedResult, type Grade, gradeCode } from "@/lib/codeValidator";
+import {
+  type GradedResult,
+  type Grade,
+  gradeCode,
+  GraderUnreachableError,
+  GraderTimeoutError,
+} from "@/lib/codeValidator";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { supabase, type SubmissionRow } from "@/lib/supabase";
@@ -715,22 +721,38 @@ export default function ChallengeWorkspace({
 
     const filename = `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.java`;
 
-    appendEntry({ type: "init", message: "FTC Hub Analyzer v2.0" });
+    appendEntry({ type: "init", message: "FTC Hub Analyzer v3.0" });
     appendEntry({ type: "separator", message: "" });
 
-    await delay(280);
-    appendEntry({ type: "running", message: `Compiling ${filename}…` });
+    await delay(180);
+    appendEntry({ type: "running", message: `Compiling ${filename} with javac…` });
 
-    await delay(460);
-    appendEntry({ type: "info", message: "Parsing imports and class structure…" });
+    // ── Real grader call ─────────────────────────────────────────────
+    let result: GradedResult;
+    try {
+      result = await gradeCode(code, challenge.id, challenge.mentorRules);
+    } catch (err) {
+      const msg =
+        err instanceof GraderTimeoutError
+          ? "Analyzer took too long. Try again — the service may be warming up."
+          : err instanceof GraderUnreachableError
+          ? err.message
+          : "Unexpected analyzer error. Try again in a moment.";
+      appendEntry({ type: "separator", message: "" });
+      appendEntry({
+        type: "verdict-wrong",
+        message: "Analyzer Offline",
+        sub: msg,
+      });
+      setLastGrade(null);
+      setIsRunning(false);
+      return;
+    }
 
-    await delay(340);
-    appendEntry({ type: "info", message: "Validating LinearOpMode structure…" });
-
-    await delay(300);
+    await delay(120);
+    appendEntry({ type: "info", message: "Compilation complete — running rubric checks…" });
+    await delay(180);
     appendEntry({ type: "separator", message: "" });
-
-    const result: GradedResult = gradeCode(code, challenge.id);
 
     // ── Syntax issues ──────────────────────────────────────────────────
     if (result.syntaxIssues.length > 0) {
