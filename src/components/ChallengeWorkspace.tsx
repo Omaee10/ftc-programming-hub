@@ -77,7 +77,7 @@ function defineThemes(monaco: Monaco) {
       { token: "delimiter", foreground: "52525b" },
     ],
     colors: {
-      "editor.background": "#09090b",
+      "editor.background": "#18181f",
       "editor.foreground": "#e4e4e7",
       "editor.lineHighlightBackground": "#18181b80",
       "editor.selectionBackground": "#1e3a5f",
@@ -85,10 +85,10 @@ function defineThemes(monaco: Monaco) {
       "editorLineNumber.foreground": "#3f3f46",
       "editorLineNumber.activeForeground": "#71717a",
       "editorCursor.foreground": "#f59e0b",
-      "editorCursor.background": "#09090b",
+      "editorCursor.background": "#18181f",
       "editorIndentGuide.background1": "#27272a",
       "editorIndentGuide.activeBackground1": "#3f3f46",
-      "editorGutter.background": "#09090b",
+      "editorGutter.background": "#18181f",
       "editorWidget.background": "#18181b",
       "editorWidget.border": "#27272a",
       "editorSuggestWidget.background": "#18181b",
@@ -189,7 +189,7 @@ function fmtLines(lines: number[] | undefined): string {
 
 function EditorSkeleton() {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-white dark:bg-[#09090b]">
+    <div className="flex h-full w-full items-center justify-center bg-white dark:bg-[#18181f]">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="h-6 w-6 animate-spin text-slate-400 dark:text-zinc-100" />
         <span className="text-xs text-slate-500">Loading editor…</span>

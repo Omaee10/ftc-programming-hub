@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Clock } from "lucide-react";
 import TocSidebar, { type TocItem } from "./TocSidebar";
+import DocHashScroll from "./DocHashScroll";
 
 export interface DocSection {
   /** Stable kebab-case anchor used by the ToC. */
@@ -42,6 +43,7 @@ export default function DocPageLayout({
 
   return (
     <div className="min-h-full px-6 py-10 page-enter">
+      <DocHashScroll />
       <div className="max-w-5xl mx-auto">
         {/* Breadcrumbs */}
         <nav className="flex items-center gap-1 mb-8 text-xs text-slate-600">

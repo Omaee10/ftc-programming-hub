@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Menu, LogOut, Palette, Shield } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "./Sidebar";
@@ -23,6 +23,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [themePanelOpen, setThemePanelOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+  const lockScroll = pathname === "/dashboard";
 
   useEffect(() => {
     const stored = getSession();
@@ -184,7 +186,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </header>
 
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</main>
+        <main
+          className={[
+            "min-w-0 flex-1 overflow-x-hidden",
+            lockScroll ? "overflow-y-auto lg:overflow-hidden" : "overflow-y-auto",
+          ].join(" ")}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

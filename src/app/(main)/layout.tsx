@@ -5,5 +5,9 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <div className="h-full">
+      <AppShell>{children}</AppShell>
+    </div>
+  );
 }

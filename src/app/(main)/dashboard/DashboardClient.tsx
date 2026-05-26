@@ -3,23 +3,27 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  BookOpen,
   Code2,
-  Zap,
   ArrowRight,
   CheckCircle2,
-  Cpu,
-  GitBranch,
-  Navigation,
   Users,
   ClipboardList,
   ChevronRight,
+  GraduationCap,
+  Archive,
+  Layers,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { challenges as staticChallenges, difficultyOrder } from "@/data/challenges";
+import {
+  challenges as staticChallenges,
+  difficultyOrder,
+  difficultyConfig,
+  type Difficulty,
+} from "@/data/challenges";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { supabase } from "@/lib/supabase";
+import DashboardDocSearch from "@/components/DashboardDocSearch";
 
 function calcStreak(completedDates: string[]): number {
   if (completedDates.length === 0) return 0;
@@ -58,32 +62,95 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-const quickLinks = [
-  {
-    title: "goBILDA Hardware",
-    description: "Motors, servos, structural components",
-    href: "/docs/gobilda",
-    icon: Cpu,
-  },
-  {
-    title: "REV Robotics",
-    description: "Control Hub, Expansion Hub, electronics",
-    href: "/docs/rev-robotics",
-    icon: Zap,
-  },
-  {
-    title: "Road Runner",
-    description: "Trajectory-based autonomous motion",
-    href: "/docs/road-runner",
-    icon: GitBranch,
-  },
-  {
-    title: "Pedro Pathing",
-    description: "Follower-based path-following library",
-    href: "/docs/pedro-pathing",
-    icon: Navigation,
-  },
-];
+function formatDisplayName(name: string): string {
+  if (!name || name === "there") return name;
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+const DIFFICULTY_BAR: Record<Difficulty, string> = {
+  Beginner: "bg-emerald-500",
+  Intermediate: "bg-amber-500",
+  Advanced: "bg-violet-500",
+};
+
+const STUDENT_SHORTCUTS = [
+  { label: "All challenges", href: "/challenges", icon: Code2 },
+  { label: "Java basics", href: "/docs/java-basics", icon: GraduationCap },
+  { label: "Past programs", href: "/past-programs", icon: Archive },
+] as const;
+
+function DifficultyProgressStrip({
+  completedSet,
+  hydrated,
+}: {
+  completedSet: Set<number>;
+  hydrated: boolean;
+}) {
+  const tiers = difficultyOrder.map((diff) => {
+    const all = staticChallenges.filter((c) => c.difficulty === diff);
+    const done = all.filter((c) => completedSet.has(c.id)).length;
+    const pct = all.length > 0 ? Math.round((done / all.length) * 100) : 0;
+    return { diff, done, total: all.length, pct };
+  });
+
+  return (
+    <div className="dash-surface-card mt-4 shrink-0 px-4 py-3">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-medium uppercase tracking-widest text-slate-600">
+          Progress by level
+        </p>
+        <Link href="/challenges" className="text-[10px] link-accent flex items-center gap-1">
+          View all <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {tiers.map(({ diff, done, total, pct }) => (
+          <div key={diff}>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${difficultyConfig[diff].badgeClass}`}>
+                {difficultyConfig[diff].label}
+              </span>
+              <span className="text-[10px] tabular-nums text-slate-500">
+                {hydrated ? `${done}/${total}` : "—"}
+              </span>
+            </div>
+            <div className="progress-track h-1">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${DIFFICULTY_BAR[diff]}`}
+                style={{ width: hydrated ? `${pct}%` : "0%" }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 border-t dash-divider pt-3">
+        {STUDENT_SHORTCUTS.map(({ label, href, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="dash-list-item inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 transition-all duration-200 hover:text-slate-200"
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+            {label}
+          </Link>
+        ))}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("ftc-open-doc-search"))}
+          className="dash-list-item inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-500 transition-all duration-200 hover:text-slate-300"
+        >
+          <Layers className="h-3.5 w-3.5 shrink-0" />
+          Search docs
+          <kbd className="dash-search-kbd ml-0.5 text-[9px]">⌘K</kbd>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ─── Mentor dashboard ──────────────────────────────────────────────────────
 
@@ -157,105 +224,92 @@ function MentorDashboard() {
   const hasPending = pendingCount !== null && pendingCount > 0;
 
   return (
-    <div className="min-h-full px-8 py-10 max-w-5xl mx-auto page-enter">
-      {/* Header */}
-      <div className="mb-10">
-        <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-2">{today}</p>
-        <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
+    <div className="flex h-full flex-col overflow-y-auto lg:overflow-hidden px-5 py-4 max-w-5xl mx-auto page-enter">
+      <DashboardDocSearch />
+
+      <div className="mt-4 shrink-0">
+        <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-1">{today}</p>
+        <h1 className="text-xl font-semibold text-slate-100 tracking-tight capitalize">
           {classTitle ?? "…"}
         </h1>
-        <p className="mt-1 text-sm text-slate-500">Here&apos;s what&apos;s happening in your class today.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-5">
-        {/* Left column */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Stat row — open, no card box */}
-          <div className="grid grid-cols-3 divide-x divide-slate-800/80 pb-6 border-b border-slate-800/60">
+      <div className="mt-4 grid shrink-0 grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="dash-panel px-4 py-3.5 lg:col-span-2">
+          <div className="grid grid-cols-3 divide-x dash-divider">
             {[
               { label: "Students", value: studentCount },
               { label: "Pending Review", value: pendingCount, highlight: hasPending },
               { label: "Challenges Created", value: challengeCount },
             ].map((s) => (
-              <div key={s.label} className="px-0 first:pl-0 pl-6">
-                <p className={`text-3xl font-semibold stat-number ${s.highlight ? "text-amber-400" : "text-slate-100"}`}>
+              <div key={s.label} className="px-0 first:pl-0 pl-5">
+                <p className={`text-2xl font-semibold ${s.highlight ? "stat-value-warning" : "stat-value-muted"}`}>
                   {s.value !== null ? s.value : "—"}
                 </p>
-                <p className="text-xs text-slate-600 mt-1">{s.label}</p>
+                <p className="stat-label mt-1">{s.label}</p>
               </div>
             ))}
           </div>
+        </div>
 
-          {/* Submissions callout */}
-          {hasPending ? (
+        {hasPending ? (
+          <Link
+            href="/mentor/dashboard"
+            className="group dash-panel-warning flex items-center justify-between px-4 py-3 lg:col-span-1"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <ClipboardList className="h-4 w-4 text-amber-400 shrink-0" />
+              <p className="text-sm font-medium text-slate-200 truncate">
+                {pendingCount} pending review
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-slate-600 group-hover:text-slate-400 shrink-0" />
+          </Link>
+        ) : (
+          pendingCount !== null && (
+            <div className="dash-panel-success flex items-center gap-3 px-4 py-3 lg:col-span-1">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+              <p className="text-sm text-slate-400">All caught up</p>
+            </div>
+          )
+        )}
+      </div>
+
+      <div className="mt-3 min-h-0 flex-1">
+        <p className="text-[11px] uppercase tracking-widest text-slate-600 font-medium mb-2">Quick access</p>
+        <div className="dash-panel overflow-hidden dash-divide">
+          {[
+            { label: "Mentor Portal", sub: "Students, challenges, submissions", href: "/mentor/dashboard", icon: Users },
+            { label: "Coding Challenges", sub: "53 built-in challenges", href: "/challenges", icon: Code2 },
+          ].map(({ label, sub, href, icon: Icon }) => (
             <Link
-              href="/mentor/dashboard"
-              className="group flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-5 py-4 hover:bg-amber-500/8 hover:border-amber-500/30 transition-all duration-200"
+              key={href}
+              href={href}
+              className="group dash-row flex items-center justify-between px-4 py-3.5 card-accent-hover"
             >
-              <div className="flex items-center gap-3.5">
-                <ClipboardList className="h-4 w-4 text-amber-400 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-slate-200">
-                    {pendingCount} submission{pendingCount !== 1 ? "s" : ""} waiting for review
-                  </p>
-                  <p className="text-xs text-slate-500 mt-0.5">Open mentor portal to grade</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <Icon className="h-4 w-4 text-slate-600 group-hover:accent-text transition-colors shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm text-slate-300 group-hover:text-slate-100 transition-colors">{label}</p>
+                  <p className="text-xs text-slate-600 mt-0.5 truncate">{sub}</p>
                 </div>
               </div>
-              <ArrowRight className="h-4 w-4 text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
+              <ChevronRight className="h-3.5 w-3.5 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
             </Link>
-          ) : (
-            pendingCount !== null && (
-              <div className="flex items-center gap-3.5 rounded-lg border border-slate-800/80 bg-slate-900/50 px-5 py-4">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                <p className="text-sm text-slate-400">All submissions reviewed — nothing pending.</p>
-              </div>
-            )
-          )}
-
-          {/* Info strip */}
-          <div>
-            <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-3 font-medium">How it works</p>
-            <ul className="space-y-2.5">
-              {[
-                "Students join using the 6-character code you share with them.",
-                "Custom challenges you create are only visible to your students.",
-                "Submissions appear in your portal once a student submits for review.",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-3 text-sm text-slate-500">
-                  <span className="mt-1.5 h-1 w-1 rounded-full bg-slate-700 shrink-0" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
+          ))}
         </div>
+      </div>
 
-        {/* Right column */}
-        <div className="lg:col-span-2">
-          <p className="text-[11px] uppercase tracking-widest text-slate-600 font-medium mb-3">Quick access</p>
-          <div className="rounded-lg border border-slate-800/80 overflow-hidden divide-y divide-slate-800/60">
-            {[
-              { label: "Mentor Portal", sub: "Students, challenges, submissions", href: "/mentor/dashboard", icon: Users },
-              { label: "Coding Challenges", sub: "53 built-in challenges", href: "/challenges", icon: Code2 },
-              { label: "Documentation", sub: "Hardware, SDK, motion libraries", href: "/docs/gobilda", icon: BookOpen },
-            ].map(({ label, sub, href, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className="group flex items-center justify-between bg-slate-900/40 hover:accent-bg-subtle px-4 py-3.5 transition-all duration-150"
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="h-4 w-4 text-slate-600 group-hover:accent-text transition-colors shrink-0" />
-                  <div>
-                    <p className="text-sm text-slate-300 group-hover:text-slate-100 transition-colors">{label}</p>
-                    <p className="text-xs text-slate-600 mt-0.5">{sub}</p>
-                  </div>
-                </div>
-                <ChevronRight className="h-3.5 w-3.5 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
-              </Link>
-            ))}
-          </div>
-        </div>
+      <div className="mt-3 flex shrink-0 flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("ftc-open-doc-search"))}
+          className="dash-list-item inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-slate-500 transition-all duration-200 hover:text-slate-300"
+        >
+          <Layers className="h-3.5 w-3.5 shrink-0" />
+          Search docs
+          <kbd className="dash-search-kbd ml-0.5 text-[9px]">⌘K</kbd>
+        </button>
       </div>
     </div>
   );
@@ -349,7 +403,7 @@ export default function DashboardClient({ name }: { name?: string }) {
         .map((id) => ({ id, date: progress[id] }))
         .filter((x): x is { id: number; date: string } => !!x.date)
         .sort((a, b) => (a.date > b.date ? -1 : 1))
-        .slice(0, 5)
+        .slice(0, 2)
         .map(({ id, date }) => {
           const challenge = staticChallenges.find((c) => c.id === id);
           return {
@@ -388,204 +442,124 @@ export default function DashboardClient({ name }: { name?: string }) {
   });
 
   return (
-    <div className="min-h-full px-6 py-8 max-w-5xl mx-auto page-enter">
-      {/* ── Hero — open, no card ───────────────────────────────────────── */}
-      <div className="mb-6">
-        <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-2">{today}</p>
-        <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
-          Welcome back{displayName ? `, ${displayName}` : ""}
+    <div className="flex h-full flex-col overflow-y-auto lg:overflow-hidden px-5 py-4 max-w-5xl mx-auto page-enter">
+      <DashboardDocSearch />
+
+      <div className="mt-4 shrink-0">
+        <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-1">{today}</p>
+        <h1 className="text-xl font-semibold text-slate-100 tracking-tight">
+          Welcome back{displayName ? `, ${formatDisplayName(displayName)}` : ""}
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {hydrated && completedCount > 0
-            ? `${completedCount} of ${totalChallenges} challenges done. Keep going.`
-            : "Start your first challenge to track your progress."}
-        </p>
       </div>
 
-      {/* ── Progress feature ─────────────────────────────────────────────── */}
-      <div className="mb-6 pb-6 border-b border-slate-800/60">
-        <div className="flex flex-wrap items-end gap-8">
-          {/* Primary stat */}
+      <div className="dash-stats-card mt-4 shrink-0 p-4">
+        <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <p className="text-[11px] uppercase tracking-widest text-slate-600 mb-1.5">Challenges</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-semibold stat-number accent-stat">
+            <p className="stat-label mb-2">Challenges</p>
+            <div className="flex flex-col">
+              <span className="text-4xl font-black tracking-tight tabular-nums stat-hero-value">
                 {hydrated ? completedCount : "—"}
               </span>
-              <span className="text-xl text-slate-700 font-light">/ {totalChallenges}</span>
+              <span className="dash-stat-sub mt-0.5">
+                / {totalChallenges} challenges
+              </span>
             </div>
-            {/* Progress bar */}
-            <div className="mt-3 h-0.5 w-52 rounded-full bg-slate-800 overflow-hidden">
+            <div className="progress-track mt-3 w-44">
               <div
-                className="h-full rounded-full accent-fill transition-all duration-700"
+                className="progress-fill"
                 style={{ width: hydrated ? `${pct}%` : "0%" }}
               />
             </div>
-            <p className="mt-1.5 text-[11px] text-slate-700">
+            <p className="progress-caption">
               {hydrated ? `${pct}% complete` : "Loading…"}
             </p>
           </div>
 
-          {/* Supporting stats */}
-          <div className="flex gap-8 pb-1">
+          <div className="flex gap-8 pb-0.5">
             <div>
-              <p className="text-2xl font-semibold stat-number text-purple-400">
-                {hydrated ? xpEarned : "—"}
-              </p>
-              <p className="text-xs text-slate-600 mt-0.5">XP earned</p>
+              <p className="text-xl font-semibold stat-value">{hydrated ? xpEarned : "—"}</p>
+              <p className="stat-label mt-1">XP earned</p>
             </div>
             <div>
-              <p className="text-2xl font-semibold stat-number text-orange-400">
-                {hydrated ? streak : "—"}
-              </p>
-              <p className="text-xs text-slate-600 mt-0.5">day streak</p>
+              <p className="text-xl font-semibold stat-value">{hydrated ? streak : "—"}</p>
+              <p className="stat-label mt-1">day streak</p>
             </div>
             <div>
-              <p className="text-2xl font-semibold stat-number text-blue-400">
-                {hydrated ? attemptedCount : "—"}
-              </p>
-              <p className="text-xs text-slate-600 mt-0.5">attempted</p>
+              <p className="text-xl font-semibold stat-value">{hydrated ? attemptedCount : "—"}</p>
+              <p className="stat-label mt-1">attempted</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Two-column layout ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Documentation quick links */}
-        <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-[11px] uppercase tracking-widest text-slate-600 font-medium">
-              Documentation
-            </p>
-            <Link
-              href="/docs/gobilda"
-              className="text-xs link-accent flex items-center gap-1 transition-colors"
-            >
-              Browse all <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
+      <DifficultyProgressStrip completedSet={completedSet} hydrated={hydrated} />
 
-          {/* Open list style — no card boxes */}
-          <div className="divide-y divide-slate-800/60">
-            {quickLinks.map((link) => {
-              const Icon = link.icon;
-              return (
+      <div className="mt-3 grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="dash-surface-card px-4 py-3.5">
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-widest text-slate-600">
+            Recent Activity
+          </p>
+          <div className="flex flex-col gap-0.5">
+            {!hydrated ? (
+              Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 py-2 animate-pulse">
+                  <div className="h-3 w-3 shrink-0 rounded-full bg-slate-100/10" />
+                  <div className="h-2.5 flex-1 rounded bg-slate-100/10" />
+                </div>
+              ))
+            ) : recentActivity.length === 0 ? (
+              <div className="py-4 text-center">
+                <p className="text-xs text-slate-600">No activity yet.</p>
                 <Link
-                  key={link.href}
-                  href={link.href}
-                  className="group flex items-center gap-4 py-3 card-accent-hover transition-all duration-150"
+                  href="/challenges"
+                  className="mt-1.5 inline-flex items-center gap-1 text-xs link-accent"
                 >
-                  <div className="h-8 w-8 shrink-0 flex items-center justify-center rounded-md bg-slate-900 border border-slate-800/80 group-hover:accent-border transition-colors">
-                    <Icon className="h-3.5 w-3.5 text-slate-500 group-hover:accent-text transition-colors" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-300 group-hover:text-slate-100 transition-colors truncate">
-                      {link.title}
-                    </p>
-                    <p className="text-xs text-slate-600 mt-0.5 truncate">
-                      {link.description}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-700 group-hover:text-slate-500 shrink-0 transition-colors" />
+                  Start a challenge <ArrowRight className="h-3 w-3" />
                 </Link>
-              );
-            })}
-          </div>
-
-          {/* All challenges link */}
-          <div className="mt-3 pt-3 border-t border-slate-800/60">
-            <Link
-              href="/challenges"
-              className="group flex items-center justify-between rounded-md accent-bg-subtle border accent-border-subtle px-4 py-3 card-accent-hover transition-all duration-150"
-            >
-              <div className="flex items-center gap-3">
-                <Code2 className="h-4 w-4 text-slate-500 group-hover:accent-text transition-colors" />
-                <div>
-                  <p className="text-sm font-medium text-slate-300 group-hover:text-slate-100 transition-colors">
-                    Coding Challenges
-                  </p>
-                  <p className="text-xs text-slate-600">53 challenges across 3 difficulty levels</p>
-                </div>
               </div>
-              <ArrowRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-slate-400 transition-colors" />
+            ) : (
+              recentActivity.map((item, i) => (
+                <div key={i} className="flex items-center gap-2.5 py-2">
+                  <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+                  <p className="min-w-0 flex-1 truncate text-xs text-slate-400">{item.label}</p>
+                  <span className="shrink-0 text-[10px] text-slate-700">{item.time}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {hydrated && nextChallenge ? (
+          <div className="dash-panel-accent p-4">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-widest text-slate-600">
+              Up Next
+            </p>
+            <p className="text-sm font-medium text-slate-200">{nextChallenge.title}</p>
+            <p className="mt-0.5 mb-3 line-clamp-2 text-xs text-slate-600">
+              {nextChallenge.description}
+            </p>
+            <Link
+              href={`/challenges/${nextChallenge.id}`}
+              className="inline-flex items-center gap-1.5 rounded-md btn-primary px-3 py-1.5 text-xs font-semibold active:scale-[0.98]"
+            >
+              Start challenge <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
-        </div>
-
-        {/* Right: recent activity + next challenge */}
-        <div className="space-y-3">
-          {/* Recent activity */}
-          <div>
-            <p className="text-[11px] uppercase tracking-widest text-slate-600 font-medium mb-3">
-              Recent Activity
+        ) : hydrated && !nextChallenge ? (
+          <div className="dash-panel-success p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              <span className="text-xs font-medium text-emerald-400">All Done</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              You&apos;ve completed all available challenges.
             </p>
-            <div className="space-y-0.5">
-              {!hydrated ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 py-2.5 animate-pulse">
-                    <div className="h-3 w-3 rounded-full bg-slate-800 shrink-0" />
-                    <div className="flex-1 h-2.5 rounded bg-slate-800" />
-                  </div>
-                ))
-              ) : recentActivity.length === 0 ? (
-                <div className="py-6 text-center">
-                  <p className="text-xs text-slate-600">No activity yet.</p>
-                  <Link
-                    href="/challenges"
-                    className="mt-2 inline-flex items-center gap-1 text-xs link-accent transition-colors"
-                  >
-                    Start a challenge <ArrowRight className="h-3 w-3" />
-                  </Link>
-                </div>
-              ) : (
-                recentActivity.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 py-2.5 border-b border-slate-800/50 last:border-0">
-                    <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
-                    <p className="flex-1 min-w-0 text-xs text-slate-400 truncate">
-                      {item.label}
-                    </p>
-                    <span className="text-[10px] text-slate-700 shrink-0">{item.time}</span>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
-
-          {/* Next challenge */}
-          {hydrated && nextChallenge && (
-            <div className="rounded-lg border accent-border-subtle accent-bg-subtle p-4">
-              <p className="text-[11px] uppercase tracking-widest text-slate-600 font-medium mb-2.5">
-                Up Next
-              </p>
-              <p className="text-sm font-medium text-slate-200">
-                {nextChallenge.title}
-              </p>
-              <p className="text-xs text-slate-600 mt-0.5 mb-3 line-clamp-2">
-                {nextChallenge.description}
-              </p>
-              <Link
-                href={`/challenges/${nextChallenge.id}`}
-                className="inline-flex items-center gap-1.5 rounded-md btn-primary px-3 py-1.5 text-xs font-semibold transition-colors active:scale-[0.98]"
-              >
-                Start challenge <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-          )}
-
-          {hydrated && !nextChallenge && (
-            <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                <span className="text-xs font-medium text-emerald-400">All Done</span>
-              </div>
-              <p className="text-xs text-slate-400">
-                You&apos;ve completed all available challenges.
-              </p>
-            </div>
-          )}
-
-        </div>
+        ) : (
+          <div className="dash-surface-card flex items-center justify-center p-4">
+            <p className="text-xs text-slate-600">Loading your next challenge…</p>
+          </div>
+        )}
       </div>
     </div>
   );
