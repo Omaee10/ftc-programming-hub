@@ -44,7 +44,13 @@ function hitKey(hit: DocSearchHit): string {
   return `${hit.docHref}#${hit.sectionId}`;
 }
 
-export default function DashboardDocSearch() {
+type DocSearchVariant = "dashboard" | "header";
+
+export default function DashboardDocSearch({
+  variant = "dashboard",
+}: {
+  variant?: DocSearchVariant;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -53,6 +59,7 @@ export default function DashboardDocSearch() {
   const [isMac, setIsMac] = useState(true);
 
   const results = useMemo(() => searchDocumentation(query), [query]);
+  const isHeader = variant === "header";
 
   const close = useCallback(() => {
     setOpen(false);
@@ -134,14 +141,29 @@ export default function DashboardDocSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="dash-search-trigger group flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-left transition-all duration-200 ease-in-out"
+        className={[
+          "dash-search-trigger group flex items-center text-left transition-all duration-200 ease-in-out",
+          isHeader
+            ? "dash-search-trigger-header h-8 min-w-0 flex-1 max-w-md gap-2 rounded-md px-2.5 lg:max-w-sm xl:max-w-md"
+            : "w-full gap-3 rounded-lg px-3.5 py-2.5",
+        ].join(" ")}
         aria-label="Search documentation"
       >
-        <Search className="h-4 w-4 shrink-0 text-slate-500 transition-colors group-hover:text-slate-400" />
-        <span className="flex-1 text-sm text-slate-500 transition-colors group-hover:text-slate-400">
-          Search docs, sections, and topics…
+        <Search
+          className={[
+            "shrink-0 text-slate-500 transition-colors group-hover:text-slate-400",
+            isHeader ? "h-3.5 w-3.5" : "h-4 w-4",
+          ].join(" ")}
+        />
+        <span
+          className={[
+            "min-w-0 flex-1 truncate text-slate-500 transition-colors group-hover:text-slate-400",
+            isHeader ? "text-xs" : "text-sm",
+          ].join(" ")}
+        >
+          {isHeader ? "Search documentation…" : "Search docs, sections, and topics…"}
         </span>
-        <kbd className="dash-search-kbd hidden sm:inline-flex">
+        <kbd className={["dash-search-kbd shrink-0", isHeader ? "hidden md:inline-flex text-[9px]" : "hidden sm:inline-flex"].join(" ")}>
           {isMac ? "⌘K" : "Ctrl K"}
         </kbd>
       </button>

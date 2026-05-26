@@ -406,6 +406,10 @@
   border-color: color-mix(in srgb, var(--color-slate-100) 12%, transparent);
 }
 
+.dash-search-trigger-header {
+  max-height: 2rem;
+}
+
 .dash-search-kbd {
   align-items: center;
   border-radius: 0.375rem;

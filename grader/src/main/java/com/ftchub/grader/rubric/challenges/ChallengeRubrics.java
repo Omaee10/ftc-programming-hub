@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import static com.ftchub.grader.rubric.TreeHelpers.callsMethod;
 import static com.ftchub.grader.rubric.TreeHelpers.callsMethodInsideWhileLoop;
 import static com.ftchub.grader.rubric.TreeHelpers.declaresField;
+import static com.ftchub.grader.rubric.TreeHelpers.declaresMethod;
 import static com.ftchub.grader.rubric.TreeHelpers.firstCallLine;
 import static com.ftchub.grader.rubric.TreeHelpers.instantiates;
 import static com.ftchub.grader.rubric.TreeHelpers.instantiatesInsideWhileLoop;
@@ -906,8 +907,103 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 40 — Pedro Pathing single line. */
+    /** Challenge 40 — Stale frame detection (Limelight diagnostics). */
     private static List<RubricRule> challenge40() {
+        return Rules.of(
+            Rules.required("Limelight3A declared",
+                "Limelight field configured for vision reads.",
+                "limelight = hardwareMap.get(Limelight3A.class, \"limelight\");",
+                ctx -> declaresField(ctx, "Limelight3A")),
+            Rules.required("Latest result polled",
+                "Read frames each loop with getLatestResult().",
+                "LLResult result = limelight.getLatestResult();",
+                ctx -> callsMethod(ctx, "getLatestResult")),
+            Rules.required("Stale frame counter",
+                "Increment a counter when consecutive frames match.",
+                "if (stale) staleFrames++; else staleFrames = 0;",
+                ctx -> sourceContains(ctx, Pattern.compile("staleFrames\\s*\\+|staleFrames\\s*=\\s*staleFrames\\s*\\+"))
+                       && (sourceContains(ctx, Pattern.compile("getTx\\s*\\("))
+                           || sourceContains(ctx, Pattern.compile("getTy\\s*\\("))
+                           || sourceContains(ctx, Pattern.compile("getCaptureLatency\\s*\\("))))
+        );
+    }
+
+    /** Challenge 41 — AprilTag fiducial extraction. */
+    private static List<RubricRule> challenge41() {
+        return Rules.of(
+            Rules.required("Fiducial results retrieved",
+                "Iterate the tag list from the Limelight result.",
+                "List<...> tags = result.getFiducialResults();",
+                ctx -> callsMethod(ctx, "getFiducialResults")),
+            Rules.required("Tag ID filter",
+                "Match a specific AprilTag by getFiducialId().",
+                "if (tag.getFiducialId() == expectedTagId) { ... }",
+                ctx -> sourceContains(ctx, Pattern.compile("getFiducialId\\s*\\("))),
+            Rules.required("Horizontal offset extracted",
+                "Read tx from the matched fiducial.",
+                "tx = tag.getTargetXDegrees();",
+                ctx -> sourceContains(ctx, Pattern.compile("getTargetXDegrees\\s*\\(")))
+        );
+    }
+
+    /** Challenge 42 — tx-based turret correction. */
+    private static List<RubricRule> challenge42() {
+        return Rules.of(
+            Rules.required("tx read from Limelight",
+                "Horizontal error drives the correction.",
+                "tx = result.getTx();",
+                ctx -> callsMethod(ctx, "getTx")),
+            Rules.required("Proportional correction",
+                "Scale tx by Kp to produce motor power.",
+                "correctionPower = Kp * tx;",
+                ctx -> sourceContains(ctx, Pattern.compile("Kp\\s*\\*\\s*tx|tx\\s*\\*\\s*Kp"))),
+            Rules.required("Turret motor powered",
+                "Apply the correction to the turret motor.",
+                "turretMotor.setPower(correctionPower);",
+                ctx -> callsMethod(ctx, "setPower"))
+        );
+    }
+
+    /** Challenge 43 — Limelight poll rate cycling. */
+    private static List<RubricRule> challenge43() {
+        return Rules.of(
+            Rules.required("Poll rate array defined",
+                "Rates {100, 50, 25, 10} Hz available for cycling.",
+                "int[] rates = {100, 50, 25, 10};",
+                ctx -> sourceContains(ctx, Pattern.compile("\\{\\s*100\\s*,\\s*50\\s*,\\s*25\\s*,\\s*10\\s*\\}"))),
+            Rules.required("setPollRateHz called",
+                "Apply the selected rate to the Limelight.",
+                "limelight.setPollRateHz(rates[rateIdx]);",
+                ctx -> callsMethod(ctx, "setPollRateHz")),
+            Rules.required("Y button cycles rate",
+                "Rising edge on Y advances to the next rate.",
+                "if (gamepad1.y && !lastY) rateIdx = (rateIdx + 1) % rates.length;",
+                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.y"))
+                       && sourceContains(ctx, Pattern.compile("setPollRateHz\\s*\\(")))
+        );
+    }
+
+    /** Challenge 44 — Pose construction and heading conversion. */
+    private static List<RubricRule> challenge44() {
+        return Rules.of(
+            Rules.required("Pose objects constructed",
+                "Team field positions stored as Pose instances.",
+                "Pose startPose = new Pose(64, 8.35, Math.toRadians(180));",
+                ctx -> instantiates(ctx, "Pose")),
+            Rules.required("Heading in radians",
+                "Convert degrees to radians for the Pose constructor.",
+                "Math.toRadians(180)",
+                ctx -> sourceContains(ctx, Pattern.compile("Math\\.toRadians\\s*\\("))),
+            Rules.required("Degrees display",
+                "Show heading in human-readable degrees.",
+                "Math.toDegrees(pose.getHeading())",
+                ctx -> sourceContains(ctx, Pattern.compile("Math\\.toDegrees\\s*\\("))
+                       && sourceContains(ctx, Pattern.compile("getHeading\\s*\\(")))
+        );
+    }
+
+    /** Challenge 45 — BezierLine path follow. */
+    private static List<RubricRule> challenge45() {
         return Rules.of(
             Rules.required("Follower used",
                 "Pedro Follower drives the path.",
@@ -915,185 +1011,164 @@ public final class ChallengeRubrics {
                 ctx -> instantiates(ctx, "Follower")),
             Rules.required("BezierLine used",
                 "Single straight segment uses BezierLine.",
-                "new Path(new BezierLine(...))",
+                "new BezierLine(new Point(...), new Point(...))",
                 ctx -> instantiates(ctx, "BezierLine")),
+            Rules.required("Constant heading interpolation",
+                "Heading held constant along the segment.",
+                ".setConstantHeadingInterpolation(startPose.getHeading())",
+                ctx -> callsMethod(ctx, "setConstantHeadingInterpolation")),
             Rules.required("followPath + update loop",
-                "Path execution requires both followPath() and update() inside the loop.",
-                "follower.followPath(path); while (!follower.atParametricEnd()) { follower.update(); }",
+                "Path execution requires followPath() and update() while busy.",
+                "follower.followPath(path); while (follower.isBusy()) { follower.update(); }",
                 ctx -> callsMethod(ctx, "followPath") && callsMethodInsideWhileLoop(ctx, "update"))
         );
     }
 
-    /** Challenge 41 — Pedro PathChain (3 legs). */
-    private static List<RubricRule> challenge41() {
-        return Rules.of(
-            Rules.required("PathBuilder used",
-                "PathChain assembled with PathBuilder().",
-                "new PathBuilder().addPath(...).build();",
-                ctx -> instantiates(ctx, "PathBuilder")),
-            Rules.required("At least 3 addPath() calls",
-                "Three legs requires three addPath calls.",
-                "Chain three .addPath() calls before .build().",
-                ctx -> TreeHelpers.countMethodCalls(ctx, "addPath") >= 3),
-            Rules.required("update() inside loop",
-                "Follower must tick every iteration.",
-                "while (...) { follower.update(); }",
-                ctx -> callsMethodInsideWhileLoop(ctx, "update"))
-        );
-    }
-
-    /** Challenge 42 — IMU yaw reset on a button. */
-    private static List<RubricRule> challenge42() {
-        return Rules.of(
-            Rules.required("IMU declared",
-                "IMU field configured.",
-                "IMU imu = hardwareMap.get(IMU.class, \"imu\");",
-                ctx -> declaresField(ctx, "IMU")),
-            Rules.required("resetYaw() bound to a button",
-                "Driver can re-zero the IMU mid-match.",
-                "if (gamepad1.options) imu.resetYaw();",
-                ctx -> callsMethod(ctx, "resetYaw") && sourceContains(ctx, Pattern.compile("gamepad[12]\\.")))
-        );
-    }
-
-    /** Challenge 43 — Servo programmatic init. */
-    private static List<RubricRule> challenge43() {
-        return Rules.of(
-            Rules.required("Servo set to known position at init",
-                "Set position before waitForStart() so the mechanism starts from a known state.",
-                "armServo.setPosition(INIT_POSITION); telemetry.update();",
-                ctx -> {
-                    long wait = TreeHelpers.firstCallLine(ctx, "waitForStart");
-                    long set  = TreeHelpers.firstCallLine(ctx, "setPosition");
-                    return wait < 0 || (set > 0 && set < wait);
-                })
-        );
-    }
-
-    /** Challenge 44 — Multiple gamepad axes (advanced TeleOp). */
-    private static List<RubricRule> challenge44() {
-        return Rules.of(
-            Rules.required("Both sticks read",
-                "Reads at least left_stick_y and right_stick_x.",
-                "double drive = -gamepad1.left_stick_y; double turn = gamepad1.right_stick_x;",
-                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.left_stick_y"))
-                       && sourceContains(ctx, Pattern.compile("gamepad1\\.right_stick_x"))),
-            Rules.required("Both motors driven",
-                "Differential mix sent to both sides.",
-                "left.setPower(drive + turn); right.setPower(drive - turn);",
-                ctx -> TreeHelpers.countMethodCalls(ctx, "setPower") >= 2)
-        );
-    }
-
-    /** Challenge 45 — Use gamepad2 (secondary driver). */
-    private static List<RubricRule> challenge45() {
-        return Rules.of(
-            Rules.required("gamepad2 referenced",
-                "Second driver controls a different subsystem.",
-                "if (gamepad2.a) ...",
-                ctx -> sourceContains(ctx, Pattern.compile("gamepad2\\.")))
-        );
-    }
-
-    /** Challenge 46 — Encoder velocity safety guard. */
+    /** Challenge 46 — BezierCurve tape detour. */
     private static List<RubricRule> challenge46() {
         return Rules.of(
-            Rules.required("DcMotorEx declared",
-                "DcMotorEx required for velocity APIs.",
-                "DcMotorEx motor = ...",
-                ctx -> declaresField(ctx, "DcMotorEx")),
-            Rules.required("Conditional setVelocity",
-                "Velocity only set when within safe bounds.",
-                "if (input > threshold) motor.setVelocity(target);",
-                ctx -> callsMethod(ctx, "setVelocity"))
-        );
-    }
-
-    /** Challenge 47 — Range.clip helper. */
-    private static List<RubricRule> challenge47() {
-        return Rules.of(
-            Rules.required("Range.clip used",
-                "Use Range.clip(value, min, max) to constrain power.",
-                "double power = Range.clip(input, -1.0, 1.0);",
-                ctx -> sourceContains(ctx, Pattern.compile("Range\\.clip\\s*\\(")))
-        );
-    }
-
-    /** Challenge 48 — Stop motors in finally / on exit. */
-    private static List<RubricRule> challenge48() {
-        return Rules.of(
-            Rules.required("setPower(0) at end of OpMode",
-                "Explicit cleanup stops motors after the loop.",
-                "After the while loop, call motor.setPower(0) for each motor.",
-                ctx -> sourceContains(ctx, ZERO_POWER))
-        );
-    }
-
-    /** Challenge 49 — Pedro tangent heading interpolation. */
-    private static List<RubricRule> challenge49() {
-        return Rules.of(
+            Rules.required("BezierCurve used",
+                "Curved detour uses a BezierCurve with control points.",
+                "new BezierCurve(new Point(...), new Point(...), new Point(...))",
+                ctx -> instantiates(ctx, "BezierCurve")),
             Rules.required("Tangent heading interpolation set",
                 "Path follows tangent of the curve.",
                 ".setTangentHeadingInterpolation()",
                 ctx -> callsMethod(ctx, "setTangentHeadingInterpolation")),
             Rules.required("Follower updates inside loop",
-                "Same as every Pedro challenge.",
+                "Follower must tick every iteration while moving.",
                 "follower.update() inside the while loop.",
                 ctx -> callsMethodInsideWhileLoop(ctx, "update"))
         );
     }
 
-    /** Challenge 50 — Use ElapsedTime for telemetry hz. */
+    /** Challenge 47 — Reversed path. */
+    private static List<RubricRule> challenge47() {
+        return Rules.of(
+            Rules.required("BezierLine used",
+                "Return path built as a straight segment.",
+                "new BezierLine(new Point(...), new Point(...))",
+                ctx -> instantiates(ctx, "BezierLine")),
+            Rules.required("Path reversed",
+                "Robot drives backward along the segment.",
+                ".setReversed(true)",
+                ctx -> callsMethod(ctx, "setReversed")),
+            Rules.required("Linear heading interpolation",
+                "Heading blends between start and end.",
+                ".setLinearHeadingInterpolation(startHeading, endHeading)",
+                ctx -> callsMethod(ctx, "setLinearHeadingInterpolation"))
+        );
+    }
+
+    /** Challenge 48 — Dynamic path building helper. */
+    private static List<RubricRule> challenge48() {
+        return Rules.of(
+            Rules.required("Dynamic path helper",
+                "Helper builds a path from the follower's current pose.",
+                "private PathChain buildPathTo(Pose target, boolean reversed) { ... }",
+                ctx -> (declaresMethod(ctx, "buildPathTo") || declaresMethod(ctx, "followTo"))
+                       && sourceContains(ctx, Pattern.compile("getPose\\s*\\("))),
+            Rules.required("BezierLine in helper",
+                "Segment connects current position to the target.",
+                "new BezierLine(new Point(current, Point.POSE), new Point(target, Point.POSE))",
+                ctx -> instantiates(ctx, "BezierLine")),
+            Rules.required("Multiple path segments",
+                "Chain at least three waypoint moves.",
+                "Call the helper (or followPath) for each leg of the route.",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "followPath") >= 3
+                       || TreeHelpers.countMethodCalls(ctx, "followTo") >= 3)
+        );
+    }
+
+    /** Challenge 49 — Unit conversion (inches ↔ mm). */
+    private static List<RubricRule> challenge49() {
+        return Rules.of(
+            Rules.required("inchesToMm implemented",
+                "Multiply inches by 25.4 to convert to millimeters.",
+                "return inches * 25.4;",
+                ctx -> declaresMethod(ctx, "inchesToMm")
+                       && sourceContains(ctx, Pattern.compile("inchesToMm[^{]*\\{[^}]*25\\.4"))
+                       && !sourceContains(ctx, Pattern.compile("inchesToMm[^{]*\\{\\s*return\\s+0\\s*;"))),
+            Rules.required("mmToInches implemented",
+                "Divide millimeters by 25.4 to convert to inches.",
+                "return mm / 25.4;",
+                ctx -> declaresMethod(ctx, "mmToInches")
+                       && sourceContains(ctx, Pattern.compile("mmToInches[^{]*\\{[^}]*\\/\\s*25\\.4"))
+                       && !sourceContains(ctx, Pattern.compile("mmToInches[^{]*\\{\\s*return\\s+0\\s*;"))),
+            Rules.improvement("Conversion helpers called in loop",
+                "Apply helpers to field dimensions in telemetry.",
+                "double fieldMm = inchesToMm(FIELD_INCHES);",
+                ctx -> callsMethod(ctx, "inchesToMm") && callsMethod(ctx, "mmToInches"))
+        );
+    }
+
+    /** Challenge 50 — Vector dot product. */
     private static List<RubricRule> challenge50() {
         return Rules.of(
-            Rules.required("ElapsedTime drives a rate limit",
-                "Timer gates a periodic action.",
-                "if (timer.seconds() > 0.2) { /* update */ timer.reset(); }",
-                ctx -> instantiates(ctx, "ElapsedTime") && callsMethod(ctx, "reset"))
+            Rules.required("dot() helper implemented",
+                "2D dot product: ax*bx + ay*by.",
+                "return ax * bx + ay * by;",
+                ctx -> declaresMethod(ctx, "dot")
+                       && sourceContains(ctx, Pattern.compile("dot[^{]*\\{[^}]*\\*[^}]*\\+"))
+                       && !sourceContains(ctx, Pattern.compile("dot[^{]*\\{\\s*return\\s+0\\s*;"))),
+            Rules.required("dot() used in runOpMode",
+                "Compute alignment from drive and reference vectors.",
+                "double dotProduct = dot(driveX, driveY, refX, refY);",
+                ctx -> callsMethod(ctx, "dot"))
         );
     }
 
-    /** Challenge 51 — Road Runner action sequence (RR 1.0). */
+    /** Challenge 51 — Linear interpolation (lerp) ramp. */
     private static List<RubricRule> challenge51() {
         return Rules.of(
-            Rules.required("actionBuilder used",
-                "RR 1.0 path built with actionBuilder.",
-                "drive.actionBuilder(start).splineTo(...).build();",
-                ctx -> callsMethod(ctx, "actionBuilder")),
-            Rules.required("Actions.runBlocking called",
-                "Action executed via the Actions runner.",
-                "Actions.runBlocking(trajectory);",
-                ctx -> callsMethod(ctx, "runBlocking"))
+            Rules.required("lerp() helper implemented",
+                "Linear blend: a + t * (b - a).",
+                "return a + t * (b - a);",
+                ctx -> declaresMethod(ctx, "lerp")
+                       && sourceContains(ctx, Pattern.compile("lerp[^{]*\\{[^}]*\\+[^}]*\\*"))
+                       && !sourceContains(ctx, Pattern.compile("lerp[^{]*\\{\\s*return\\s+0\\s*;"))),
+            Rules.required("ElapsedTime drives ramp",
+                "Timer computes t over the ramp duration.",
+                "ElapsedTime timer = new ElapsedTime(); double t = elapsed / RAMP_DURATION;",
+                ctx -> instantiates(ctx, "ElapsedTime") && callsMethod(ctx, "lerp"))
         );
     }
 
-    /** Challenge 52 — Sensor-aware drive correction. */
+    /** Challenge 52 — Projectile distance from TPS (inverse lookup). */
     private static List<RubricRule> challenge52() {
         return Rules.of(
-            Rules.required("Sensor declared (Color, Distance, or IMU)",
-                "Some sensor must drive the correction logic.",
-                "ColorSensor, DistanceSensor, or IMU field.",
-                ctx -> declaresField(ctx, "ColorSensor")
-                       || declaresField(ctx, "DistanceSensor")
-                       || declaresField(ctx, "IMU"))
+            Rules.required("tpsToDistance() helper",
+                "Inverse lookup maps TPS back to distance.",
+                "private double tpsToDistance(double tps) { ... }",
+                ctx -> declaresMethod(ctx, "tpsToDistance")),
+            Rules.required("Calibration tables used",
+                "Search TPS_TABLE brackets and interpolate DIST_TABLE.",
+                "for (int i = 0; i < TPS_TABLE.length - 1; i++) { ... }",
+                ctx -> sourceContains(ctx, Pattern.compile("TPS_TABLE"))
+                       && sourceContains(ctx, Pattern.compile("DIST_TABLE"))),
+            Rules.required("Bracket interpolation",
+                "Linearly interpolate between bracketing distances.",
+                "double t = (tps - TPS_TABLE[i]) / (TPS_TABLE[i+1] - TPS_TABLE[i]);",
+                ctx -> sourceContains(ctx, Pattern.compile("TPS_TABLE\\s*\\[\\s*i\\s*\\+\\s*1\\s*\\]"))
+                       && !sourceContains(ctx, Pattern.compile("tpsToDistance[^{]*\\{\\s*return\\s+0\\s*;")))
         );
     }
 
-    /** Challenge 53 — Limelight integration. */
+    /** Challenge 53 — Robot velocity magnitude. */
     private static List<RubricRule> challenge53() {
         return Rules.of(
-            Rules.required("Limelight3A declared",
-                "Limelight3A field configured.",
-                "Limelight3A limelight = hardwareMap.get(Limelight3A.class, \"limelight\");",
-                ctx -> declaresField(ctx, "Limelight3A")),
-            Rules.required("Limelight started",
-                "limelight.start() begins streaming.",
-                "limelight.start();",
-                ctx -> callsMethod(ctx, "start")),
-            Rules.required("Latest result polled",
-                "getLatestResult() reads the most recent detection.",
-                "LLResult r = limelight.getLatestResult();",
-                ctx -> callsMethod(ctx, "getLatestResult"))
+            Rules.required("DcMotorEx declared",
+                "Velocity APIs require DcMotorEx.",
+                "DcMotorEx forwardMotor = hardwareMap.get(DcMotorEx.class, ...);",
+                ctx -> declaresField(ctx, "DcMotorEx")),
+            Rules.required("getVelocity() called",
+                "Read forward and strafe wheel speeds.",
+                "double fwdTPS = forwardMotor.getVelocity();",
+                ctx -> callsMethod(ctx, "getVelocity")),
+            Rules.required("Speed magnitude computed",
+                "Combine vx and vy with sqrt or hypot.",
+                "double speed = Math.sqrt(vxMMs * vxMMs + vyMMs * vyMMs);",
+                ctx -> sourceContains(ctx, Pattern.compile("Math\\.sqrt\\s*\\(|Math\\.hypot\\s*\\(")))
         );
     }
 }

@@ -6,6 +6,7 @@ import { Menu, LogOut, Palette, Shield } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "./Sidebar";
 import ThemePanel from "./ThemePanel";
+import DashboardDocSearch from "./DashboardDocSearch";
 import { getSession, setSession as persistSession, clearSession, type Session } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
@@ -25,6 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const lockScroll = pathname === "/dashboard";
+  const showHeaderSearch = pathname !== "/dashboard";
 
   useEffect(() => {
     const stored = getSession();
@@ -100,13 +102,25 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* Mobile menu */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:text-slate-300 transition-colors lg:hidden"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 hover:text-slate-300 transition-colors lg:hidden"
             aria-label="Open sidebar"
           >
             <Menu className="h-4 w-4" />
           </button>
 
-          <div className="flex-1" />
+          {showHeaderSearch && (
+            <div className="flex min-w-0 flex-1 items-center gap-2 lg:gap-3">
+              <div className="flex shrink-0 items-baseline gap-1 lg:hidden">
+                <span className="text-sm font-semibold tracking-tight text-slate-200">
+                  FTC Hub
+                </span>
+                <span className="text-[10px] font-normal text-slate-600">Programming</span>
+              </div>
+              <DashboardDocSearch variant="header" />
+            </div>
+          )}
+
+          {!showHeaderSearch && <div className="flex-1" />}
 
           {/* Mentor dashboard shortcut */}
           {session?.role === "mentor" && (
