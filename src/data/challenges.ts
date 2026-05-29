@@ -1409,7 +1409,9 @@ private double[] normalize(double fl, double fr, double bl, double br) {
 }
 \`\`\`
 
-Implement this helper and verify it in telemetry by printing the raw and normalized values for a diagonal-strafing command.`,
+Implement this helper and verify it in telemetry by printing the raw and normalized values for a diagonal-strafing command.
+
+**Helper method required:** The grader checks for a \`normalize()\` method. Call it from the loop each iteration — objectives about applying normalized powers to the motors must go through that helper.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -1925,7 +1927,7 @@ public class PController extends LinearOpMode {
       "Define constants: TICKS_PER_REV = 537.7, GEAR_RATIO = 2.0.",
       "Implement double ticksToDegrees(int ticks) using the formula.",
       "Read the turret encoder position each loop.",
-      "Display the position in both ticks and degrees.",
+      "Call ticksToDegrees() from the loop and display ticks and degrees in telemetry.",
       "Verify the conversion: 537.7 × 2.0 ticks should equal 360°.",
     ],
     instructions: `Motors report position in **encoder ticks**, but humans and physics use **degrees**. The conversion:
@@ -1940,7 +1942,9 @@ For a goBILDA motor with 537.7 ticks/revolution and a 2:1 external gear reductio
 
 **Verification test:** move the turret by hand one full rotation (1075.4 ticks) and confirm telemetry reads ~360°. Half a rotation (537.7 ticks) should read ~180°.
 
-Implement \`ticksToDegrees()\` as a helper method, then also implement the inverse \`degreesToTicks(double degrees)\` as a bonus.`,
+Implement \`ticksToDegrees()\` as a helper method, then also implement the inverse \`degreesToTicks(double degrees)\` as a bonus.
+
+**Helper method required:** Put the tick-to-degree conversion in \`ticksToDegrees()\` and call it from the loop when updating telemetry. Objectives like "display position in degrees" mean using that helper — the same math written only inline in \`runOpMode()\` will not pass.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -2016,7 +2020,7 @@ public class TicksToDegrees extends LinearOpMode {
       "Find which two table entries bracket the input distance.",
       "Compute the linear interpolation between those two entries.",
       "Clamp the output for distances below 30 in or above 60 in.",
-      "Display the distance, interpolated TPS, and nearest table entries in telemetry.",
+      "Display the distance, interpolated TPS, and nearest table entries in telemetry (via interpolateTPS()).",
     ],
     instructions: `The team's flywheel requires different speeds at different distances from the goal. The calibration table was measured empirically:
 
@@ -2030,7 +2034,9 @@ double tps = 1350 + t * (1500 - 1350); // = 1425
 Implement \`interpolateTPS(double distanceInches)\`:
 - If \`distance ≤ 30\`, return 1200 (clamp to minimum)
 - If \`distance ≥ 60\`, return 1650 (clamp to maximum)
-- Otherwise, find the bracketing pair and linearly interpolate`,
+- Otherwise, find the bracketing pair and linearly interpolate
+
+**Helper method required:** Put the lookup and interpolation in \`interpolateTPS()\` and call it from the loop before telemetry. Objectives about displaying TPS still require that method — inline table math in \`runOpMode()\` alone will not pass.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -2761,7 +2767,7 @@ public class ModeSwitchTeleOp extends LinearOpMode {
       "Define goalX and goalY constants in mm (72 in × 25.4 mm/in).",
       "Implement double distanceToGoal(double x, double y) using Math.hypot().",
       "Simulate robot position changing with joystick input.",
-      "Display distance to goal, robot position, and goal position in telemetry.",
+      "Call distanceToGoal() from the loop and display distance, robot position, and goal position in telemetry.",
       "Verify with the team's known positions: robot at (46.5 in, 10.5 in).",
     ],
     instructions: `Field positions in Pedro Pathing are stored in **millimeters** (1 inch = 25.4 mm). The straight-line distance between two points uses the Pythagorean theorem: \`d = √((x₂−x₁)² + (y₂−y₁)²)\`
@@ -2772,7 +2778,9 @@ public class ModeSwitchTeleOp extends LinearOpMode {
 
 At the shot point, the distance to goal should be approximately **1694 mm (66.7 in)**.
 
-Implement \`distanceToGoal()\` and verify this result using the known coordinates.`,
+Implement \`distanceToGoal()\` and verify this result using the known coordinates.
+
+**Helper method required:** Put the distance calculation in \`distanceToGoal(double x, double y)\` and call it from the loop when updating telemetry. Objectives like "display distance to goal" mean calling that helper — \`Math.hypot()\` only inline in \`runOpMode()\` will not pass.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -2931,8 +2939,7 @@ public class TurretBearing extends LinearOpMode {
     objectives: [
       "Define the field width constant: FIELD_MM = 144 * 25.4 mm.",
       "Implement double mirrorX(double x) returning FIELD_MM - x.",
-      "Apply mirrorX() to a list of BLUE coordinates to produce RED coordinates.",
-      "Display both BLUE and RED coordinates in telemetry.",
+      "Call mirrorX() for each BLUE coordinate and display both alliances in telemetry.",
       "Verify: mirrorX(0) = FIELD_MM, mirrorX(FIELD_MM) = 0.",
     ],
     instructions: `FTC fields are symmetric. Your autonomous code can be written for one alliance and then mirrored for the other using a simple X-axis reflection. The field is **144 inches = 3657.6 mm** wide.
@@ -2947,7 +2954,9 @@ This reflects a point across the field center (at \`FIELD_MM / 2\` = 1828.8 mm):
 - BLUE shot point: \`x = 46.5 * 25.4 = 1181.1 mm\`
 - RED shot point: \`x = 3657.6 - 1181.1 = 2476.5 mm\`
 
-The Y axis stays the same for both alliances (near wall is always Y = 0).`,
+The Y axis stays the same for both alliances (near wall is always Y = 0).
+
+**Helper method required:** Implement \`mirrorX()\` and call it when computing RED coordinates for telemetry. Objectives about displaying mirrored coordinates still require that method — \`FIELD_MM - x\` only inline in the loop will not pass.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -3016,7 +3025,7 @@ public class CoordinateMirror extends LinearOpMode {
     objectives: [
       "Implement double toRadians(double deg) using * Math.PI / 180.",
       "Implement double toDegrees(double rad) using * 180 / Math.PI.",
-      "Convert 0°, 90°, 180°, 270°, 360° to radians and display results.",
+      "Call toRadians() and toDegrees() from the loop and display the converted values in telemetry.",
       "Verify round-trip: toDegrees(toRadians(angle)) == angle.",
     ],
     instructions: `Pedro Pathing's \`Pose\` constructor takes heading in **radians**, but humans think in **degrees**. You need conversion helpers constantly in robotics code.
@@ -3035,7 +3044,9 @@ public class CoordinateMirror extends LinearOpMode {
 | 270°    | 3π/2 ≈ 4.7124 |
 | 360°    | 2π ≈ 6.2832   |
 
-**Pedro Pathing usage:** \`new Pose(x, y, toRadians(180))\` for a robot facing backward. The Pose constructor's third argument is always radians.`,
+**Pedro Pathing usage:** \`new Pose(x, y, toRadians(180))\` for a robot facing backward. The Pose constructor's third argument is always radians.
+
+**Helper methods required:** Implement \`toRadians()\` and \`toDegrees()\` as private methods and call them from \`runOpMode()\` when building telemetry. Objectives about displaying converted angles must use those helpers — inline \`Math.PI / 180\` math in the loop alone will not pass.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -4132,7 +4143,9 @@ private PathChain buildPathTo(Pose target, boolean reversed) {
 
 **Usage:** call \`buildPathTo()\` and immediately \`follower.followPath()\` before the robot moves (the pose is captured at build time). Then wait in a loop until \`!follower.isBusy()\` before building the next segment.
 
-**Waypoints:** A→B→C→A (triangle route using the three team field positions).`,
+**Waypoints:** A→B→C→A (triangle route using the three team field positions).
+
+**Helper method required:** Path building must live in \`buildPathTo()\` (or \`followTo()\`). Objectives about chaining waypoints mean calling that helper for each leg — a \`pathBuilder()\` call only inline in \`runOpMode()\` will not pass.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -4218,7 +4231,7 @@ public class DynamicPaths extends LinearOpMode {
       "Implement double mmToInches(double mm) returning mm / 25.4.",
       "Convert the 144 in × 144 in field size to mm.",
       "Verify round-trip: mmToInches(inchesToMm(72)) == 72.",
-      "Display field dimensions in both units in telemetry.",
+      "Call inchesToMm() and mmToInches() from the loop and display field dimensions in both units.",
     ],
     instructions: `The FTC field is **144 inches × 144 inches** (approximately 3.66 m × 3.66 m). Pedro Pathing and GoBilda Pinpoint both use **millimeters** internally, but robot positions are often described in inches in the field manual.
 
@@ -4236,7 +4249,9 @@ double mmToInches(double mm)     { return mm / 25.4; }
 - Width: 144 in = 3657.6 mm
 - Center: 72 in = 1828.8 mm
 - Near wall: 0 in = 0 mm
-- Far wall: 144 in = 3657.6 mm`,
+- Far wall: 144 in = 3657.6 mm
+
+**Helper methods required:** Implement \`inchesToMm()\` and \`mmToInches()\` and call them when computing telemetry values. Objectives about displaying field dimensions in both units must use those helpers — literal \`* 25.4\` only inline in the loop will not pass.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -4304,7 +4319,7 @@ public class UnitConversion extends LinearOpMode {
       "Compute the dot product of the drive command vector and a reference vector.",
       "A positive dot product means vectors are roughly aligned.",
       "A negative dot product means they point in opposite directions.",
-      "Display the dot product and alignment status in telemetry.",
+      "Call dot() from the loop and display the dot product and alignment status in telemetry.",
     ],
     instructions: `The **dot product** of two 2D vectors \`A·B = ax×bx + ay×by\`. It measures alignment:
 - **Positive:** vectors point in the same general direction
@@ -4315,7 +4330,9 @@ public class UnitConversion extends LinearOpMode {
 
 **Normalized dot product** (cosine similarity) divides by both magnitudes. If the result is < 0, the robot is moving opposite to the drive command — a signal to enable stronger braking.
 
-Implement \`dot(ax, ay, bx, by)\` and display it for the joystick vector vs. a fixed reference vector (1, 0) while the driver moves the sticks.`,
+Implement \`dot(ax, ay, bx, by)\` and display it for the joystick vector vs. a fixed reference vector (1, 0) while the driver moves the sticks.
+
+**Helper method required:** Put the dot-product math in \`dot()\` and call it from the loop before telemetry. An objective like "display the dot product in telemetry" is met by calling \`dot(...)\` — the grader checks for the method, not only \`telemetry.addData()\`.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -4381,9 +4398,7 @@ public class DotProductDemo extends LinearOpMode {
     objectives: [
       "Implement double lerp(double a, double b, double t) returning a + t*(b-a).",
       "Create an ElapsedTime and compute t = elapsed / rampDuration (clamped to [0,1]).",
-      "Pass t to lerp(0.0, 1.0, t) to get the ramp power.",
-      "Apply the ramped power to a motor.",
-      "Display t, ramp power, and elapsed time in telemetry.",
+      "Call lerp() from the loop to compute ramp power, apply it to a motor, and display t, power, and elapsed time in telemetry.",
     ],
     instructions: `Linear interpolation (lerp) blends between two values based on a parameter t ∈ [0, 1]:
 \`\`\`java
@@ -4400,7 +4415,9 @@ double power   = lerp(0.0, 1.0, t); // 0→1 over RAMP_DURATION seconds
 
 **The team's transfer ramp:** uses 250 ms (\`RAMP_DURATION = 0.25\`) to ramp from 0 to full power for the ball transfer mechanism, preventing jerk that knocks the ball off track.
 
-For this challenge, use a 2-second ramp for a drive motor (more visible in telemetry).`,
+For this challenge, use a 2-second ramp for a drive motor (more visible in telemetry).
+
+**Helper method required:** Put the blend formula in \`lerp()\` and call it from the loop when computing motor power. Objectives about displaying ramp values still require that method — \`a + t * (b - a)\` only inline in \`runOpMode()\` will not pass.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -4500,7 +4517,9 @@ double t = (1425 - 1350) / (1500 - 1350); // = 0.5
 double dist = 40 + t * (50 - 40); // = 45 in
 \`\`\`
 
-**Verify:** \`tpsToDistance(1425)\` should return 45.0 inches.`,
+**Verify:** \`tpsToDistance(1425)\` should return 45.0 inches.
+
+**Helper method required:** Put the inverse lookup in \`tpsToDistance()\` and call it from the loop when displaying results. The grader checks for that method — bracket search and interpolation only inline in \`runOpMode()\` will not pass.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
