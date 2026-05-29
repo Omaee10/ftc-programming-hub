@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, RotateCcw, Loader2 } from "lucide-react";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { getSession } from "@/lib/auth";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 interface MarkCompleteButtonProps {
   challengeId: number;
@@ -24,6 +25,8 @@ export default function MarkCompleteButton({
   const [justCompleted, setJustCompleted] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const markButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setIsMentor(getSession()?.role === "mentor");
@@ -83,15 +86,12 @@ export default function MarkCompleteButton({
     );
   }
 
-  const handleMarkComplete = async () => {
-    if (lastGrade !== "good") {
-      const confirmed = window.confirm(
-        lastGrade == null
-          ? "You haven't submitted your code to the grader yet. Mark this challenge complete anyway?"
-          : "Your code hasn't passed all checks yet. Mark this challenge complete anyway?"
-      );
-      if (!confirmed) return;
-    }
+  const confirmMessage =
+    lastGrade == null
+      ? "You haven't submitted your code to the grader yet. Mark this challenge complete anyway?"
+      : "Your code hasn't passed all checks yet. Mark this challenge complete anyway?";
+
+  const completeChallenge = async () => {
     setBusy(true);
     local.markComplete(challengeId);
     await db.markComplete(challengeId);
@@ -99,25 +99,54 @@ export default function MarkCompleteButton({
     setJustCompleted(true);
   };
 
+  const handleMarkComplete = () => {
+    if (lastGrade !== "good") {
+      setConfirmOpen(true);
+      return;
+    }
+    void completeChallenge();
+  };
+
+  const handleConfirmMarkComplete = async () => {
+    setConfirmOpen(false);
+    await completeChallenge();
+  };
+
   return (
-    <button
-      onClick={handleMarkComplete}
-      disabled={busy}
-      className={`flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:opacity-60 ${
-        justCompleted
-          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/15"
-          : "btn-primary border border-transparent"
-      }`}
-    >
-      {busy ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <CheckCircle2 className="h-4 w-4" />
-      )}
-      <span>{justCompleted ? `+${xp} XP earned!` : "Mark as Complete"}</span>
-      {!justCompleted && (
-        <span className="ml-0.5 text-xs text-white/70 font-normal">+{xp} XP</span>
-      )}
-    </button>
+    <>
+      <button
+        ref={markButtonRef}
+        onClick={handleMarkComplete}
+        disabled={busy}
+        className={`flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:opacity-60 ${
+          justCompleted
+            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/15"
+            : "btn-primary border border-transparent"
+        }`}
+      >
+        {busy ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <CheckCircle2 className="h-4 w-4" />
+        )}
+        <span>{justCompleted ? `+${xp} XP earned!` : "Mark as Complete"}</span>
+        {!justCompleted && (
+          <span className="ml-0.5 text-xs text-white/70 font-normal">+{xp} XP</span>
+        )}
+      </button>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Mark as complete?"
+        message={confirmMessage}
+        confirmLabel="Mark Complete"
+        cancelLabel="Cancel"
+        onConfirm={() => void handleConfirmMarkComplete()}
+        onCancel={() => setConfirmOpen(false)}
+        pending={busy}
+        returnFocusRef={markButtonRef}
+        variant="primary"
+      />
+    </>
   );
 }

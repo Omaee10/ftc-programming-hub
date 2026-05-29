@@ -14,6 +14,8 @@ interface ConfirmDialogProps {
   onCancel: () => void;
   pending?: boolean;
   returnFocusRef?: React.RefObject<HTMLElement | null>;
+  /** danger = red (delete). primary = accent confirm for non-destructive actions. */
+  variant?: "danger" | "primary";
 }
 
 export default function ConfirmDialog({
@@ -26,6 +28,7 @@ export default function ConfirmDialog({
   onCancel,
   pending = false,
   returnFocusRef,
+  variant = "danger",
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -115,7 +118,11 @@ export default function ConfirmDialog({
               type="button"
               onClick={onConfirm}
               disabled={pending}
-              className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+              className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                variant === "primary"
+                  ? "btn-primary border-transparent"
+                  : "border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+              }`}
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               {confirmLabel}
