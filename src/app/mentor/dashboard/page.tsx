@@ -325,7 +325,13 @@ function CodeManager({
     });
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: string, displayName: string) => {
+    const roleLabel = table === "students" ? "student" : "mentor";
+    const confirmed = window.confirm(
+      `Delete ${roleLabel} ${displayName}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
     startTransition(async () => {
       await supabase.from(table).delete().eq("id", id);
       load();
@@ -417,9 +423,9 @@ function CodeManager({
                   )}
                 </button>
                 <button
-                  onClick={() => handleDelete(row.id)}
+                  onClick={() => handleDelete(row.id, displayName)}
                   disabled={isPending}
-                  className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                  className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
                   title={`Delete ${label.toLowerCase()}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />

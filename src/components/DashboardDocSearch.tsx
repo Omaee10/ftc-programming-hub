@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -53,10 +54,12 @@ export default function DashboardDocSearch({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMac, setIsMac] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   const results = useMemo(() => searchDocumentation(query), [query]);
   const isHeader = variant === "header";
@@ -86,7 +89,19 @@ export default function DashboardDocSearch({
 
   useEffect(() => {
     setIsMac(/Mac|iPhone|iPad/.test(navigator.platform));
+    setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (dialogRef.current && !dialogRef.current.contains(e.target as Node)) {
+        close();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open, close]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -168,19 +183,22 @@ export default function DashboardDocSearch({
         </kbd>
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 pt-[min(18vh,8rem)] backdrop-blur-[2px]"
-          onClick={close}
-          role="presentation"
-        >
-          <div
-            className="dash-search-dialog w-full max-w-xl overflow-hidden rounded-xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Search documentation"
-          >
+      {open &&
+        mounted &&
+        createPortal(
+          <div className="fixed inset-0 z-[100]">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
+              aria-hidden="true"
+            />
+            <div className="relative flex items-start justify-center px-4 pt-[min(18vh,8rem)]">
+              <div
+                ref={dialogRef}
+                className="dash-search-dialog w-full max-w-xl overflow-hidden rounded-xl shadow-2xl"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Search documentation"
+              >
             <div className="flex items-center gap-3 border-b dash-divider px-4 py-3">
               <Search className="h-4 w-4 shrink-0 text-slate-500" />
               <input
@@ -240,9 +258,11 @@ export default function DashboardDocSearch({
                 })
               )}
             </ul>
-          </div>
-        </div>
-      )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }
