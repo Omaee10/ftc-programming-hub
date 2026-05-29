@@ -86,6 +86,9 @@ async function syncProgressWithLocal(studentId: string): Promise<ProgressRecord[
 export function useSupabaseProgress(challengeId?: number) {
   const [records, setRecords] = useState<ProgressRecord[]>([]);
   const [loadedCode, setLoadedCode] = useState<string | null>(null);
+  const [loadedCodeUpdatedAt, setLoadedCodeUpdatedAt] = useState<string | null>(
+    null
+  );
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -101,6 +104,7 @@ export function useSupabaseProgress(challengeId?: number) {
       if (challengeId !== undefined) {
         const rec = synced.find((r) => r.challenge_id === challengeId);
         setLoadedCode(rec?.code_snapshot ?? null);
+        setLoadedCodeUpdatedAt(rec?.updated_at ?? null);
       }
       setHydrated(true);
     })();
@@ -137,6 +141,30 @@ export function useSupabaseProgress(challengeId?: number) {
         { onConflict: "student_id,challenge_id" }
       );
       if (error) console.error("Failed to save code:", error.message);
+      else {
+        const now = new Date().toISOString();
+        setRecords((prev) => {
+          const exists = prev.find((r) => r.challenge_id === challengeId);
+          if (exists) {
+            return prev.map((r) =>
+              r.challenge_id === challengeId
+                ? { ...r, code_snapshot: code, updated_at: now }
+                : r
+            );
+          }
+          return [
+            ...prev,
+            {
+              challenge_id: challengeId,
+              completed: false,
+              code_snapshot: code,
+              updated_at: now,
+            },
+          ];
+        });
+        setLoadedCode(code);
+        setLoadedCodeUpdatedAt(now);
+      }
     },
     [challengeId]
   );
@@ -211,6 +239,7 @@ export function useSupabaseProgress(challengeId?: number) {
     completedCount: completedIds.length,
     attemptedIds,
     loadedCode,
+    loadedCodeUpdatedAt,
     hydrated,
     saveCode,
     markComplete,

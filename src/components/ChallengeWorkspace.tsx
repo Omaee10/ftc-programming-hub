@@ -50,6 +50,11 @@ import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { supabase, type SubmissionRow } from "@/lib/supabase";
 import { getSession, type Session } from "@/lib/auth";
+import {
+  clearCodeDraft,
+  readCodeDraft,
+  saveCodeDraft,
+} from "@/lib/challengeCodeDrafts";
 import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
 
@@ -173,6 +178,23 @@ function nowTime() {
 }
 function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
+}
+
+function chooseSavedCode(
+  challengeId: number,
+  starterCode: string,
+  cloudCode: string | null,
+  cloudUpdatedAt: string | null
+): string {
+  const local = readCodeDraft(challengeId);
+  if (cloudCode && local) {
+    const localTs = Date.parse(local.updatedAt);
+    const cloudTs = cloudUpdatedAt ? Date.parse(cloudUpdatedAt) : 0;
+    return cloudTs >= localTs ? cloudCode : local.code;
+  }
+  if (cloudCode) return cloudCode;
+  if (local) return local.code;
+  return starterCode;
 }
 
 /** Formats 1-indexed line numbers as a visible prefix (e.g. "Line 52: "). */
@@ -581,6 +603,7 @@ export default function ChallengeWorkspace({
     markComplete: markCompleteDB,
     saveCode,
     loadedCode,
+    loadedCodeUpdatedAt,
     hydrated: dbHydrated,
   } = useSupabaseProgress(challenge.id);
 
@@ -622,8 +645,13 @@ export default function ChallengeWorkspace({
   }, [challenge.id, isMentorChallenge, studentSession?.id]);
 
   // ── Editor state ────────────────────────────────────────────────────────
-  const [code, setCode] = useState(challenge.starterCode);
+  const [code, setCode] = useState(() =>
+    chooseSavedCode(challenge.id, challenge.starterCode, null, null)
+  );
+  const codeRef = useRef(code);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const restoredChallengeRef = useRef<number | null>(null);
   const editorRef = useRef<
     Parameters<
       NonNullable<React.ComponentProps<typeof MonacoEditor>["onMount"]>
@@ -639,7 +667,72 @@ export default function ChallengeWorkspace({
   const resetCode = useCallback(() => {
     setCode(challenge.starterCode);
     editorRef.current?.setValue(challenge.starterCode);
-  }, [challenge.starterCode]);
+    saveCodeDraft(challenge.id, challenge.starterCode);
+    void saveCode(challenge.starterCode);
+  }, [challenge.id, challenge.starterCode, saveCode]);
+
+  const persistCode = useCallback(
+    (next: string, options?: { flushCloud?: boolean }) => {
+      saveCodeDraft(challenge.id, next);
+      clearTimeout(cloudSaveTimer.current);
+      if (options?.flushCloud) {
+        void saveCode(next);
+        return;
+      }
+      cloudSaveTimer.current = setTimeout(() => {
+        void saveCode(next);
+      }, 2000);
+    },
+    [challenge.id, saveCode]
+  );
+
+  useEffect(() => {
+    codeRef.current = code;
+  }, [code]);
+
+  // Restore saved draft / cloud snapshot once when opening a challenge
+  useEffect(() => {
+    restoredChallengeRef.current = null;
+  }, [challenge.id]);
+
+  useEffect(() => {
+    const session = getSession();
+    const needsCloud = session?.role === "student";
+    if (needsCloud && !dbHydrated) return;
+    if (restoredChallengeRef.current === challenge.id) return;
+
+    const restored = chooseSavedCode(
+      challenge.id,
+      challenge.starterCode,
+      loadedCode,
+      loadedCodeUpdatedAt
+    );
+    setCode(restored);
+    editorRef.current?.setValue(restored);
+    restoredChallengeRef.current = challenge.id;
+  }, [
+    challenge.id,
+    challenge.starterCode,
+    dbHydrated,
+    loadedCode,
+    loadedCodeUpdatedAt,
+  ]);
+
+  // Flush the latest editor contents when leaving the page or unmounting
+  useEffect(() => {
+    const flush = () => {
+      clearTimeout(saveTimer.current);
+      clearTimeout(cloudSaveTimer.current);
+      persistCode(codeRef.current, { flushCloud: true });
+    };
+
+    const onPageHide = () => flush();
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      flush();
+    };
+  }, [challenge.id, persistCode]);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -673,14 +766,6 @@ export default function ChallengeWorkspace({
     setSubmitBanner(true);
     setTimeout(() => setSubmitBanner(false), 4000);
   }, [studentSession?.id, challenge.id, code, submitting]);
-
-  // Restore saved code from Supabase once it loads
-  useEffect(() => {
-    if (dbHydrated && loadedCode) {
-      setCode(loadedCode);
-      editorRef.current?.setValue(loadedCode);
-    }
-  }, [dbHydrated, loadedCode]);
 
   // ── Resizable split ─────────────────────────────────────────────────────
   const [leftPct, setLeftPct] = useState(40);
@@ -1286,11 +1371,10 @@ export default function ChallengeWorkspace({
               onChange={(val) => {
                 const next = val ?? "";
                 setCode(next);
-                // Auto-save to Supabase (debounced 2 s)
                 clearTimeout(saveTimer.current);
                 saveTimer.current = setTimeout(() => {
-                  saveCode(next);
-                }, 2000);
+                  persistCode(next);
+                }, 400);
               }}
               onMount={(editor, monaco) => {
                 editorRef.current = editor;

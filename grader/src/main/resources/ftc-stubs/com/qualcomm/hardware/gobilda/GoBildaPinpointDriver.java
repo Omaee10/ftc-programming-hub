@@ -23,6 +23,8 @@ public class GoBildaPinpointDriver implements HardwareDevice {
     public void update() {}
     public Pose2D getPosition() { return new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0); }
     public void setPosition(Pose2D pose) {}
+    /** Device health / comm status code (goBILDA Pinpoint SDK). */
+    public int getDeviceStatus() { return 0; }
 
     @Override public void close() {}
     @Override public String getDeviceName() { return ""; }
