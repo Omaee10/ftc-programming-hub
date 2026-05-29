@@ -30,7 +30,10 @@ export default function PedroPathingPage() {
                 position onto the nearest point on the path and computes corrective
                 motor powers every loop. This means the robot automatically
                 recovers from pushes, wheel slip, or any disturbance without any
-                special handling code.
+                special handling code. Unlike time-parameterized trajectories,
+                Pedro projects the robot onto the closest point on the Bézier
+                curve every loop and computes a fresh correction vector — so
+                obstacles that push you off-path are handled automatically.
               </p>
               <InfoGrid
                 items={[
@@ -176,12 +179,11 @@ dependencies {
             .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
     // ── 4. Path constraints — when Pedro considers a path "done" ─────────────
-    public static PathConstraints pathConstraints = new PathConstraints(
-            0.99,  // t-value to end path (0 = start, 1 = end)
-            100,   // max centripetal scaling
-            1,     // translational tolerance (inches)
-            1      // heading tolerance (degrees)
-    );
+    public static PathConstraints pathConstraints = new PathConstraints()
+            .setPathEndTimeoutConstraint(0.99)
+            .setPathEndTranslationalConstraint(1.0)
+            .setPathEndHeadingConstraint(Math.toRadians(1.0))
+            .setCentripetalScalingConstraint(100.0);
 
     // ── Factory method — use this in all your OpModes ─────────────────────────
     public static Follower createFollower(HardwareMap hardwareMap) {
@@ -412,28 +414,29 @@ public static FollowerConstants followerConstants = new FollowerConstants()
                 The heading PIDF corrects the robot&apos;s rotation while following
                 paths. Run <code>HeadingTuner</code> — the robot will rotate
                 back and forth. Watch Panels and adjust gains until rotation
-                is fast, accurate, and settles without oscillating.
+                is fast, accurate, and settles without oscillating.{" "}
+                <strong>Heading error is computed in radians</strong> — do not
+                tune assuming degree-scale error.
               </p>
               <CodeBlock
                 filename="Constants.java (heading PIDF)"
-                code={`// Starting values — increase P until heading corrects quickly,
-// then add D to reduce overshoot/oscillation
+                code={`// Radian-scaled baseline — heading error is in radians, not degrees
 public static FollowerConstants followerConstants = new FollowerConstants()
         .mass(5.2)
         .forwardZeroPowerAcceleration(-34.0)
         .lateralZeroPowerAcceleration(-78.5)
         .headingPIDF(new PIDFCoefficients(
-                1.0,   // P — increase if heading is slow to correct
-                0,     // I — leave at 0 unless steady-state heading error
-                0.1,   // D — increase to damp oscillation
-                0      // F — leave at 0
+                2.0,   // P — increase if heading is slow to correct
+                0.0,   // I — leave at 0 unless steady-state heading error
+                0.15,  // D — increase to damp oscillation
+                0.0    // F — leave at 0
         ));`}
               />
               <SpecTable
                 rows={[
-                  { label: "P (Proportional)", value: "How hard it corrects heading error", note: "Start 1.0 — increase if correction is sluggish" },
+                  { label: "P (Proportional)", value: "How hard it corrects heading error", note: "Radian error — start ~2.0, not 1.0 for degrees" },
                   { label: "I (Integral)", value: "Eliminates small persistent error", note: "Leave at 0 — rarely needed" },
-                  { label: "D (Derivative)", value: "Damps oscillation / overshoot", note: "Start 0.1 — increase if robot wobbles" },
+                  { label: "D (Derivative)", value: "Damps oscillation / overshoot", note: "Start ~0.15 — increase if robot wobbles" },
                   { label: "F (Feedforward)", value: "Constant baseline effort", note: "Leave at 0" },
                 ]}
               />
@@ -457,7 +460,7 @@ public static FollowerConstants followerConstants = new FollowerConstants()
         .mass(5.2)
         .forwardZeroPowerAcceleration(-34.0)
         .lateralZeroPowerAcceleration(-78.5)
-        .headingPIDF(new PIDFCoefficients(1.0, 0, 0.1, 0))
+        .headingPIDF(new PIDFCoefficients(2.0, 0.0, 0.15, 0.0))
         // Drive P — controls how fast follower "chases" the path's t-value
         // Increase if robot is slow to reach endpoints; decrease if it oscillates
         .drivePIDF(new PIDFCoefficients(
@@ -488,7 +491,7 @@ public static FollowerConstants followerConstants = new FollowerConstants()
         .mass(5.2)
         .forwardZeroPowerAcceleration(-34.0)
         .lateralZeroPowerAcceleration(-78.5)
-        .headingPIDF(new PIDFCoefficients(1.0, 0, 0.1, 0))
+        .headingPIDF(new PIDFCoefficients(2.0, 0.0, 0.15, 0.0))
 
         // Translational PIDF — corrects X/Y position error
         // Run TranslationalPIDTuner: push robot off a straight path and watch it snap back
@@ -764,10 +767,11 @@ public class ExampleAuto extends OpMode {
               />
               <NoteBox type="info">
                 Pedro uses iterative <strong>OpMode</strong>, not{" "}
-                <strong>LinearOpMode</strong>. The <code>loop()</code> method
-                runs at ~30 Hz. <code>follower.update()</code> <em>must</em>{" "}
-                be called every iteration — without it the follower never
-                advances.
+                <strong>LinearOpMode</strong>. A clean iterative loop typically
+                runs at <strong>150–500 Hz</strong> — far faster than 30 Hz.
+                Avoid blocking or heavy string formatting in telemetry every
+                frame. <code>follower.update()</code> <em>must</em> be called
+                every iteration — without it the follower never advances.
               </NoteBox>
               <NoteBox type="tip">
                 <code>follower.followPath(path, holdEnd)</code> — when{" "}
@@ -897,11 +901,11 @@ public class PedroTeleOp extends OpMode {
 
     @Override
     public void loop() {
-        // Standard field-centric drive using Pedro
+        // Invert sticks so field-centric axes match Pedro's [0, 144] frame
         follower.setTeleOpMovementVectors(
-            -gamepad1.left_stick_y,   // forward/back (negated — stick up = positive)
-             gamepad1.left_stick_x,   // strafe
-             gamepad1.right_stick_x,  // rotate
+            -gamepad1.left_stick_y,   // stick up → positive X (field forward)
+            -gamepad1.left_stick_x,   // stick left → positive Y (field left)
+            -gamepad1.right_stick_x,  // CCW rotation mapping
             true                      // true = field-centric
         );
 
@@ -915,6 +919,13 @@ public class PedroTeleOp extends OpMode {
     }
 }`}
               />
+              <NoteBox type="warning">
+                Pedro&apos;s field-centric TeleOp maps positive X to field
+                forward and positive Y to field left. Negate{" "}
+                <code>left_stick_x</code> and <code>right_stick_x</code> so
+                stick-left strafes left — passing raw gamepad values inverts
+                strafe and rotation for most drivers.
+              </NoteBox>
               <NoteBox type="info">
                 Field-centric drive means the robot&apos;s forward direction is
                 always relative to the field, not its own heading. The driver

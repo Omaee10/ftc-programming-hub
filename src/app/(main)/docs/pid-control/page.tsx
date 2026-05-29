@@ -136,6 +136,7 @@ ElapsedTime timer   = new ElapsedTime();
 while (opModeIsActive()) {
     double dt = timer.seconds();
     timer.reset();
+    if (dt < 0.001) dt = 0.001; // avoid divide-by-zero when the loop is very fast
 
     int error = targetTicks - motor.getCurrentPosition();
 
@@ -167,6 +168,14 @@ while (opModeIsActive()) {
     telemetry.update();
 }`}
               />
+              <NoteBox type="warning">
+                Always guard <code>dt</code> before dividing for the D term.
+                Fast loops can return <code>0.0</code> from{" "}
+                <code>timer.seconds()</code>, which produces{" "}
+                <code>NaN</code> power and kills the mechanism. Capping{" "}
+                <code>dt</code> to at least 1&nbsp;ms (or using{" "}
+                <code>timer.milliseconds()</code>) keeps the math stable.
+              </NoteBox>
               <NoteBox type="info">
                 For most FTC mechanisms, <strong>PD is enough</strong> — P
                 drives to the target, D dampens the approach. Only add I if
@@ -269,13 +278,15 @@ motor.setPower(0.8); // power is the max power allowed, not the exact power
 while (opModeIsActive()) {
     int error = targetTicks - motor.getCurrentPosition();
 
-    // Convert encoder ticks to angle
+    // Convert encoder ticks to angle (add offset so 0 rad = physical horizontal)
     double TICKS_PER_DEGREE = TICKS_PER_REV / 360.0;
-    double angleRad = Math.toRadians(motor.getCurrentPosition() / TICKS_PER_DEGREE);
+    double HORIZONTAL_OFFSET_RAD = Math.toRadians(90); // tune to your zero position
+    double angleRad = Math.toRadians(motor.getCurrentPosition() / TICKS_PER_DEGREE)
+                    - HORIZONTAL_OFFSET_RAD;
 
     // Feedforward: cosine of current angle × kF
-    // At 0° (horizontal): cos(0) = 1.0 → full gravity compensation
-    // At 90° (vertical):  cos(π/2) = 0  → no compensation needed
+    // At horizontal: cos(0) = 1.0 → full gravity compensation
+    // At vertical:   cos(±π/2) ≈ 0 → minimal compensation
     double feedforward = kF * Math.cos(angleRad);
 
     double power = kP * error + feedforward;
@@ -283,6 +294,14 @@ while (opModeIsActive()) {
     motor.setPower(power);
 }`}
               />
+              <NoteBox type="info">
+                Encoder zero is wherever the arm sits at boot — usually tucked
+                down, not horizontal. Add a calibration offset to{" "}
+                <code>angleRad</code> so that <code>0</code> radians in your
+                math matches the arm&apos;s actual horizontal pose. Without
+                it, <code>cos(0)</code> may apply full holding power while
+                the arm is resting vertically and kick it upward.
+              </NoteBox>
               <NoteBox type="tip">
                 To find <code>kF</code>: set all PID gains to zero, then
                 increase <code>kF</code> until the arm can hold itself
@@ -326,7 +345,7 @@ double output = Ks * Math.signum(targetVelocity)
               <CodeBlock
                 filename="FSMExample.java"
                 code={`@TeleOp(name = "FSM TeleOp")
-public class FSMTeleOp extends OpMode {
+public class FSMTeleOp extends LinearOpMode {
 
     // ── Define all possible states with an enum ───────────────────────────
     public enum LiftState {
@@ -349,75 +368,71 @@ public class FSMTeleOp extends OpMode {
     final double DUMP_WAIT_SEC = 0.8; // seconds to hold dump position
 
     @Override
-    public void init() {
+    public void runOpMode() {
         liftMotor = hardwareMap.get(DcMotorEx.class, "liftMotor");
         dumpServo = hardwareMap.get(Servo.class, "dumpServo");
 
         liftMotor.setTargetPosition(LIFT_LOW);
         liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         liftMotor.setPower(1.0);
-    }
 
-    @Override
-    public void loop() {
-        // ── FSM: check state and decide what to do this iteration ─────────
-        switch (liftState) {
+        waitForStart();
 
-            case IDLE:
-                // Wait for X button to start the cycle
-                if (gamepad1.x) {
-                    liftMotor.setTargetPosition(LIFT_HIGH);
-                    liftState = LiftState.EXTENDING;
-                }
-                break;
+        while (opModeIsActive()) {
+            // ── FSM: one step of work per iteration — never blocks ────────
+            switch (liftState) {
 
-            case EXTENDING:
-                // Y = emergency cancel back to IDLE
-                if (gamepad1.y) {
-                    liftMotor.setTargetPosition(LIFT_LOW);
-                    liftState = LiftState.RETRACTING;
+                case IDLE:
+                    if (gamepad1.x) {
+                        liftMotor.setTargetPosition(LIFT_HIGH);
+                        liftState = LiftState.EXTENDING;
+                    }
                     break;
-                }
-                // Check if lift reached the target (within 20 ticks)
-                if (Math.abs(liftMotor.getCurrentPosition() - LIFT_HIGH) < 20) {
-                    dumpServo.setPosition(DUMP_OPEN);
-                    liftTimer.reset();
-                    liftState = LiftState.DUMPING;
-                }
-                break;
 
-            case DUMPING:
-                if (gamepad1.y) {
-                    // Cancel: reset servo and retract
-                    dumpServo.setPosition(DUMP_IDLE_POS);
-                    liftMotor.setTargetPosition(LIFT_LOW);
-                    liftState = LiftState.RETRACTING;
+                case EXTENDING:
+                    if (gamepad1.y) {
+                        liftMotor.setTargetPosition(LIFT_LOW);
+                        liftState = LiftState.RETRACTING;
+                        break;
+                    }
+                    if (Math.abs(liftMotor.getCurrentPosition() - LIFT_HIGH) < 20) {
+                        dumpServo.setPosition(DUMP_OPEN);
+                        liftTimer.reset();
+                        liftState = LiftState.DUMPING;
+                    }
                     break;
-                }
-                // Wait for the dump servo to finish depositing
-                if (liftTimer.seconds() >= DUMP_WAIT_SEC) {
-                    dumpServo.setPosition(DUMP_IDLE_POS);
-                    liftMotor.setTargetPosition(LIFT_LOW);
-                    liftState = LiftState.RETRACTING;
-                }
-                break;
 
-            case RETRACTING:
-                if (Math.abs(liftMotor.getCurrentPosition() - LIFT_LOW) < 20) {
-                    liftState = LiftState.IDLE; // done — back to waiting
-                }
-                break;
+                case DUMPING:
+                    if (gamepad1.y) {
+                        dumpServo.setPosition(DUMP_IDLE_POS);
+                        liftMotor.setTargetPosition(LIFT_LOW);
+                        liftState = LiftState.RETRACTING;
+                        break;
+                    }
+                    if (liftTimer.seconds() >= DUMP_WAIT_SEC) {
+                        dumpServo.setPosition(DUMP_IDLE_POS);
+                        liftMotor.setTargetPosition(LIFT_LOW);
+                        liftState = LiftState.RETRACTING;
+                    }
+                    break;
+
+                case RETRACTING:
+                    if (Math.abs(liftMotor.getCurrentPosition() - LIFT_LOW) < 20) {
+                        liftState = LiftState.IDLE;
+                    }
+                    break;
+            }
+
+            // ── Drivetrain ALWAYS runs — the FSM never blocks it ──────────
+            double y  = -gamepad1.left_stick_y;
+            double x  =  gamepad1.left_stick_x * 1.1;
+            double rx =  gamepad1.right_stick_x;
+            // ... set motor powers ...
+
+            telemetry.addData("Lift State", liftState);
+            telemetry.addData("Lift Pos",   liftMotor.getCurrentPosition());
+            telemetry.update();
         }
-
-        // ── Drivetrain ALWAYS runs — the FSM never blocks it ──────────────
-        double y  = -gamepad1.left_stick_y;
-        double x  =  gamepad1.left_stick_x * 1.1;
-        double rx =  gamepad1.right_stick_x;
-        // ... set motor powers ...
-
-        telemetry.addData("Lift State",   liftState);
-        telemetry.addData("Lift Pos",     liftMotor.getCurrentPosition());
-        telemetry.update();
     }
 }`}
               />
@@ -477,11 +492,19 @@ ElapsedTime profileTimer = new ElapsedTime();
 while (opModeIsActive()) {
     double dt = profileTimer.seconds() - lastTime;
     lastTime  = profileTimer.seconds();
+    if (dt < 0.001) dt = 0.001;
 
     int error = targetTicks - motor.getCurrentPosition();
 
-    // How fast do we want to go? (limited by max velocity)
-    double desiredVel = Math.signum(error) * maxVel;
+    // Deceleration cap: shrink desired speed as we approach the target
+    // braking distance ≈ v² / (2a)
+    double brakingDistance = (currentVel * currentVel) / (2 * maxAccel);
+    double desiredVel;
+    if (Math.abs(error) < brakingDistance) {
+        desiredVel = Math.signum(error) * Math.sqrt(2 * maxAccel * Math.abs(error));
+    } else {
+        desiredVel = Math.signum(error) * maxVel;
+    }
 
     // Ramp toward desired velocity — can't exceed maxAccel change per second
     double velChange = maxAccel * dt;
@@ -496,6 +519,12 @@ while (opModeIsActive()) {
     motor.setPower(power);
 }`}
               />
+              <NoteBox type="warning">
+                A profile that commands full <code>maxVel</code> until the
+                last tick will slam into the target. Always ramp velocity down
+                using remaining distance — the braking-distance check above
+                prevents an instant stop from cruise speed.
+              </NoteBox>
               <NoteBox type="info">
                 Road Runner and Pedro Pathing both implement motion profiles
                 automatically for you — you specify max velocity and

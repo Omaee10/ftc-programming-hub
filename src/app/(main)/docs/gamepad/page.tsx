@@ -24,9 +24,9 @@ export default function GamepadPage() {
           content: (
             <Prose>
               <p>
-                FTC supports Logitech F310, Xbox 360, and DualShock 4 (PS4)
-                gamepads. The SDK maps both PS4 and Xbox button names to the
-                same fields:
+                FTC supports Logitech F310, Xbox One / Series X/S, and
+                DualShock 4 (PS4) gamepads. The SDK maps both PS4 and Xbox
+                button names to the same fields:
               </p>
               <SpecTable
                 rows={[
@@ -176,6 +176,11 @@ boolean clawOpen = false;
 Gamepad currentGamepad1  = new Gamepad();
 Gamepad previousGamepad1 = new Gamepad();
 
+// ── Multi-state toggle (X cycles through 3 arm positions) ─────────────
+// Declare state OUTSIDE the loop — inside the loop it resets every frame!
+int armState = 0; // 0 = ground, 1 = mid, 2 = high
+final double[] ARM_POSITIONS = { 0.0, 0.45, 0.9 };
+
 while (opModeIsActive()) {
     previousGamepad1.copy(currentGamepad1);
     currentGamepad1.copy(gamepad1);
@@ -191,10 +196,6 @@ while (opModeIsActive()) {
         clawOpen = !clawOpen;
         claw.setPosition(clawOpen ? CLAW_OPEN : CLAW_CLOSED);
     }
-
-    // ── Multi-state toggle (X cycles through 3 arm positions) ─────────────
-    int armState = 0; // 0 = ground, 1 = mid, 2 = high
-    final double[] ARM_POSITIONS = { 0.0, 0.45, 0.9 };
 
     if (currentGamepad1.x && !previousGamepad1.x) {
         armState = (armState + 1) % ARM_POSITIONS.length; // 0 → 1 → 2 → 0 → ...
@@ -217,15 +218,16 @@ while (opModeIsActive()) {
           content: (
             <Prose>
               <p>
-                The FTC SDK supports rumble and LED control on Xbox and
-                DualShock 4 controllers. Use this to communicate robot status
-                to drivers without them needing to watch the Driver Station
-                screen.
+                The FTC SDK supports rumble and LED control on Xbox One /
+                Series X/S and DualShock 4 controllers. Use this to communicate
+                robot status to drivers without them needing to watch the Driver
+                Station screen.
               </p>
               <SpecTable
                 rows={[
                   { label: "Logitech F310", value: "No rumble, no LED" },
-                  { label: "Xbox 360", value: "Large + small rumble motors" },
+                  { label: "Xbox One / Series X/S", value: "Large + small rumble motors", note: "Native rumble on modern Control Hubs" },
+                  { label: "Xbox 360", value: "Rumble unreliable", note: "Not recommended — poor support on current firmware" },
                   { label: "DualShock 4 (PS4)", value: "Large + small rumble + RGB lightbar" },
                   { label: "EtPark", value: "Small rumble only + small RGB LED" },
                 ]}
@@ -309,10 +311,15 @@ telemetry.addData("Status", "<font color='green'>Running</font>");`}
               </NoteBox>
               <NoteBox type="info">
                 <code>telemetry.addData()</code> and{" "}
-                <code>telemetry.addLine()</code> accumulate items each loop.
-                Only <code>telemetry.update()</code> actually transmits and
-                clears them. If you call <code>update()</code> multiple times
-                in one loop, the screen will flash — call it once at the end.
+                <code>telemetry.addLine()</code> buffer items each loop;{" "}
+                <code>telemetry.update()</code> sends them to the Driver
+                Station over Wi-Fi Direct. With{" "}
+                <code>setAutoClear(true)</code> (the default), the previous
+                frame&apos;s entries are cleared before the next batch — but
+                calling <code>update()</code> <strong>more than once per
+                loop</strong> still wastes time: each transmission is slow and
+                can drop your loop rate (Hz). Call it exactly once at the end
+                of the loop body.
               </NoteBox>
             </Prose>
           ),

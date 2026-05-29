@@ -80,7 +80,7 @@ export default function MotorsServosPage() {
                   {
                     label: "STOP_AND_RESET_ENCODER",
                     value: "Zeroes encoder count",
-                    note: "Blocking — use in init only",
+                    note: "Non-blocking — allow a few ms before reading",
                   },
                 ]}
               />
@@ -119,10 +119,13 @@ leftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 rightMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);`}
               />
               <NoteBox type="warning">
-                <code>setMode(STOP_AND_RESET_ENCODER)</code> is blocking — it
-                does not return until the encoder is zeroed. Never call it
-                inside <code>loop()</code> or the TeleOp while-loop; it will
-                freeze your robot mid-match. Always call it during init.
+                <code>setMode(STOP_AND_RESET_ENCODER)</code> is{" "}
+                <strong>non-blocking</strong> — it sends a zero command over the
+                hardware bus and returns immediately.{" "}
+                <code>getCurrentPosition()</code> on the very next line may still
+                show the old count until the packet round-trips. Never call it
+                inside a running loop: resetting the baseline every frame breaks
+                position tracking. Call it once during init before a move.
               </NoteBox>
             </Prose>
           ),
@@ -388,9 +391,18 @@ while (liftMotor.isBusy() && timer.seconds() < 3.0 && opModeIsActive()) {
     telemetry.update();
 }
 
-// Step 6 — zero power; BRAKE ZeroPowerBehavior holds the position
-liftMotor.setPower(0.0);`}
+// Step 6 — release the position PID and stop power
+liftMotor.setPower(0.0);
+liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER); // required even on timeout`}
               />
+              <NoteBox type="warning">
+                After a <code>RUN_TO_POSITION</code> move — especially if the
+                timeout fires before <code>isBusy()</code> goes false — you must
+                switch out of <code>RUN_TO_POSITION</code> (e.g. to{" "}
+                <code>RUN_WITHOUT_ENCODER</code>). Leaving the mode active while
+                power is zero keeps the internal PID armed and can lock up later
+                motor commands.
+              </NoteBox>
               <NoteBox type="info">
                 Ticks-per-revolution varies by motor model — always confirm it
                 from the motor&apos;s datasheet before calculating targets.
@@ -461,7 +473,7 @@ private void goToPosition(int ticks) {
                   {
                     label: "getPosition()",
                     value: "double",
-                    note: "Returns last commanded position",
+                    note: "Last commanded value in software — not physical horn angle",
                   },
                   {
                     label: "scaleRange(min, max)",
@@ -500,12 +512,27 @@ while (opModeIsActive()) {
     telemetry.update();
 }`}
               />
+              <NoteBox type="info">
+                FTC servos are <strong>open-loop</strong> — the hub does not
+                read a potentiometer back. <code>getPosition()</code> returns the
+                last value you commanded in software, not where the horn actually
+                is after travel time or under load.
+              </NoteBox>
               <NoteBox type="tip">
                 <code>scaleRange(min, max)</code> remaps the full 0.0–1.0 input
                 to a sub-range of the physical travel. For example,{" "}
                 <code>scaleRange(0.1, 0.9)</code> prevents the servo from ever
                 reaching its mechanical endpoints, eliminating the grinding that
                 damages gears and horns.
+              </NoteBox>
+              <NoteBox type="info">
+                After <code>scaleRange()</code>, <code>setPosition()</code> and{" "}
+                <code>getPosition()</code> use the <em>logical</em> 0.0–1.0
+                range you command — not the scaled PWM sent to hardware. Calling{" "}
+                <code>setPosition(0.0)</code> maps to your <code>min</code> bound
+                (e.g. 0.1), but <code>getPosition()</code> still reports{" "}
+                <code>0.0</code>. Tune preset constants in the same coordinate
+                space you use after scaling.
               </NoteBox>
             </Prose>
           ),

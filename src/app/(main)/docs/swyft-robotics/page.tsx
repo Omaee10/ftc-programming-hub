@@ -77,6 +77,16 @@ export default function SwyftRoboticsPage() {
                 on the Swyft Robotics product page. The value affects every
                 encoder-based position calculation in your code.
               </NoteBox>
+              <pre className="my-4 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+{`  +-----------------------------------------------------------------+
+  | [ Motor Core ] ---> [ Gearbox Ratio ] ---> [ Lead Screw ]        |
+  |   28 PPR Quad          E.g., 5:1 Multiplier   Translates Rotary |
+  |   Encoder Ticks        Amplifies Resolution   to Linear Travel  |
+  +-----------------------------------------------------------------+
+                                    |
+                                    v
+                [ Calculated Ticks per Millimeter Scale ]`}
+              </pre>
               <p>
                 <strong>Wiring steps:</strong>
               </p>
@@ -175,16 +185,20 @@ swyftLinear.setTargetPosition(RETRACTED_TICKS);
 swyftLinear.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 swyftLinear.setPower(0.8);
 
-while (swyftLinear.isBusy() && opModeIsActive()) {
+ElapsedTime retractTimer = new ElapsedTime();
+while (swyftLinear.isBusy() && retractTimer.seconds() < 3.0 && opModeIsActive()) {
     telemetry.addData("Actuator ticks", swyftLinear.getCurrentPosition());
+    telemetry.addData("Target", RETRACTED_TICKS);
     telemetry.update();
 }
 swyftLinear.setPower(0.0);`}
               />
               <NoteBox type="warning">
-                Always include a timeout condition in <code>isBusy()</code> loops.
-                If the actuator is physically blocked, the loop will spin forever
-                without a timer guard.
+                Always include a timeout on <strong>every</strong>{" "}
+                <code>isBusy()</code> loop — extend and retract alike. A jam,
+                gear slip, or disconnected encoder wire leaves{" "}
+                <code>isBusy()</code> stuck at <code>true</code> and will burn
+                your full autonomous period without a timer guard.
               </NoteBox>
             </Prose>
           ),
@@ -220,10 +234,8 @@ while (opModeIsActive()) {
         swyftLinear.setPower(0.9);
     }
 
-    // Coast to 0 power once target is reached
-    if (!swyftLinear.isBusy()) {
-        swyftLinear.setPower(0.0);
-    }
+    // Do NOT call setPower(0.0) when !isBusy() — RUN_TO_POSITION holds
+    // target with internal PID; cutting power causes sag/stutter under load.
 
     lastButtonState = currentButton;
 
@@ -232,8 +244,14 @@ while (opModeIsActive()) {
     telemetry.update();
 }`}
               />
+              <NoteBox type="warning">
+                Do not zero power each loop when <code>!isBusy()</code> in TeleOp.
+                <code>RUN_TO_POSITION</code> plus{" "}
+                <code>ZeroPowerBehavior.BRAKE</code> already applies holding
+                torque — forcing <code>setPower(0.0)</code> lets heavy mechanisms
+                sag, which re-triggers <code>isBusy()</code> and causes stutter.
+              </NoteBox>
               <NoteBox type="tip">
-                The rising-edge detection pattern (<code>currentButton &amp;&amp; !lastButtonState</code>)
                 prevents the toggle from flickering while the driver holds the button
                 down. Always store the previous button state at the end of the loop.
               </NoteBox>
@@ -273,12 +291,12 @@ while (opModeIsActive()) {
           content: (
             <Prose>
               <p>
-                Swyft continuous rotation servos behave differently from
-                standard FTC CR servos. Rather than using the{" "}
-                <code>CRServo</code> interface with <code>setPower()</code>,
-                they are controlled through the regular <code>Servo</code>{" "}
-                interface using <code>setPosition()</code>. The position value
-                maps to direction and speed:
+                Swyft continuous rotation servos use position-mapped speed control
+                through the standard <code>Servo</code> interface — not the{" "}
+                <code>CRServo</code> <code>setPower()</code> API. In the Driver
+                Station robot configuration, select <strong>Servo</strong> (not
+                &quot;Continuous Rotation Servo&quot;) so the REV Hub maps PWM
+                correctly for the <code>0.0 – 0.5 – 1.0</code> speed scale.
               </p>
               <SpecTable
                 rows={[
@@ -300,11 +318,11 @@ while (opModeIsActive()) {
                 ]}
               />
               <NoteBox type="warning">
-                Do <strong>not</strong> use <code>CRServo</code> or{" "}
-                <code>setPower()</code> with Swyft CR servos. Always retrieve
-                them as <code>Servo.class</code> and command them with{" "}
-                <code>setPosition()</code>. Using the wrong interface will
-                produce unexpected behavior or no movement at all.
+                Use <code>Servo.class</code> and <code>setPosition()</code> in
+                code, and configure the port as a standard <strong>Servo</strong>{" "}
+                in the Driver Station — not &quot;Continuous Rotation Servo.&quot;
+                The CR servo hardware profile remaps PWM timing and breaks the
+                0.0 / 0.5 / 1.0 speed mapping.
               </NoteBox>
               <CodeBlock
                 filename="SwyftCRServo.java"

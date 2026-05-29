@@ -71,6 +71,7 @@ export default function LimelightPage() {
                   "Configure your pipelines (AprilTag, color blob, neural network, etc.) and save.",
                   "On the Driver Station app, go to Configure Robot → scan. An \"Ethernet Device\" will appear — rename it to \"limelight\".",
                   "Save the configuration. You can now reference it in code as \"limelight\".",
+                  "In the Limelight web interface General tab, enter the camera's X, Y, Z offsets from the robot center of rotation and its pitch/roll mount angles. MegaTag2 uses this transform for perspective correction.",
                 ]}
               />
               <NoteBox type="warning">
@@ -279,8 +280,14 @@ public class LimelightAprilTag extends LinearOpMode {
             LLResult result = limelight.getLatestResult();
 
             if (result != null && result.isValid()) {
-                // MegaTag2 (IMU-fused) — use for highest accuracy
-                Pose3D botposeMT2 = result.getBotpose_MT2();
+                Pose3D rawPose = result.getBotpose_MT2();
+
+                // Limelight outputs WPILib/FRC field coordinates (X forward, Y left, Z up).
+                // Remap to your localization engine's frame before path following.
+                double robotFieldX = rawPose.getPosition().x;
+                double robotFieldY = rawPose.getPosition().y;
+                double robotFieldHeading =
+                    rawPose.getOrientation().getYaw(AngleUnit.DEGREES);
 
                 // MegaTag1 (camera-only) — fallback if IMU unavailable
                 Pose3D botposeMT1 = result.getBotpose();
@@ -288,10 +295,12 @@ public class LimelightAprilTag extends LinearOpMode {
                 double latencyMs = result.getCaptureLatency()
                                  + result.getTargetingLatency();
 
-                telemetry.addData("MT2 Pose",    botposeMT2.toString());
-                telemetry.addData("MT1 Pose",    botposeMT1.toString());
-                telemetry.addData("Latency (ms)", "%.1f", latencyMs);
-                telemetry.addData("IMU yaw (°)",  "%.1f", yaw);
+                telemetry.addData("Field X (m)",     "%.2f", robotFieldX);
+                telemetry.addData("Field Y (m)",     "%.2f", robotFieldY);
+                telemetry.addData("Field heading (°)", "%.1f", robotFieldHeading);
+                telemetry.addData("MT1 Pose (raw)",  botposeMT1.toString());
+                telemetry.addData("Latency (ms)",    "%.1f", latencyMs);
+                telemetry.addData("IMU yaw (°)",     "%.1f", yaw);
             } else {
                 telemetry.addData("AprilTag", "No tags visible");
             }
@@ -303,6 +312,24 @@ public class LimelightAprilTag extends LinearOpMode {
     }
 }`}
               />
+              <NoteBox type="warning">
+                <code>getBotpose_MT2()</code> returns coordinates in the{" "}
+                <strong>WPILib/FRC field frame</strong> (X forward, Y left, Z
+                up). Road Runner, Pedro Pathing, and FTC field layouts may use
+                different axis signs or units. Never feed raw{" "}
+                <code>botpose.toString()</code> directly into a path follower —
+                extract components and remap them to your localizer&apos;s
+                expected frame first.
+              </NoteBox>
+              <pre className="my-4 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+{`+---------------------------+               +---------------------------+
+|    REV Control Hub        |               |   Limelight 3A Camera     |
+|                           |  USB-C Cable  |                           |
+| 1. Reads internal IMU     | ------------> | 2. Receives yaw heading   |
+| 2. updateRobotOrientation |  (Ethernet)   | 3. Detects AprilTag       |
+|                           | <------------ | 4. Computes MegaTag2 pose |
++---------------------------+               +---------------------------+`}
+              </pre>
               <NoteBox type="info">
                 Total localization latency = <code>captureLatency</code> +{" "}
                 <code>targetingLatency</code>. On the Limelight 3A this is
@@ -363,6 +390,13 @@ public class LimelightAprilTag extends LinearOpMode {
                 runtime engine to <strong>CPU</strong> in the web interface or
                 the pipeline will fail to start.
               </NoteBox>
+              <NoteBox type="info">
+                MegaTag2 accuracy depends on two physical setup steps: feed IMU
+                yaw every loop via <code>updateRobotOrientation()</code>, and
+                configure the camera&apos;s mount offsets in the web interface
+                General tab. If the lens is not at the robot center, omitting
+                those values skews pose whenever the chassis rotates.
+              </NoteBox>
               <CodeBlock
                 filename="LimelightPipelines.java"
                 code={`import com.qualcomm.hardware.limelightvision.LLResult;
@@ -406,8 +440,12 @@ if (result != null && result.isValid()) {
     }
 
     // ── Python SnapScript output ──────────────────────────────────────────
-    double[] pythonOut = result.getPythonOutput(); // up to 8 values
-    telemetry.addData("Python[0]", "%.3f", pythonOut[0]);
+    double[] pythonOut = result.getPythonOutput(); // up to 8 values, may be null
+    if (pythonOut != null && pythonOut.length > 0) {
+        telemetry.addData("Python[0]", "%.3f", pythonOut[0]);
+    } else {
+        telemetry.addData("Python Output", "No script data available");
+    }
 }`}
               />
             </Prose>

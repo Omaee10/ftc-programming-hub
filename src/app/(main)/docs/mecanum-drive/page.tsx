@@ -35,7 +35,7 @@ export default function MecanumDrivePage() {
                 items={[
                   { label: "Motors", value: "4 independent", sub: "Each controlled separately" },
                   { label: "Movement", value: "Omnidirectional", sub: "Forward, strafe, rotate simultaneously" },
-                  { label: "Wheel layout", value: "X-pattern rollers", sub: "FL/BR rollers point one way, FR/BL the other" },
+                  { label: "Wheel layout", value: "O from top, X from bottom", sub: "Rollers point toward center when viewed from above — strafing requires this" },
                   { label: "Strafing", value: "Slightly inefficient", sub: "×1.1 correction factor helps" },
                 ]}
               />
@@ -58,6 +58,16 @@ export default function MecanumDrivePage() {
                   { label: "Back Right", value: "y + x - rx" },
                 ]}
               />
+              <NoteBox type="warning">
+                Roller orientation is perspective-dependent: from the{" "}
+                <strong>top</strong> of the robot, rollers must form an{" "}
+                <strong>O</strong> (diamond) — each wheel&apos;s rollers point
+                toward the center. From the <strong>bottom</strong> (ground
+                view), they form an X. If you mount an X when looking down from
+                above, forward and rotate still work, but{" "}
+                <strong>strafing will not</strong> — the wheels fight each other
+                and lock up.
+              </NoteBox>
               <NoteBox type="info">
                 The right side motors are typically <strong>reversed</strong>{" "}
                 in software so that positive power = forward on all four
@@ -199,8 +209,8 @@ double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1);
               </p>
               <SpecTable
                 rows={[
-                  { label: "rotX", value: "x·cos(−θ) − y·sin(−θ)", note: "Rotated strafe component" },
-                  { label: "rotY", value: "x·sin(−θ) + y·cos(−θ)", note: "Rotated forward component" },
+                  { label: "rotX", value: "x·cos(θ) + y·sin(θ)", note: "Rotated strafe component" },
+                  { label: "rotY", value: "−x·sin(θ) + y·cos(θ)", note: "Rotated forward component" },
                 ]}
               />
               <CodeBlock
@@ -257,10 +267,9 @@ public class FieldCentricMecanum extends LinearOpMode {
                                    .getYaw(AngleUnit.RADIANS);
 
             // ── Rotate stick vector counter to robot's heading ────────────
-            // This makes the driver's "forward" align with the field,
-            // not the robot's nose.
-            double rotX = x * Math.cos(-botHeading) - y * Math.sin(-botHeading);
-            double rotY = x * Math.sin(-botHeading) + y * Math.cos(-botHeading);
+            // Equivalent to cos(−θ)/sin(−θ) form; uses cos(−θ)=cos(θ), sin(−θ)=−sin(θ)
+            double rotX = x * Math.cos(botHeading) + y * Math.sin(botHeading);
+            double rotY = -x * Math.sin(botHeading) + y * Math.cos(botHeading);
 
             rotX = rotX * 1.1; // strafing correction
 
@@ -324,12 +333,15 @@ public class FieldCentricMecanum extends LinearOpMode {
               />
               <p>
                 You can also apply a <strong>deadzone</strong> to ignore small
-                unintentional stick deflections:
+                unintentional stick deflections. The SDK can do this for you in{" "}
+                <code>init()</code> — no ternary logic needed in the loop:
               </p>
               <CodeBlock
                 filename="Deadzone.java"
-                code={`// Apply deadzone — ignore stick values smaller than ±0.05
-// This prevents the robot from drifting when the driver releases the stick
+                code={`// ── Preferred: SDK built-in deadzone (set once before waitForStart) ─────
+gamepad1.setJoystickDeadzone(0.05f);
+
+// ── Manual alternative — apply each loop if you need custom per-axis logic ─
 double DEADZONE = 0.05;
 
 double rawY = -gamepad1.left_stick_y;
@@ -363,7 +375,7 @@ double rx = Math.abs(gamepad1.right_stick_x) > DEADZONE
               <SpecTable
                 rows={[
                   { label: "Front-left only backwards", value: "Reverse frontLeft" },
-                  { label: "Robot spins instead of strafing", value: "x and rx are swapped in equations" },
+                  { label: "Robot spins instead of strafing", value: "x and rx are swapped in equations — or rollers form X from top (should be O)" },
                   { label: "Robot drives forward instead of strafing", value: "Left stick X and Y are swapped" },
                   { label: "Strafe direction is wrong", value: "Negate x in equations" },
                 ]}

@@ -30,6 +30,9 @@ export default function RoadRunnerPage() {
                 real physical constraints — max velocity, max acceleration, and
                 centripetal acceleration through curves — and uses combined
                 feedforward + feedback control to follow them accurately.
+                Along each spline, RR continuously balances lateral error,
+                heading error, and a trapezoidal velocity profile so the robot
+                neither overshoots corners nor stalls mid-path.
               </p>
               <InfoGrid
                 items={[
@@ -162,6 +165,13 @@ dependencies {
                   },
                 ]}
               />
+              <NoteBox type="warning">
+                <code>TwoDeadWheelLocalizer</code> expects the{" "}
+                <code>LazyImu</code> wrapper — pass <code>lazyImu</code>, not{" "}
+                <code>lazyImu.get()</code> or a raw <code>IMU</code> from{" "}
+                <code>hardwareMap</code>. Passing the wrong type causes a
+                compile-time signature mismatch.
+              </NoteBox>
               <NoteBox type="tip">
                 Dead wheel encoder ports 0 and 3 on REV hubs are more accurate
                 at high speeds due to hardware quadrature decoding. Use those
@@ -188,10 +198,10 @@ lazyImu = new LazyImu(hardwareMap, "imu", new RevHubOrientationOnRobot(
 localizer = new DriveLocalizer(hardwareMap, PARAMS.inPerTick, pose, leftMotors, rightMotors);
 
 // Two dead wheels (encoders named "par" and "perp"):
-// localizer = new TwoDeadWheelLocalizer(hardwareMap, lazyImu.get(), PARAMS.inPerTick, pose);
+// localizer = new TwoDeadWheelLocalizer(hardwareMap, lazyImu, PARAMS.inPerTick);
 
-// Three dead wheels (encoders named "par0", "par1", "perp"):
-// localizer = new ThreeDeadWheelLocalizer(hardwareMap, PARAMS.inPerTick, pose);
+// Three dead wheels (encoders named "par0", "par1", "perp") — no IMU for heading:
+// localizer = new ThreeDeadWheelLocalizer(hardwareMap, PARAMS.inPerTick);
 
 // goBILDA Pinpoint (device named "pinpoint"):
 // localizer = new PinpointLocalizer(hardwareMap, PARAMS.inPerTick, pose);
@@ -527,10 +537,11 @@ Actions.runBlocking(new ParallelAction(
     .splineTo(new Vector2d(48, 0), 0)
     .build();
 
-TelemetryPacket packet = new TelemetryPacket();
 boolean running = true;
 
 while (opModeIsActive() && running) {
+    TelemetryPacket packet = new TelemetryPacket();
+
     // Advance the trajectory one step; returns false when complete
     running = driveAction.run(packet);
 
@@ -543,6 +554,12 @@ while (opModeIsActive() && running) {
     telemetry.update();
 }`}
               />
+              <NoteBox type="warning">
+                Always allocate a fresh <code>TelemetryPacket</code> each loop
+                iteration. Reusing one instance causes <code>packet.put()</code>{" "}
+                data to accumulate, bloating memory and dropping loop rate over
+                long autonomous runs.
+              </NoteBox>
               <NoteBox type="tip">
                 For most routines, <code>ParallelAction</code> is cleaner than
                 a manual loop — define each mechanism as an <code>Action</code>{" "}

@@ -53,10 +53,15 @@ export default function AndroidStudioPage() {
                 ]}
               />
               <NoteBox type="warning">
-                On Windows, install Android Studio to a path with <strong>no spaces</strong>{" "}
-                — for example, <code>C:\Android\</code> rather than{" "}
-                <code>C:\Program Files\Android\</code>. Spaces in the
-                installation path are a common cause of Gradle build failures.
+                On Windows, avoid spaces in your <strong>project path</strong>{" "}
+                (where you clone the repository) — for example, use{" "}
+                <code>C:\FTC\FtcRobotController</code> instead of{" "}
+                <code>C:\Users\Robotics Drive\Documents\FtcRobotController</code>.
+                Gradle sync often fails when the folder path or your Windows
+                username contains spaces. The Android Studio{" "}
+                <em>installation</em> path (e.g.{" "}
+                <code>C:\Program Files\Android\Android Studio</code>) is fine on
+                modern versions.
               </NoteBox>
             </Prose>
           ),
@@ -75,7 +80,7 @@ export default function AndroidStudioPage() {
               <StepList
                 steps={[
                   "Open Android Studio and click \"Get from VCS\" on the welcome screen.",
-                  "Paste your fork's repository URL (or the official URL) and choose a local directory.",
+                  "Paste your fork's repository URL (or the official URL) and choose a local directory with no spaces in the path (see warning above).",
                   "Wait for the initial Gradle sync to finish — the first sync downloads approximately 500 MB of dependencies.",
                   "If prompted about SDK versions or Gradle updates, click \"Update\" to accept the recommended settings.",
                 ]}
@@ -166,92 +171,85 @@ public class HelloOpMode extends LinearOpMode {
                 Client also lets you check hub status and update firmware over
                 USB.
               </NoteBox>
-              <NoteBox type="warning">
-                Never unplug the USB cable while a build is in progress. Doing
-                so can corrupt the APK on the Control Hub and may require a
-                factory reset.
+              <NoteBox type="info">
+                Unplugging the USB cable mid-build only stops the deployment in
+                Android Studio — it does not corrupt or brick the Control Hub.
+                The previously installed app stays on the hub; just reconnect and
+                deploy again.
               </NoteBox>
             </Prose>
           ),
         },
         {
           id: "wireless-deploy",
-          title: "Wireless Deployment (ADB over Wi-Fi)",
+          title: "Wireless Deployment",
           content: (
             <Prose>
               <p>
                 After the first successful wired deploy, you can switch to
                 wireless deployment so you can iterate on the field without
-                a tether. This requires <strong>ADB (Android Debug Bridge)</strong>,
-                which must be installed and available on your system PATH before
-                any of these steps will work.
+                a tether.
               </p>
-              <h3>Step 1 — Install ADB (Platform Tools)</h3>
+              <h3>Recommended — Pair in Android Studio (no terminal)</h3>
               <p>
-                ADB is part of Android <strong>SDK Platform Tools</strong>. You
-                have two options:
+                Ladybug and newer Android Studio builds include a built-in
+                Wi-Fi pairing tool — no <code>PATH</code> editing required.
+              </p>
+              <StepList
+                steps={[
+                  "In Android Studio, open the device dropdown in the toolbar and choose Pair Devices Using Wi-Fi.",
+                  "Put the Control Hub in pairing mode (REV Hardware Client or the hub's Wi-Fi settings).",
+                  "Scan the QR code or enter the pairing code shown on the hub — Android Studio handles the rest.",
+                  "Once paired, the hub appears in the device selector. Press Run ▶ as usual; deploy goes over Wi-Fi.",
+                ]}
+              />
+              <h3>Alternative — ADB over Wi-Fi (terminal)</h3>
+              <p>
+                If you prefer the command line, install{" "}
+                <strong>SDK Platform Tools</strong> and add{" "}
+                <code>platform-tools</code> to your PATH:
               </p>
               <SpecTable
                 rows={[
                   {
-                    label: "Option A — Android Studio (bundled)",
-                    value: "Already on your machine at: [Android SDK]/platform-tools/adb",
-                    note: "Default SDK path: C:\\Users\\[you]\\AppData\\Local\\Android\\Sdk\\platform-tools\\ (Windows) or ~/Library/Android/sdk/platform-tools/ (macOS)",
+                    label: "Bundled with Android Studio",
+                    value: "[Android SDK]/platform-tools/adb",
+                    note: "Windows: C:\\Users\\[you]\\AppData\\Local\\Android\\Sdk\\platform-tools\\ — macOS: ~/Library/Android/sdk/platform-tools/",
                   },
                   {
-                    label: "Option B — Standalone download",
-                    value: "Download from developer.android.com/tools/releases/platform-tools",
-                    note: "Extract the zip, then add the folder to your system PATH",
+                    label: "Standalone download",
+                    value: "developer.android.com/tools/releases/platform-tools",
+                    note: "Extract the zip, then add the folder to PATH",
                   },
                 ]}
               />
-              <p>
-                After installing, add the <code>platform-tools</code> folder to
-                your system <strong>PATH</strong> so you can run{" "}
-                <code>adb</code> from any terminal:
-              </p>
               <CodeBlock
                 filename="terminal"
-                code={`# ── macOS / Linux: add to ~/.zshrc or ~/.bashrc ──────────────────────────
-export PATH="$PATH:$HOME/Library/Android/sdk/platform-tools"
-
-# ── Windows: add to System Environment Variables → PATH ──────────────────
-# C:\Users\[YourName]\AppData\Local\Android\Sdk\platform-tools
-
-# ── Verify ADB is installed correctly ─────────────────────────────────────
+                code={`# Verify ADB is available
 adb version
-# Should print: Android Debug Bridge version x.x.x`}
-              />
-              <h3>Step 2 — Connect over Wi-Fi</h3>
-              <StepList
-                steps={[
-                  "Connect your laptop to the Control Hub's Wi-Fi network. The SSID matches the hub's configured name (e.g. \"FTC-12345\").",
-                  "Open a terminal and run: adb connect 192.168.43.1:5555",
-                  "Confirm the connection with: adb devices — the Control Hub should appear as \"192.168.43.1:5555 device\".",
-                  "Press the green Run ▶ button in Android Studio as normal. The deploy now goes over Wi-Fi.",
-                ]}
-              />
-              <CodeBlock
-                filename="terminal"
-                code={`# Connect ADB to the Control Hub over Wi-Fi
+
+# Connect — use the IP shown on the Driver Station / hub status screen
+# 192.168.43.1 is the default direct Wi-Fi IP; router or Phone-as-Display setups use a different address
 adb connect 192.168.43.1:5555
 
-# Verify the hub is listed
 adb devices
-# Expected output:
-# List of devices attached
-# 192.168.43.1:5555    device`}
+# Expected: 192.168.43.1:5555    device`}
               />
+              <NoteBox type="info">
+                The default Control Hub IP on its own Wi-Fi network is often{" "}
+                <code>192.168.43.1</code>, but that changes if you connect
+                through a router, use Phone-as-a-Display, or reconfigure the
+                hub. Always confirm the active IP on the Driver Station or REV
+                Hardware Client before running <code>adb connect</code>.
+              </NoteBox>
               <NoteBox type="warning">
-                If <code>adb</code> is not recognized, it means Platform Tools
-                are either not installed or not on your PATH. Re-check the steps
-                above — this is the most common reason wireless deploy fails.
+                If <code>adb</code> is not recognized, Platform Tools are
+                missing or not on your PATH — re-check the paths above.
               </NoteBox>
               <NoteBox type="tip">
                 Wireless deploy is slightly slower (~30 s) compared to wired
-                (~15 s), but it lets you iterate and test while the robot is
-                assembled on the field — a significant time-saver during
-                practice sessions.
+                (~15 s), but it lets you iterate while the robot is assembled
+                on the field.
               </NoteBox>
             </Prose>
           ),
@@ -280,8 +278,8 @@ adb devices
                   },
                   {
                     label: "OpMode missing from Driver Station",
-                    value: "Add @TeleOp or @Autonomous annotation to the class",
-                    note: "Both name and group fields required",
+                    value: "Remove @Disabled, or add @TeleOp / @Autonomous",
+                    note: "SDK templates include @Disabled — that hides the OpMode. name is required; group is optional",
                   },
                   {
                     label: "NullPointerException on hardwareMap",

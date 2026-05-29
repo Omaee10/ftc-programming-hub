@@ -133,17 +133,37 @@ int remainder  = a % b;   // 1
 
 double exact   = (double) a / b; // 3.333... — cast to double first!
 
-// ── Comparison operators return boolean ──────────────────────────────────
-boolean isEqual   = (a == b);   // false
+// ── Integer division trap ─────────────────────────────────────────────────
+double ratio = 3 / 4;              // 0.0 — both operands are int!
+double fixed = 3.0 / 4;          // 0.75 — at least one operand must be double
+double also  = (double) 3 / 4;   // 0.75 — cast before dividing
+
+// ── Clamp motor power to [-1.0, 1.0] ────────────────────────────────────
+double power = 1.5;
+power = Math.max(-1.0, Math.min(1.0, power)); // → 1.0
+
+// ── Clamp servo position to [0.0, 1.0] ──────────────────────────────────
+double position = 1.2;
+position = Math.max(0.0, Math.min(1.0, position)); // → 1.0`}
+              />
+              <NoteBox type="warning">
+                <strong>Integer division:</strong> In Java,{" "}
+                <code>3 / 4</code> evaluates to <code>0</code>, not{" "}
+                <code>0.75</code>, because both operands are integers. This
+                breaks encoder math and wheel-circumference calculations all
+                the time — cast or use a decimal literal (<code>3.0 / 4</code>)
+                before dividing.
+              </NoteBox>
+              <h3 className="mt-6 mb-2 text-sm font-semibold text-slate-200">
+                Comparison &amp; logical operators
+              </h3>
+              <CodeBlock
+                filename="Comparisons.java"
+                code={`boolean isEqual   = (a == b);   // false
 boolean isGreater = (a > b);    // true
 
-// ── Logical operators ─────────────────────────────────────────────────────
-boolean both = (a > 0) && (b > 0); // true — both positive
-boolean either = (a > 50) || (b < 10); // true — b < 10 is true
-
-// ── Common FTC pattern: clamp a value between 0.0 and 1.0 ────────────────
-double power = 1.5;
-power = Math.min(1.0, Math.max(-1.0, power)); // clamp to [-1, 1]`}
+boolean both   = (a > 0) && (b > 0);   // true — both positive
+boolean either = (a > 50) || (b < 10); // true — b < 10 is true`}
               />
             </Prose>
           ),
@@ -581,10 +601,12 @@ robot.score();            // only exists on ScoutRobot`}
               <CodeBlock
                 filename="Interfaces.java"
                 code={`// ── Define an interface ──────────────────────────────────────────────────
+import com.qualcomm.robotcore.hardware.Gamepad;
+
 public interface Subsystem {
-    void init(HardwareMap hardwareMap);  // must be implemented
-    void update();                       // must be implemented
-    void stop();                         // must be implemented
+    void init(HardwareMap hardwareMap);       // must be implemented
+    void update(Gamepad gamepad);             // pass gamepad in — not global in subsystems
+    void stop();                              // must be implemented
 }
 
 // ── Implement the interface ───────────────────────────────────────────────
@@ -598,10 +620,10 @@ public class Intake implements Subsystem {
     }
 
     @Override
-    public void update() {
-        if (gamepad1.right_bumper) {
+    public void update(Gamepad gamepad) {
+        if (gamepad.right_bumper) {
             intakeMotor.setPower(1.0);
-        } else if (gamepad1.left_bumper) {
+        } else if (gamepad.left_bumper) {
             intakeMotor.setPower(-1.0);
         } else {
             intakeMotor.setPower(0);
@@ -621,9 +643,16 @@ subsystems.add(new Intake());
 subsystems.add(new Lift());
 
 for (Subsystem s : subsystems) {
-    s.update(); // calls the correct update() for each subsystem
+    s.update(gamepad1); // OpMode passes gamepad1 — subsystems don't access it globally
 }`}
               />
+              <NoteBox type="tip">
+                Subsystem classes do not automatically have access to{" "}
+                <code>gamepad1</code> — that variable only exists inside your
+                OpMode. Pass a <code>Gamepad</code> into{" "}
+                <code>update()</code> (or store it in the constructor) so the
+                code compiles.
+              </NoteBox>
               <NoteBox type="tip">
                 You already use interfaces constantly in FTC without
                 realizing it. The Road Runner <code>Action</code> interface is
@@ -732,10 +761,16 @@ public class DriveOpMode extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        // Set up hardware
-        DcMotor leftMotor  = hardwareMap.get(DcMotor.class, RobotConstants.LEFT_MOTOR);
-        DcMotor rightMotor = hardwareMap.get(DcMotor.class, RobotConstants.RIGHT_MOTOR);
+        // Set up hardware — prefer DcMotorEx for velocity control & current draw
+        DcMotorEx leftMotor  = hardwareMap.get(DcMotorEx.class, RobotConstants.LEFT_MOTOR);
+        DcMotorEx rightMotor = hardwareMap.get(DcMotorEx.class, RobotConstants.RIGHT_MOTOR);
         Claw claw = new Claw(hardwareMap);
+
+        if (leftMotor == null || rightMotor == null) {
+            telemetry.addData("Error", "Motor not found — check Robot Configuration");
+            telemetry.update();
+            return;
+        }
 
         rightMotor.setDirection(DcMotor.Direction.REVERSE);
 
@@ -776,6 +811,14 @@ public class DriveOpMode extends LinearOpMode {
                 the button <em>just</em> became pressed. This prevents the
                 claw from toggling dozens of times per second while the button
                 is held down.
+              </NoteBox>
+              <NoteBox type="info">
+                Use <code>DcMotorEx</code> instead of <code>DcMotor</code> when
+                you need velocity PID (<code>setVelocity()</code>), current
+                draw, or other extended APIs — most modern FTC teams do. Always
+                verify <code>hardwareMap.get()</code> did not return{" "}
+                <code>null</code> (wrong name in the Robot Configuration) before
+                calling methods on the motor.
               </NoteBox>
             </Prose>
           ),

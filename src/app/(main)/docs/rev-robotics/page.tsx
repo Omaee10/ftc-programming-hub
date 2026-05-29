@@ -76,10 +76,10 @@ export default function REVRoboticsPage() {
                 ]}
               />
               <NoteBox type="tip">
-                When configuring hardware in the Driver Station, you assign a
-                hub number (0 = Control Hub, 1 = Expansion Hub). Prefix device
-                names to avoid confusion, e.g.{" "}
-                <code>eh_left_front</code> for Expansion Hub ports.
+                When connecting multiple I²C devices across the Control Hub and
+                Expansion Hub, spread them across separate hardware buses when
+                possible. Overloading one bus increases read latency and can
+                slow your main control loop.
               </NoteBox>
             </Prose>
           ),
@@ -164,8 +164,7 @@ public class TouchSensorDemo extends LinearOpMode {
                 code={`@Autonomous(name = "Color Detection Auto")
 public class ColorDetectionAuto extends LinearOpMode {
 
-    private ColorSensor     colorSensor;
-    private DistanceSensor  distanceSensor;
+    private NormalizedColorSensor intakeSensor;
 
     // Alliance color thresholds (tune on actual field)
     private static final int RED_THRESHOLD  = 200;
@@ -173,24 +172,24 @@ public class ColorDetectionAuto extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        // REV Color Sensor v3 implements both interfaces
-        colorSensor    = hardwareMap.get(ColorSensor.class,    "intake_color");
-        distanceSensor = hardwareMap.get(DistanceSensor.class, "intake_color");
+        // REV Color Sensor v3 implements NormalizedColorSensor and DistanceSensor
+        intakeSensor = hardwareMap.get(NormalizedColorSensor.class, "intake_color");
 
-        // Turn on the sensor LED for reflectance mode
-        colorSensor.enableLed(true);
+        if (intakeSensor instanceof SwitchableLight) {
+            ((SwitchableLight) intakeSensor).enableLight(true);
+        }
 
         waitForStart();
 
         while (opModeIsActive()) {
-            int red   = colorSensor.red();
-            int green = colorSensor.green();
-            int blue  = colorSensor.blue();
-            int alpha = colorSensor.alpha(); // combined / clear channel
+            int red   = intakeSensor.red();
+            int green = intakeSensor.green();
+            int blue  = intakeSensor.blue();
+            int alpha = intakeSensor.alpha();
 
-            double distanceCm = distanceSensor.getDistance(DistanceUnit.CM);
+            // DistanceSensor is implemented by the same physical device
+            double distanceCm = ((DistanceSensor) intakeSensor).getDistance(DistanceUnit.CM);
 
-            // Simple alliance detection
             String detected = "None";
             if (red > RED_THRESHOLD && red > blue)  detected = "RED";
             if (blue > BLUE_THRESHOLD && blue > red) detected = "BLUE";
@@ -203,6 +202,13 @@ public class ColorDetectionAuto extends LinearOpMode {
     }
 }`}
               />
+              <NoteBox type="info">
+                The REV Color Sensor v3 implements both{" "}
+                <code>NormalizedColorSensor</code> and{" "}
+                <code>DistanceSensor</code> on one I²C handle — you do not need
+                two separate <code>hardwareMap.get()</code> calls for the same
+                device name.
+              </NoteBox>
               <NoteBox type="tip">
                 For reliable detection, measure the sensor&apos;s output under your
                 competition field&apos;s lighting conditions. Threshold values vary
@@ -286,12 +292,14 @@ public class IMUHeadingLock extends LinearOpMode {
             while (error >  180) error -= 360;
             while (error < -180) error += 360;
 
-            double dt        = timer.seconds();
+            double dt = timer.seconds();
+            timer.reset();
+            if (dt < 0.001) dt = 0.001;
+
             integralSum     += error * dt;
             double derivative = (error - lastError) / dt;
             double correction = Kp * error + Ki * integralSum + Kd * derivative;
             lastError = error;
-            timer.reset();
 
             // Apply field-centric + heading correction
             double y  = -gamepad1.left_stick_y;
@@ -316,6 +324,12 @@ public class IMUHeadingLock extends LinearOpMode {
     }
 }`}
               />
+              <NoteBox type="warning">
+                Always floor <code>dt</code> before dividing for the derivative
+                term. Fast loop iterations can return <code>0.0</code> from{" "}
+                <code>timer.seconds()</code>, which produces{" "}
+                <code>NaN</code> correction power and kills drivetrain output.
+              </NoteBox>
             </Prose>
           ),
         },
@@ -396,8 +410,8 @@ while (opModeIsActive()) {
     double distCm = frontRange.getDistance(DistanceUnit.CM);
     double distIn = frontRange.getDistance(DistanceUnit.INCH);
 
-    // Out-of-range reads return Double.MAX_VALUE — always guard against it
-    if (!Double.isInfinite(distCm) && distCm < 200) {
+    // Out-of-range ToF reads return NaN or infinity — guard before using the value
+    if (!Double.isNaN(distCm) && !Double.isInfinite(distCm) && distCm < 200) {
         telemetry.addData("Distance (cm)", "%.1f", distCm);
         telemetry.addData("Distance (in)", "%.1f", distIn);
     } else {
