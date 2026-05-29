@@ -175,14 +175,55 @@ function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
-/** Formats a list of 1-indexed line numbers into a human-readable suffix. */
-function fmtLines(lines: number[] | undefined): string {
+/** Formats 1-indexed line numbers as a visible prefix (e.g. "Line 52: "). */
+function fmtLinePrefix(lines: number[] | undefined): string {
   if (!lines || lines.length === 0) return "";
   const MAX = 5;
   const shown = lines.slice(0, MAX);
   const rest = lines.length - MAX;
   const nums = shown.join(", ") + (rest > 0 ? ` (+${rest} more)` : "");
-  return lines.length === 1 ? ` — line ${nums}` : ` — lines ${nums}`;
+  return lines.length === 1 ? `Line ${nums}: ` : `Lines ${nums}: `;
+}
+
+function withLinePrefix(message: string, lines: number[] | undefined): string {
+  const prefix = fmtLinePrefix(lines);
+  return prefix ? `${prefix}${message}` : message;
+}
+
+function applyGraderMarkers(
+  result: GradedResult,
+  editor: Parameters<
+    NonNullable<React.ComponentProps<typeof MonacoEditor>["onMount"]>
+  >[0] | null,
+  monaco: Monaco | null
+): number | null {
+  if (!editor || !monaco) return null;
+  const model = editor.getModel();
+  if (!model) return null;
+
+  monaco.editor.setModelMarkers(model, "ftc-grader", []);
+
+  const markers: Monaco["editor"]["IMarkerData"][] = [];
+  let firstLine: number | null = null;
+
+  for (const issue of result.syntaxIssues) {
+    if (issue.severity !== "error" || !issue.lines?.length) continue;
+    for (const line of issue.lines) {
+      if (line < 1 || line > model.getLineCount()) continue;
+      if (firstLine === null) firstLine = line;
+      markers.push({
+        severity: monaco.MarkerSeverity.Error,
+        message: issue.message,
+        startLineNumber: line,
+        startColumn: 1,
+        endLineNumber: line,
+        endColumn: model.getLineMaxColumn(line),
+      });
+    }
+  }
+
+  monaco.editor.setModelMarkers(model, "ftc-grader", markers);
+  return firstLine;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────
@@ -689,7 +730,7 @@ export default function ChallengeWorkspace({
 
   /** Checks that flat-out fail (required tier) — shown as errors in the left panel. */
   const [failedErrors, setFailedErrors] = useState<
-    Array<{ label: string; tip?: string }>
+    Array<{ label: string; tip?: string; lines?: number[] }>
   >([]);
 
   /** Checks that are optional improvements — shown as suggestions. */
@@ -724,6 +765,11 @@ export default function ChallengeWorkspace({
     appendEntry({ type: "init", message: "FTC Hub Analyzer v3.0" });
     appendEntry({ type: "separator", message: "" });
 
+    const clearModel = editorRef.current?.getModel();
+    if (clearModel && monacoRef.current) {
+      monacoRef.current.editor.setModelMarkers(clearModel, "ftc-grader", []);
+    }
+
     await delay(180);
     appendEntry({ type: "running", message: `Compiling ${filename} with javac…` });
 
@@ -751,6 +797,17 @@ export default function ChallengeWorkspace({
 
     await delay(120);
     appendEntry({ type: "info", message: "Compilation complete — running rubric checks…" });
+
+    const firstErrorLine = applyGraderMarkers(
+      result,
+      editorRef.current,
+      monacoRef.current
+    );
+    if (firstErrorLine !== null && editorRef.current) {
+      editorRef.current.revealLineInCenter(firstErrorLine);
+      editorRef.current.setPosition({ lineNumber: firstErrorLine, column: 1 });
+    }
+
     await delay(180);
     appendEntry({ type: "separator", message: "" });
 
@@ -761,7 +818,7 @@ export default function ChallengeWorkspace({
         await delay(120);
         appendEntry({
           type: issue.severity === "error" ? "error" : "warning",
-          message: issue.message + fmtLines(issue.lines),
+          message: withLinePrefix(issue.message, issue.lines),
         });
       }
       appendEntry({ type: "separator", message: "" });
@@ -775,7 +832,7 @@ export default function ChallengeWorkspace({
         type: r.pass ? "success" : "error",
         message: r.pass
           ? `${r.label} — ${r.description}`
-          : `${r.label} — ${r.tip ?? r.description}${fmtLines(r.matchedLines)}`,
+          : withLinePrefix(`${r.label} — ${r.tip ?? r.description}`, r.matchedLines),
       });
     }
 
@@ -793,7 +850,7 @@ export default function ChallengeWorkspace({
         type: r.pass ? "success" : "error",
         message: r.pass
           ? `${r.label} — ${r.description}`
-          : `${r.label} — ${r.tip ?? r.description}${fmtLines(r.matchedLines)}`,
+          : withLinePrefix(`${r.label} — ${r.tip ?? r.description}`, r.matchedLines),
       });
     }
 
@@ -880,19 +937,19 @@ export default function ChallengeWorkspace({
     // universal improvement/style-tier → suggestions (same as challenge checks).
     const syntaxErrors = result.syntaxIssues
       .filter((s) => s.severity === "error")
-      .map((s) => ({ label: s.message }));
+      .map((s) => ({ label: s.message, lines: s.lines }));
 
     const universalRequiredFails = result.universalResults
       .filter((r) => !r.pass && r.tier === "required")
-      .map((r) => ({ label: r.label, tip: r.tip }));
+      .map((r) => ({ label: r.label, tip: r.tip, lines: r.matchedLines }));
 
     const universalSoftFails = result.universalResults
       .filter((r) => !r.pass && r.tier !== "required")
-      .map((r) => ({ label: r.label, tip: r.tip }));
+      .map((r) => ({ label: r.label, tip: r.tip, lines: r.matchedLines }));
 
     const challengeRequiredFails = result.requiredResults
       .filter((r) => !r.pass)
-      .map((r) => ({ label: r.label, tip: r.tip }));
+      .map((r) => ({ label: r.label, tip: r.tip, lines: r.matchedLines }));
 
     setFailedErrors([...syntaxErrors, ...universalRequiredFails, ...challengeRequiredFails]);
 
@@ -1124,8 +1181,25 @@ export default function ChallengeWorkspace({
                         <ul className="space-y-1.5">
                           {failedErrors.map((item, i) => (
                             <li key={i} className="min-w-0 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
-                              <p className="break-words text-[11px] font-semibold text-red-300 leading-snug">{item.label}</p>
-                              {item.tip && <p className="mt-0.5 break-words text-[10px] text-red-400/70 leading-relaxed">{item.tip}</p>}
+                              <div className="flex items-start gap-2">
+                                {item.lines?.[0] ? (
+                                  <span className="shrink-0 rounded border border-red-500/30 bg-red-500/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-red-200">
+                                    L{item.lines[0]}
+                                  </span>
+                                ) : null}
+                                <div className="min-w-0 flex-1">
+                                  <p className="break-words text-[11px] font-semibold text-red-300 leading-snug">{item.label}</p>
+                                  {item.tip ? (
+                                    <p className="mt-0.5 break-words text-[10px] text-red-400/70 leading-relaxed">{item.tip}</p>
+                                  ) : null}
+                                  {item.lines && item.lines.length > 1 ? (
+                                    <p className="mt-0.5 font-mono text-[10px] text-red-400/60">
+                                      Also on lines {item.lines.slice(1, 6).join(", ")}
+                                      {item.lines.length > 6 ? "…" : ""}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
                             </li>
                           ))}
                         </ul>
