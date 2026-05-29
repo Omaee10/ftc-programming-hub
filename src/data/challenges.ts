@@ -59,19 +59,6 @@ export const challenges: Challenge[] = [
     ],
     instructions: `Your task is to write a TeleOp OpMode that lets a driver control a single DC motor using the left joystick's Y-axis.
 
-**What the grader checks (required):**
-- **DcMotor declared** — A DcMotor or DcMotorEx field is declared. (\`private DcMotor leftMotor;\`)
-- **hardwareMap.get(DcMotor.class) called** — Motor retrieved from hardwareMap inside runOpMode(). (\`Use: leftMotor = hardwareMap.get(DcMotor.class, "left_motor");\`)
-- **gamepad1.left_stick_y read** — The left joystick Y-axis value is read from gamepad1. (\`double power = -gamepad1.left_stick_y;\`)
-- **Y-axis negated** — Stick value negated so pushing forward gives positive power. (\`double power = -gamepad1.left_stick_y;\`)
-- **setPower() called** — Motor power applied via motor.setPower(value). (\`Call leftMotor.setPower(power) to drive the motor.\`)
-- **opModeIsActive() loop present** — Main TeleOp loop runs while the OpMode is active. (\`while (opModeIsActive()) { ... }\`)
-
-**For a "good" grade (improvement):**
-- **setPower() inside the loop** — Motor power is updated every iteration (not set-and-forget).
-- **Motor direction set** — setDirection() explicitly sets motor polarity (prevents wrong-way driving).
-
-
 **Requirements:**
 - The motor's hardware configuration name is \`"left_motor"\`.
 - When the driver pushes the left stick **forward** (up), the motor should spin **forward** at full power.
@@ -137,20 +124,6 @@ public class BasicTeleOp extends LinearOpMode {
       "Stop the motor cleanly after arriving at the target.",
     ],
     instructions: `Write an Autonomous OpMode that drives a single motor to exactly **500 encoder ticks** and then stops.
-
-**What the grader checks (required):**
-- **Encoder reset** — STOP_AND_RESET_ENCODER zeroes the encoder before use. (\`motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);\`)
-- **RUN_TO_POSITION mode** — Motor switched to RUN_TO_POSITION mode. (\`motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);\`)
-- **setTargetPosition() called** — Target encoder tick count passed to setTargetPosition(). (\`motor.setTargetPosition(TARGET_TICKS);\`)
-- **setTargetPosition before RUN_TO_POSITION** — setTargetPosition() must execute before switching the motor to RUN_TO_POSITION.
-- **Non-zero power applied** — setPower() called with a non-zero value to start movement. (\`motor.setPower(0.6);\`)
-- **isBusy() polled inside a while loop** — while(motor.isBusy() ...) blocks until the motor reaches its target. (\`idle();\`)
-- **Motor stopped after arriving** — setPower(0) cuts motor power once the position is reached. (\`Call motor.setPower(0) after the isBusy() loop.\`)
-- **isBusy() loop guarded by opModeIsActive()** — Pair isBusy() with opModeIsActive() so a jammed motor doesn't loop forever. (\`idle();\`)
-
-**For a "good" grade (improvement):**
-- **Telemetry reports position** — getCurrentPosition() logged to telemetry helps debugging. (\`telemetry.addData("Pos", motor.getCurrentPosition());\`)
-
 
 **Requirements:**
 - Hardware name: \`"drive_motor"\`
@@ -232,18 +205,6 @@ public class EncoderTarget extends LinearOpMode {
       "Understand the difference between sleep() and timer-based waits.",
     ],
     instructions: `Write an Autonomous OpMode that drives the robot forward for **exactly 2 seconds** using \`ElapsedTime\`, then stops.
-
-**What the grader checks (required):**
-- **ElapsedTime declared** — An ElapsedTime object created to track real time. (\`ElapsedTime timer = new ElapsedTime();\`)
-- **Timer compared in while condition** — timer.seconds() used as the loop exit condition. (\`while (timer.seconds() < DRIVE_DURATION && opModeIsActive()) { ... }\`)
-- **Motors driven forward** — setPower() called with a non-zero value for forward motion. (\`leftMotor.setPower(DRIVE_SPEED);\`)
-- **Motors stopped after timer** — setPower(0) stops the motors after the timed segment. (\`leftMotor.setPower(0);\`)
-- **opModeIsActive() safety guard** — opModeIsActive() in the while condition allows emergency stop. (\`Include opModeIsActive() in timed loops.\`)
-- **ElapsedTime declared outside the loop** — Creating new ElapsedTime() inside the loop resets the clock every frame. (\`Declare ElapsedTime once before the while loop.\`)
-
-**For a "good" grade (improvement):**
-- **Motor direction reversed for one side** — One side must be reversed so both sides drive forward together. (\`leftMotor.setDirection(DcMotor.Direction.REVERSE);\`)
-
 
 **Requirements:**
 - Motors: \`"left_motor"\` and \`"right_motor"\`
@@ -332,16 +293,6 @@ public class TimerDrive extends LinearOpMode {
     ],
     instructions: `Build a Road Runner 1.0 autonomous routine that follows a 3-segment path:
 
-**What the grader checks (required):**
-- **Drive object created** — MecanumDrive or SampleMecanumDrive constructed with hardwareMap. (\`MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);\`)
-- **Trajectory constructed** — TrajectorySequenceBuilder (RR 0.5) or actionBuilder (RR 1.0) is used.
-- **splineTo() segment present** — At least one splineTo() call creates a curved path segment. (\`.splineTo(new Vector2d(30, 30), Math.PI / 2)\`)
-- **Trajectory executed** — drive.followTrajectorySequence() or Actions.runBlocking() runs the path. (\`RR 0.5: drive.followTrajectorySequence(seq);\`)
-
-**For a "good" grade (improvement):**
-- **waitSeconds() or temporal marker** — Pause included for mechanism timing. (\`.waitSeconds(0.5) pauses at a point — useful for scoring mechanisms.\`)
-
-
 **Segment 1:** Spline from \`(0, 0, 0°)\` to \`(30, 30)\` with an end tangent of **90°** (facing up-field).
 
 **Segment 2:** Wait **0.5 seconds** at the endpoint (simulating a mechanism action).
@@ -412,17 +363,6 @@ public class RRSplineAuto extends LinearOpMode {
       "Detect path completion with follower.atParametricEnd().",
     ],
     instructions: `Build a 3-segment Pedro Pathing autonomous that:
-
-**What the grader checks (required):**
-- **Follower declared and constructed** — A Follower is built from hardwareMap. (\`Follower follower = new Follower(hardwareMap);\`)
-- **PathBuilder used** — Path is built via PathBuilder().addPath(...).build(). (\`new PathBuilder().addPath(...).build()\`)
-- **BezierLine used** — Path uses BezierLine for straight segments. (\`new Path(new BezierLine(new Point(0,0), new Point(24,0)))\`)
-- **followPath() executed** — follower.followPath() runs the path. (\`follower.followPath(pathChain, true);\`)
-- **follower.update() inside loop** — follower.update() must be called every iteration to drive motors. (\`follower.update();\`)
-
-**For a "good" grade (improvement):**
-- **BezierCurve used for at least one segment** — Curved segment improves path smoothness. (\`new Path(new BezierCurve(p0, p1, p2))\`)
-
 
 **Leg 1 (Bézier Curve):** Curve from \`(0, 0)\` to \`(24, 0)\` with control point \`(10, 15)\`. Interpolate heading linearly from **0°** to **90°**.
 
@@ -508,17 +448,6 @@ public class PedroChainAuto extends LinearOpMode {
     ],
     instructions: `Build a TeleOp with tank-style control: the left joystick Y-axis drives the left motor and the right joystick Y-axis drives the right motor.
 
-**What the grader checks (required):**
-- **Two DcMotor fields declared** — Tank drive needs a left and a right motor. (\`Declare two DcMotor fields, e.g. leftMotor and rightMotor.\`)
-- **gamepad1.left_stick_y read** — Left stick drives the left side. (\`double leftPower = -gamepad1.left_stick_y;\`)
-- **gamepad1.right_stick_y read** — Right stick drives the right side. (\`double rightPower = -gamepad1.right_stick_y;\`)
-- **Both stick values negated** — FTC Y-axes are inverted; negate both. (\`double leftPower = -gamepad1.left_stick_y;\`)
-- **setPower() called** — Both motors must be powered each loop. (\`leftMotor.setPower(leftPower);\`)
-
-**For a "good" grade (improvement):**
-- **setDirection() for one side** — Reverse one side so the robot drives forward when both sticks are pushed forward. (\`rightMotor.setDirection(DcMotor.Direction.REVERSE);\`)
-
-
 **Why reverse one side?** Both drive motors are mounted facing opposite directions on the chassis. Sending +1.0 to both in code makes one push the robot forward and the other push backward. Reversing \`leftDrive\`'s direction fixes this so pushing both sticks forward moves the whole robot forward.
 
 **Requirements:**
@@ -588,16 +517,6 @@ public class DualMotorTeleOp extends LinearOpMode {
       "Display the current servo position in telemetry.",
     ],
     instructions: `Write a TeleOp that controls a single servo using three gamepad buttons. Servos in the FTC SDK accept positions from **0.0** (one extreme) to **1.0** (the other extreme), with 0.5 representing the mechanical midpoint.
-
-**What the grader checks (required):**
-- **Servo field declared** — A Servo (not CRServo) field is declared. (\`private Servo armServo;\`)
-- **hardwareMap.get(Servo.class) used** — Servo retrieved from hardwareMap. (\`armServo = hardwareMap.get(Servo.class, "arm_servo");\`)
-- **setPosition() called** — Servo moved with setPosition() in the range 0.0–1.0. (\`armServo.setPosition(1.0);\`)
-- **No setPower() on Servo** — Regular Servo uses setPosition(), not setPower(). (\`Use armServo.setPosition(0.5) — setPower is only for CRServo.\`)
-
-**For a "good" grade (improvement):**
-- **Gamepad button toggles position** — Button press triggers movement. (\`if (gamepad1.a) armServo.setPosition(1.0);\`)
-
 
 **Requirements:**
 - Hardware name: \`"blocker_servo"\`
@@ -675,15 +594,6 @@ public class ServoControl extends LinearOpMode {
     ],
     instructions: `A **CRServo** (Continuous Rotation Servo) works like a motor but uses the \`Servo\` API. Instead of \`setPower()\`, you call \`setPower()\` with values from **-1.0** (full reverse) to **+1.0** (full forward). Setting 0.0 stops it.
 
-**What the grader checks (required):**
-- **CRServo declared** — A CRServo field is declared. (\`private CRServo intakeServo;\`)
-- **setPower() called on CRServo** — CRServo uses setPower() in [-1, 1], not setPosition(). (\`intakeServo.setPower(1.0);\`)
-- **No setPosition() on CRServo** — CRServo doesn't have setPosition(); use setPower() instead. (\`intakeServo.setPower(value);\`)
-
-**For a "good" grade (improvement):**
-- **Gamepad trigger drives the servo** — Trigger (analog) gives smooth speed control. (\`intakeServo.setPower(gamepad1.right_trigger - gamepad1.left_trigger);\`)
-
-
 **Requirements:**
 - Hardware name: \`"intake_servo"\`
 - **Right trigger** → forward power equal to \`gamepad1.right_trigger\` (range 0.0–1.0 automatically)
@@ -752,16 +662,6 @@ public class CRServoIntake extends LinearOpMode {
       "Call telemetry.update() exactly once per loop iteration.",
     ],
     instructions: `A good telemetry dashboard is essential for tuning and debugging FTC robots. This challenge teaches you to display structured data on the Driver Station during a TeleOp run.
-
-**What the grader checks (required):**
-- **ElapsedTime tracks runtime** — Timer measures total OpMode elapsed time. (\`ElapsedTime runtime = new ElapsedTime();\`)
-- **Loop counter incremented** — A counter accumulates across loop iterations. (\`loopCount++;\`)
-- **Encoder position read** — Motor position surfaced with getCurrentPosition(). (\`motor.getCurrentPosition()\`)
-- **Section headers in telemetry** — Use addLine() to organize the dashboard. (\`telemetry.addLine("--- Status ---");\`)
-
-**For a "good" grade (improvement):**
-- **Multiple telemetry fields** — Show loop count, time, power, encoder, and status. (\`telemetry.addData(...);\`)
-
 
 **Required display sections:**
 \`\`\`
@@ -840,15 +740,6 @@ public class TelemetryDashboard extends LinearOpMode {
     ],
     instructions: `Without debouncing, \`gamepad1.a\` returns \`true\` for every loop iteration while the button is held. A 100 Hz loop fires the toggle ~10 times per second of button press — the intake turns on and off so fast it appears broken.
 
-**What the grader checks (required):**
-- **Previous button state tracked** — Store last frame's button value for edge detection. (\`boolean lastAButton = false;\`)
-- **Toggle state stored** — A boolean holds the current intake on/off state. (\`boolean intakeRunning = false;\`)
-- **CRServo powered from toggle** — Intake runs with setPower() based on toggle state. (\`intakeServo.setPower(intakeRunning ? 1.0 : 0.0);\`)
-
-**For a "good" grade (improvement):**
-- **lastButton updated at loop end** — Edge detection requires updating previous state after the check. (\`lastAButton = gamepad1.a;\`)
-
-
 **Rising-edge detection** fixes this: you only act when the button transitions from \`false\` → \`true\`. Store the button's state from the previous loop tick in \`lastAButton\`, then check:
 
 \`\`\`java
@@ -926,13 +817,6 @@ public class ButtonDebounce extends LinearOpMode {
       "Stop the motor and display the final elapsed time.",
     ],
     instructions: `\`Thread.sleep()\` freezes the entire OpMode thread — you can't check sensors, update telemetry, or respond to a stop request during a sleep. **ElapsedTime** keeps the loop running while you wait.
-
-**What the grader checks (required):**
-- **ElapsedTime used** — Timer drives timed segments. (\`ElapsedTime timer = new ElapsedTime();\`)
-- **timer.seconds() in while condition** — Blocking wait uses timer.seconds() with opModeIsActive(). (\`while (timer.seconds() < 1.0 && opModeIsActive()) { ... }\`)
-- **timer.reset() between segments** — Reset timer before each new timed segment. (\`timer.reset();\`)
-- **Motor stopped after timed move** — setPower(0) after the timed segment completes. (\`motor.setPower(0);\`)
-
 
 **Pattern for a timed wait:**
 \`\`\`java
@@ -1025,14 +909,6 @@ public class ElapsedTimeDemo extends LinearOpMode {
     ],
     instructions: `**BRAKE** mode shorts the motor terminals together when power is 0, creating magnetic resistance that rapidly decelerates the motor shaft. **FLOAT** mode disconnects the terminals, letting the motor spin freely to a stop under friction alone.
 
-**What the grader checks (required):**
-- **setZeroPowerBehavior() called** — Explicitly choose BRAKE or FLOAT mode. (\`motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);\`)
-- **Both BRAKE and FLOAT referenced** — Toggle between brake and float behaviors. (\`ZeroPowerBehavior.BRAKE ... ZeroPowerBehavior.FLOAT\`)
-- **X button toggles mode** — Rising edge on gamepad1.x switches behavior. (\`if (gamepad1.x && !lastX) { ... }\`)
-
-
-For competition robots, BRAKE is almost always preferred — it keeps the robot from rolling when joysticks are released and makes positioning far more repeatable. FLOAT is occasionally useful for mechanisms that need to rotate freely (e.g., a passive arm).
-
 **Requirements:**
 - Hardware name: \`"drive_motor"\`
 - Left stick Y controls the motor power
@@ -1109,15 +985,6 @@ public class ZeroPowerBehaviorDemo extends LinearOpMode {
     ],
     instructions: `Before a match, the drive team configures the robot for the correct alliance. This is done in the **init loop** — a while loop that runs after \`opModeInit()\` but before the driver presses Start.
 
-**What the grader checks (required):**
-- **Alliance flag declared** — Boolean tracks RED vs BLUE selection. (\`boolean isRedAlliance = true;\`)
-- **Init loop before start** — Configure alliance while !isStarted() && !isStopRequested(). (\`while (!isStarted() && !isStopRequested()) { ... }\`)
-- **B and X set alliance** — B selects RED, X selects BLUE. (\`if (gamepad1.b) ... if (gamepad1.x) ...\`)
-
-**For a "good" grade (improvement):**
-- **Alliance shown in telemetry** — Driver sees current selection during init. (\`RED" : "BLUE");\`)
-
-
 **Init loop pattern:**
 \`\`\`java
 while (!isStarted() && !isStopRequested()) {
@@ -1183,16 +1050,6 @@ public class AllianceSelect extends LinearOpMode {
       "Stop the motor and switch back to RUN_USING_ENCODER mode.",
     ],
     instructions: `\`RUN_TO_POSITION\` is the FTC SDK's built-in closed-loop position controller. You give it a target tick count and a power level, and the motor's internal PID drives it there automatically. Your job is to set up the sequence correctly.
-
-**What the grader checks (required):**
-- **Encoder reset** — STOP_AND_RESET_ENCODER before the move. (\`motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);\`)
-- **RUN_TO_POSITION mode** — Encoder move uses RUN_TO_POSITION. (\`motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);\`)
-- **setTargetPosition() called** — Target tick count specified before the move. (\`motor.setTargetPosition(1000);\`)
-- **isBusy() wait loop** — Block until the motor reaches its target. (\`idle();\`)
-
-**For a "good" grade (improvement):**
-- **Return to RUN_USING_ENCODER** — Switch back after the move for manual control. (\`motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);\`)
-
 
 **The sequence order matters:**
 1. \`STOP_AND_RESET_ENCODER\` — zero the counter
@@ -1275,17 +1132,6 @@ public class EncoderDistance extends LinearOpMode {
       "Display the measured Hz in telemetry alongside encoder and motor data.",
     ],
     instructions: `Every time you call \`motor.getCurrentPosition()\` or \`motor.getVelocity()\`, the SDK sends an I²C command to the Control Hub and waits for a reply. In AUTO mode, the SDK caches the result — but only for that exact call. **MANUAL mode** lets you read the entire hub's sensor state in one round trip by calling \`clearBulkCache()\` once per loop.
-
-**What the grader checks (required):**
-- **LynxModule hubs retrieved** — Get all expansion/control hubs from hardwareMap. (\`List<LynxModule> modules = hardwareMap.getAll(LynxModule.class);\`)
-- **Manual bulk caching enabled** — Set BulkCachingMode.MANUAL on each hub. (\`module.setBulkCachingMode(BulkCachingMode.MANUAL);\`)
-- **clearBulkCache() each loop** — Clear bulk cache at the top of the main loop. (\`module.clearBulkCache();\`)
-
-**For a "good" grade (improvement):**
-- **Loop Hz measured** — Display measured loop frequency in telemetry. (\`telemetry.addData("Loop Hz", hz);\`)
-
-
-Without bulk reads, a loop with 4 motors + 2 sensors might fire 8+ I²C transactions per tick, capping loop rate around 50–80 Hz. With MANUAL bulk reads, all those reads share a single transaction, pushing loop rate above 250 Hz.
 
 **Pattern:**
 \`\`\`java
@@ -1378,15 +1224,6 @@ public class BulkCacheDemo extends LinearOpMode {
     ],
     instructions: `Homing (also called zeroing) is the process of finding a mechanism's known physical reference point and setting the encoder to zero there. This gives all future encoder-based moves an accurate starting reference.
 
-**What the grader checks (required):**
-- **TouchSensor declared** — Limit switch retrieved from hardwareMap. (\`TouchSensor touchSensor = hardwareMap.get(TouchSensor.class, "touch_sensor");\`)
-- **Homing loop until pressed** — Drive slowly until isPressed() returns true. (\`while (!touchSensor.isPressed() && opModeIsActive()) { ... }\`)
-- **Encoder reset at home** — Zero encoder when the limit triggers. (\`motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);\`)
-
-**For a "good" grade (improvement):**
-- **Motor stopped at limit** — Cut power immediately when the sensor fires. (\`motor.setPower(0);\`)
-
-
 **The homing sequence:**
 1. Drive the motor slowly toward the limit switch (usually negative power)
 2. Wait in a loop until \`touchSensor.isPressed()\`
@@ -1475,16 +1312,6 @@ public class TouchSensorHoming extends LinearOpMode {
     ],
     instructions: `Mecanum wheels have rollers angled at 45° so each wheel produces force both forward and sideways. The four-wheel vector sum lets the robot move in any direction. The standard power formula is:
 
-**What the grader checks (required):**
-- **Four motors initialized** — All four mecanum wheels retrieved from hardwareMap. (\`frontLeft, frontRight, backLeft, backRight\`)
-- **Left side reversed** — Reverse left-side motors for mirrored mounting. (\`frontLeft.setDirection(DcMotorSimple.Direction.REVERSE);\`)
-- **Three sticks read** — Drive, strafe, and rotate from gamepad. (\`gamepad1.left_stick_y, left_stick_x, right_stick_x\`)
-- **Four setPower() calls** — Each wheel powered independently. (\`frontLeft.setPower(...);\`)
-
-**For a "good" grade (improvement):**
-- **Power normalization** — Scale powers so max absolute value is 1.0. (\`double max = Math.max(Math.abs(fl), ...);\`)
-
-
 \`\`\`
 frontLeft  = drive + strafe + rotate
 frontRight = drive - strafe - rotate
@@ -1568,17 +1395,6 @@ public class MecanumDrive extends LinearOpMode {
       "Call the helper from the main loop and apply the results.",
     ],
     instructions: `Raw mecanum powers can exceed the ±1.0 motor range when the driver combines axes. If you just clamp each wheel independently with \`Math.max(-1, Math.min(1, power))\`, you change the ratio between wheels and the robot curves instead of driving straight.
-
-**What the grader checks (required):**
-- **normalize() helper declared** — Encapsulate scaling logic in a reusable method.
-- **Max absolute value found** — Find the largest wheel power magnitude. (\`double max = Math.max(Math.abs(fl), ...);\`)
-- **Helper called from loop** — Apply normalized powers each iteration. (\`double[] powers = normalize(fl, fr, bl, br);\`)
-
-**For a "good" grade (improvement):**
-- **Scale only when max > 1** — Divide by max only when exceeding motor range. (\`if (max > 1.0) { ... }\`)
-
-**Helper method required:** The grader checks for \`normalize()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
 
 **The correct fix is normalization:** find the largest absolute wheel power, then divide all four by it. This scales the entire set down uniformly so the robot tracks the intended direction.
 
@@ -1674,24 +1490,7 @@ public class NormalizeDemo extends LinearOpMode {
       "Normalize the output and apply to all four motors.",
       "Display both raw and rotated drive vectors in telemetry.",
     ],
-    instructions: `**Robot-relative** mecanum means "forward" is always the front of the robot. **Field-relative** means "forward" is always toward the far field wall, regardless of which way the robot is facing. This is dramatically easier to drive.
-
-**What the grader checks (required):**
-- **Rotation matrix applied** — Rotate drive/strafe by heading using sin/cos. (\`rotX = x * Math.cos(-heading) - y * Math.sin(-heading);\`)
-- **Four motors powered** — Mecanum formula applied to all wheels. (\`frontLeft.setPower(...);\`)
-
-**For a "good" grade (improvement):**
-- **Raw and rotated vectors in telemetry** — Show both stick input and field-relative values. (\`telemetry.addData("Rotated drive", rotY);\`)
-
-
-**2D rotation matrix:** To rotate a vector (drive, strafe) by heading angle θ:
-\`\`\`java
-double rotDrive  = drive  * Math.cos(-heading) - strafe * Math.sin(-heading);
-double rotStrafe = drive  * Math.sin(-heading) + strafe * Math.cos(-heading);
-\`\`\`
-Use the **negative** heading to un-rotate the driver's input back to field coordinates. This is identical to what the team's \`mecanumDriveWithBraking()\` does internally.
-
-For this challenge, simulate the heading with a running variable that you update with the right stick X (pretend it's an IMU — add \`rotate * 0.01\` to the heading each loop). In a real robot you'd read \`imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS)\`.`,
+    instructions: `**Robot-relative** mecanum means "forward" is always the front of the robot. **Field-relative** means "forward" is always toward the far field wall, regardless of which way the robot is facing. This is dramatically easier to drive.`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -1786,15 +1585,6 @@ strafing left  (strafe = -1.0):  FL=-1  FR=+1  BL=+1  BR=-1
 \`\`\`
 If your robot drives diagonally instead of sideways, check two things: (1) the direction reversals on the left-side motors, and (2) whether backLeft and backRight use the correct sign.
 
-**What the grader checks (required):**
-- **Four motors configured** — All mecanum wheels initialized with directions. (\`setDirection() on left-side motors\`)
-- **Strafe power applied** — Mecanum strafe uses left_stick_x or fixed strafe value. (\`strafe = gamepad1.left_stick_x;\`)
-- **Timed strafe segments** — Use sleep() between strafe directions. (\`sleep(1000);\`)
-
-**For a "good" grade (improvement):**
-- **Motors stopped at end** — All wheels set to zero power after test. (\`motor.setPower(0);\`)
-
-
 **Sequence:**
 1. Set strafing-right powers, then call \`sleep(1000)\` to hold for 1 second
 2. Set strafing-left powers, then call \`sleep(1000)\` to hold for 1 second
@@ -1865,14 +1655,6 @@ public class StrafeTest extends LinearOpMode {
       "Display input magnitude and active/inactive state in telemetry.",
     ],
     instructions: `Joysticks never perfectly return to 0.0 — there's always a small offset (\`±0.03\` is typical). Without a deadband, the robot creeps slightly when the driver releases the sticks. Applying a **deadband** means ignoring inputs below a threshold.
-
-**What the grader checks (required):**
-- **Input magnitude computed** — Combine drive and strafe with sqrt or hypot. (\`double magnitude = Math.hypot(drive, strafe);\`)
-- **Deadband applied** — Zero motors when stick input is below threshold. (\`setPower(0);\`)
-
-**For a "good" grade (improvement):**
-- **Magnitude shown in telemetry** — Display input magnitude for tuning. (\`telemetry.addData("Magnitude", magnitude);\`)
-
 
 **Magnitude-based deadband:**
 \`\`\`java
@@ -1967,15 +1749,6 @@ public class MagnitudeBraking extends LinearOpMode {
     ],
     instructions: `\`DcMotorEx\` extends the base \`DcMotor\` class and adds **velocity control** via an internal PIDF loop. Instead of setting a percentage of battery voltage (\`setPower(0.8)\`), you command a specific tick-per-second rate (\`setVelocity(1400)\`) and the motor's firmware adjusts power automatically as the battery drains.
 
-**What the grader checks (required):**
-- **DcMotorEx declared** — Velocity control requires DcMotorEx, not DcMotor. (\`DcMotorEx shooter = hardwareMap.get(DcMotorEx.class, "shooter");\`)
-- **setVelocity() called** — Velocity (ticks/sec) commanded via setVelocity. (\`shooter.setVelocity(1500);\`)
-- **RUN_USING_ENCODER set before setVelocity** — setVelocity() needs the motor in RUN_USING_ENCODER mode. (\`shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);\`)
-
-**For a "good" grade (improvement):**
-- **getVelocity() shown in telemetry** — Current velocity displayed for tuning. (\`telemetry.addData("Vel", shooter.getVelocity());\`)
-
-
 **Key difference:**
 - \`setPower(0.8)\` → 80% of current battery voltage, speed varies as battery discharges
 - \`setVelocity(1400)\` → holds 1400 ticks/second regardless of load, actively controlled
@@ -2063,15 +1836,6 @@ public class VelocityControl extends LinearOpMode {
       "Display error, raw power, and clamped power in telemetry.",
     ],
     instructions: `A **proportional controller** applies motor power proportional to how far the motor is from its target. When it's far away, power is large; as it approaches, power decreases and the motor slows naturally.
-
-**What the grader checks (required):**
-- **Error term computed (target - current)** — Sign convention matters — error must be target - current. (\`double error = target - current;\`)
-- **Proportional gain applied** — Multiply error by Kp. (\`double power = Kp * error;\`)
-- **Output clamped** — Math.max/Math.min keep power within motor range. (\`power = Math.max(-0.8, Math.min(0.8, power));\`)
-
-**For a "good" grade (improvement):**
-- **Telemetry shows error and power** — Tuning a P-controller needs live values. (\`telemetry.addData("err", error);\`)
-
 
 **Formula:** \`power = Kp × (target − current)\`
 
@@ -2166,17 +1930,6 @@ public class PController extends LinearOpMode {
     ],
     instructions: `Motors report position in **encoder ticks**, but humans and physics use **degrees**. The conversion:
 
-**What the grader checks (required):**
-- **ticksToDegrees() helper** — Convert encoder ticks to degrees. (\`TICKS_PER_REV * GEAR_RATIO);\`)
-- **Calibration constants defined** — TICKS_PER_REV and gear ratio declared. (\`static final double TICKS_PER_REV = 537.7;\`)
-- **Helper used in loop** — Display degrees converted from encoder ticks. (\`double degrees = ticksToDegrees(motor.getCurrentPosition());\`)
-
-**For a "good" grade (improvement):**
-- **Both ticks and degrees in telemetry** — Show raw ticks and converted degrees. (\`telemetry.addData("Degrees", degrees);\`)
-
-**Helper method required:** The grader checks for \`ticksToDegrees()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
-
 \`\`\`
 degrees = (ticks / (TICKS_PER_REV × GEAR_RATIO)) × 360
 \`\`\`
@@ -2266,23 +2019,6 @@ public class TicksToDegrees extends LinearOpMode {
       "Display the distance, interpolated TPS, and nearest table entries in telemetry.",
     ],
     instructions: `The team's flywheel requires different speeds at different distances from the goal. The calibration table was measured empirically:
-
-**What the grader checks (required):**
-- **Calibration tables defined** — Parallel DIST_TABLE and TPS_TABLE arrays. (\`private static final double[] DIST_TABLE = { ... };\`)
-- **Interpolation helper** — Map distance to TPS with bracket search. (\`private double interpolateTPS(double distanceIn) { ... }\`)
-
-**For a "good" grade (improvement):**
-- **Interpolated TPS displayed** — Show distance and computed TPS in telemetry. (\`telemetry.addData("TPS", interpolateTPS(distance));\`)
-
-**Helper method required:** The grader checks for \`interpolateTPS()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
-
-| Distance (in) | Target TPS |
-|--------------|------------|
-| 30           | 1200       |
-| 40           | 1350       |
-| 50           | 1500       |
-| 60           | 1650       |
 
 **Linear interpolation between two table entries:**
 \`\`\`java
@@ -2374,15 +2110,6 @@ public class TPSCalibration extends LinearOpMode {
       "Display all four terms and the output in telemetry.",
     ],
     instructions: `A PIDF controller combines four terms to hold a flywheel at a target velocity with minimal steady-state error:
-
-**What the grader checks (required):**
-- **Velocity error computed** — Error is target TPS minus measured velocity. (\`double error = targetTps - shooter.getVelocity();\`)
-- **PIDF gains used** — Proportional, integral, derivative, and feedforward terms. (\`Kp, Ki, Kd, and Kf referenced in power calculation.\`)
-- **Output clamped to [0, 1]** — Flywheel power clamped for one-direction spin. (\`power = Math.max(0.0, Math.min(1.0, power));\`)
-
-**For a "good" grade (improvement):**
-- **PIDF terms in telemetry** — Display each term for tuning. (\`telemetry.addData("P term", pTerm);\`)
-
 
 **P (Proportional):** \`Kp × error\` — immediate response proportional to error
 **I (Integral):** \`Ki × Σerror × dt\` — eliminates persistent offsets by accumulating past error  
@@ -2493,14 +2220,6 @@ public class PIDFVelocity extends LinearOpMode {
     ],
     instructions: `Knowing your loop frequency matters for three reasons: (1) the derivative term in a PIDF controller requires accurate \`dt\`; (2) sensor polling only refreshes once per loop; (3) diagnosing I²C slowdowns shows up as a sudden drop in Hz.
 
-**What the grader checks (required):**
-- **Loop counter incremented** — Count iterations each frame. (\`loopCount++;\`)
-- **ElapsedTime gates Hz calculation** — Recompute Hz about once per second. (\`hzTimer.reset();\`)
-
-**For a "good" grade (improvement):**
-- **Hz and loop time in telemetry** — Show Hz, average ms per loop, and total count. (\`telemetry.addData("Loop Hz", hz);\`)
-
-
 **Hz measurement pattern:**
 \`\`\`java
 ElapsedTime loopTimer = new ElapsedTime();
@@ -2582,14 +2301,6 @@ public class LoopHzMeter extends LinearOpMode {
       "Display latch state, shooter readiness, and feeder state in telemetry.",
     ],
     instructions: `Pressing a bumper while the flywheel is still spinning up wastes game elements. The **latch pattern** solves this: pressing the bumper arms a latch boolean, but the feeder only opens when the latch fires — and the latch only fires when the shooter is at speed.
-
-**What the grader checks (required):**
-- **Latch booleans declared** — Track shootingLatched and shooterReady state. (\`boolean shootingLatched = false;\`)
-- **Feeder motor controlled by latch** — Transfer/feeder motor runs only when latched and firing. (\`feederMotor.setPower(shootingLatched ? 1.0 : 0.0);\`)
-
-**For a "good" grade (improvement):**
-- **Latch state in telemetry** — Show latch, readiness, and feeder status. (\`telemetry.addData("Latched", shootingLatched);\`)
-
 
 **Logic (from the team's MainTeleOp):**
 \`\`\`java
@@ -2688,15 +2399,6 @@ public class ShootLatch extends LinearOpMode {
     ],
     instructions: `The team's turret uses a limit switch at the physical zero position. Before every match, or if the encoder loses sync, the operator presses Gamepad2.A to home the turret.
 
-**What the grader checks (required):**
-- **State enum declared** — Turret uses IDLE and ZEROING states. (\`enum TurretState { IDLE, ZEROING }\`)
-- **switch on state** — State machine uses switch(state) or if/else branches. (\`switch (state) { case ZEROING: ... }\`)
-- **Touch sensor ends zeroing** — Transition to IDLE when limit switch triggers. (\`if (limitSwitch.isPressed()) state = TurretState.IDLE;\`)
-
-**For a "good" grade (improvement):**
-- **Encoder reset after homing** — Zero encoder when homing completes. (\`motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);\`)
-
-
 **State machine pattern:**
 \`\`\`java
 enum TurretState { IDLE, ZEROING }
@@ -2792,15 +2494,6 @@ public class TurretStateMachine extends LinearOpMode {
     ],
     instructions: `A **timer-based state machine** is the simplest form of autonomous: each state runs for a fixed duration, then transitions to the next. It doesn't require encoders or path-following libraries.
 
-**What the grader checks (required):**
-- **Multi-state enum** — Autonomous sequence uses named states. (\`enum State { DRIVE_TO_SHOOT, SHOOTING, DRIVE_TO_COLLECT, DONE }\`)
-- **ElapsedTime per state** — Timer drives state transitions. (\`stateTimer.reset();\`)
-- **Motors stopped in DONE** — All drive motors zeroed in final state. (\`case DONE: leftDrive.setPower(0);\`)
-
-**For a "good" grade (improvement):**
-- **@Autonomous annotation** — Register as an autonomous OpMode. (\`@Autonomous(name = "State Machine Auto")\`)
-
-
 **States and durations:**
 - \`DRIVE_TO_SHOOT\`: drive forward at 0.5 for **1.5 s**, then → SHOOTING
 - \`SHOOTING\`: stop driving, run flywheel at 0.8 for **1.0 s**, then → DRIVE_TO_COLLECT  
@@ -2880,15 +2573,6 @@ public class StateMachineAuto extends LinearOpMode {
       "Display remaining cycles in telemetry throughout.",
     ],
     instructions: `The team's autonomous cycles between the human player station and the shooting position multiple times. The number of cycles is configured before the match starts and counts down during the run.
-
-**What the grader checks (required):**
-- **Remaining cycles tracked** — Counter decrements after each shot. (\`remainingCycles--;\`)
-- **State machine with shot states** — TO_HUMAN, SHOOT, and LEAVE states present. (\`enum State { TO_HUMAN, SHOOT, LEAVE, DONE }\`)
-- **Dpad adjusts cycle count in init** — Configure 1–8 cycles before start. (\`if (gamepad1.dpad_up) remainingCycles++;\`)
-
-**For a "good" grade (improvement):**
-- **Cycles shown in telemetry** — Display remaining cycles during the match. (\`telemetry.addData("Cycles left", remainingCycles);\`)
-
 
 **State flow:**
 \`\`\`
@@ -2997,15 +2681,6 @@ public class MultiShotAuto extends LinearOpMode {
     ],
     instructions: `Safe mode is used when the robot's odometry is unreliable or a subsystem is malfunctioning. In safe mode, drive power is capped and the driver gets clear visual feedback.
 
-**What the grader checks (required):**
-- **safeMode flag declared** — Boolean tracks reduced-power safe mode. (\`boolean safeMode = false;\`)
-- **B enters safe mode** — Debounced B button enables safe mode. (\`lastB) safeMode = true;\`)
-- **Y exits safe mode** — Y button disables safe mode. (\`if (gamepad1.y) safeMode = false;\`)
-
-**For a "good" grade (improvement):**
-- **Power capped in safe mode** — Limit motor power to 50% when safeMode is true. (\`power * 0.5 : power;\`)
-
-
 **Mode transitions (from MainTeleOp):**
 - B button (debounced) → enter safe mode: \`safeMode = true\`
 - Y button while in safe mode → exit: \`safeMode = false\`
@@ -3091,19 +2766,6 @@ public class ModeSwitchTeleOp extends LinearOpMode {
     ],
     instructions: `Field positions in Pedro Pathing are stored in **millimeters** (1 inch = 25.4 mm). The straight-line distance between two points uses the Pythagorean theorem: \`d = √((x₂−x₁)² + (y₂−y₁)²)\`
 
-**What the grader checks (required):**
-- **distanceToGoal() helper** — Compute distance with Math.hypot(dx, dy). (\`return Math.hypot(goalX - x, goalY - y);\`)
-- **Goal coordinates defined** — Goal position constants in mm or inches. (\`private static final double GOAL_X = 72 * 25.4;\`)
-- **Helper called from loop** — Display live distance to goal. (\`double dist = distanceToGoal(robotX, robotY);\`)
-
-**For a "good" grade (improvement):**
-- **Position and distance in telemetry** — Show robot position and distance to goal. (\`telemetry.addData("Distance (mm)", dist);\`)
-
-**Helper method required:** The grader checks for \`distanceToGoal()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
-
-Java provides \`Math.hypot(dx, dy)\` which computes this directly and handles numerical precision better than manual squaring.
-
 **Team coordinate system (converted to mm):**
 - Goal center: \`(72 × 25.4, 72 × 25.4)\` = \`(1828.8, 1828.8)\` mm
 - Shot point: \`(46.5 × 25.4, 10.5 × 25.4)\` = \`(1181.1, 266.7)\` mm
@@ -3183,16 +2845,6 @@ public class DistanceToGoal extends LinearOpMode {
       "Display field bearing, robot heading, and turret angle in telemetry.",
     ],
     instructions: `\`Math.atan2(dy, dx)\` returns the angle (in radians) from the positive X axis to the vector (dx, dy). This gives the **field bearing** to the goal — but the turret needs the angle **relative to the robot's nose**.
-
-**What the grader checks (required):**
-- **Math.atan2 bearing computed** — Field bearing uses atan2 on dy and dx. (\`double fieldBearing = Math.toDegrees(Math.atan2(dy, dx));\`)
-- **Goal delta computed** — Compute dx and dy from goal minus robot position. (\`double dx = GOAL_X - robotX;\`)
-- **Turret angle relative to heading** — Subtract robot heading from field bearing. (\`double turretAngle = fieldBearing - robotHeading;\`)
-- **Angle wrapped to [-180, 180]** — Wrap turret angle so corrections take the shortest path. (\`while (turretAngle > 180) turretAngle -= 360;\`)
-
-**For a "good" grade (improvement):**
-- **Bearing values in telemetry** — Show field bearing and turret angle on the Driver Station. (\`telemetry.addData("Field Bearing", fieldBearingDeg);\`)
-
 
 **Formula:**
 \`\`\`java
@@ -3285,17 +2937,6 @@ public class TurretBearing extends LinearOpMode {
     ],
     instructions: `FTC fields are symmetric. Your autonomous code can be written for one alliance and then mirrored for the other using a simple X-axis reflection. The field is **144 inches = 3657.6 mm** wide.
 
-**What the grader checks (required):**
-- **Field width constant** — FIELD_MM defined as 144 * 25.4 mm. (\`private static final double FIELD_MM = 144.0 * 25.4;\`)
-- **mirrorX() helper implemented** — Mirror blue X coordinates across the field center. (\`return FIELD_MM - x;\`)
-- **mirrorX() applied to coordinates** — Convert BLUE X values to RED with mirrorX(). (\`double redShotX = mirrorX(BLUE_SHOT_X);\`)
-
-**For a "good" grade (improvement):**
-- **Both alliances shown in telemetry** — Display BLUE and RED coordinate sections. (\`telemetry.addLine("=== RED ===");\`)
-
-**Helper method required:** The grader checks for \`mirrorX()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
-
 **Mirror formula:** \`redX = FIELD_MM - blueX\`
 
 This reflects a point across the field center (at \`FIELD_MM / 2\` = 1828.8 mm):
@@ -3379,17 +3020,6 @@ public class CoordinateMirror extends LinearOpMode {
       "Verify round-trip: toDegrees(toRadians(angle)) == angle.",
     ],
     instructions: `Pedro Pathing's \`Pose\` constructor takes heading in **radians**, but humans think in **degrees**. You need conversion helpers constantly in robotics code.
-
-**What the grader checks (required):**
-- **toRadians() helper implemented** — Convert degrees to radians with Math.PI / 180. (\`return degrees * Math.PI / 180.0;\`)
-- **toDegrees() helper implemented** — Convert radians to degrees with 180 / Math.PI. (\`Math.PI;\`)
-- **Conversion helpers used** — Call toRadians and toDegrees from runOpMode. (\`double rad = toRadians(deg);\`)
-
-**For a "good" grade (improvement):**
-- **Round-trip verification** — Convert back to degrees to verify accuracy. (\`double roundTrip = toDegrees(toRadians(90));\`)
-
-**Helper method required:** The grader checks for \`toRadians()\` and \`toDegrees()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
 
 **Formulas:**
 - Degrees to radians: \`rad = deg × π / 180\`
@@ -3477,17 +3107,6 @@ public class AngleConversion extends LinearOpMode {
     ],
     instructions: `The **GoBilda Pinpoint** is a dedicated odometry computer that reads two encoder pods and an IMU to track the robot's field position in real time. It replaces manual dead-wheel encoder math.
 
-**What the grader checks (required):**
-- **GoBildaPinpointDriver declared** — Retrieve Pinpoint from hardwareMap. (\`odo = hardwareMap.get(GoBildaPinpointDriver.class, "odo");\`)
-- **Pod offsets configured** — setOffsets() with X/Y mm from robot center. (\`odo.setOffsets(-84.0, -168.0);\`)
-- **Encoder resolution set** — Configure goBILDA pod resolution before tracking. (\`odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);\`)
-- **Position reset at init** — resetPosAndIMU() zeros pose and calibrates IMU. (\`odo.resetPosAndIMU();\`)
-- **update() each loop** — Call update() before reading position each iteration. (\`odo.update();\`)
-
-**For a "good" grade (improvement):**
-- **Position telemetry** — Display X, Y, and heading from getPosition(). (\`telemetry.addData("X (mm)", pos.getX(DistanceUnit.MM));\`)
-
-
 **Initialization sequence:**
 \`\`\`java
 GoBildaPinpointDriver odo = hardwareMap.get(GoBildaPinpointDriver.class, "odo");
@@ -3563,16 +3182,6 @@ public class PinpointOdometry extends LinearOpMode {
       "Confirm the reset by displaying the new position in telemetry.",
     ],
     instructions: `If the robot is manually placed on the field at a known position during a match (e.g., reset after a penalty), you can re-anchor odometry by calling \`setPosition()\` with the exact starting coordinates.
-
-**What the grader checks (required):**
-- **GoBildaPinpointDriver declared** — Pinpoint localizer configured for position reset. (\`private GoBildaPinpointDriver odo;\`)
-- **setPosition() called** — Re-anchor odometry to a known field pose. (\`odo.setPosition(new Pose2D(DistanceUnit.MM, 72*25.4, 72*25.4, AngleUnit.DEGREES, 0));\`)
-- **Field center in millimeters** — Reset coordinates use 72 inches converted to mm. (\`private static final double RESET_X_MM = 72 * 25.4;\`)
-- **X button debounced** — Rising-edge detection on gamepad1.x triggers reset. (\`odo.setPosition(...);\`)
-
-**For a "good" grade (improvement):**
-- **Position shown after reset** — Telemetry displays pose from getPosition(). (\`telemetry.addData("X (mm)", pos.getX(DistanceUnit.MM));\`)
-
 
 **Resetting to field center (72 in, 72 in, 0°):**
 \`\`\`java
@@ -3654,27 +3263,14 @@ public class PositionReset extends LinearOpMode {
     estimatedTime: "35 min",
     tags: ["Vision", "Limelight", "AprilTag", "Telemetry", "Targeting"],
     objectives: [
-      "Declare a Limelight3A field and retrieve it from hardwareMap before waitForStart().",
-      "Call pipelineSwitch(0) and start() before the match loop.",
-      "Poll getLatestResult() each loop inside while (opModeIsActive()).",
-      "Null-check the result, then read getTx(), getTy(), and getTa().",
-      "Show isValid() and getCaptureLatency() in telemetry each frame.",
-      "Call telemetry.update() inside the loop after addData().",
+      "Retrieve a Limelight3A from hardwareMap.",
+      "Set the active pipeline to 0 and call start() before waitForStart().",
+      "Call getLatestResult() each loop and null-check the result.",
+      "Display tx, ty, ta, isValid(), and capture latency in telemetry.",
     ],
     instructions: `The **Limelight 3A** is a vision coprocessor that runs on the robot and communicates with the Control Hub over USB. It provides real-time target tracking for AprilTags, colored objects, and neural network detections.
 
-**What the grader checks (required):**
-- **Limelight3A declared** — Retrieve the Limelight from hardwareMap. (\`limelight = hardwareMap.get(Limelight3A.class, "limelight");\`)
-- **Pipeline started** — Switch to pipeline 0 and call start() before the match loop. (\`limelight.pipelineSwitch(0); limelight.start();\`)
-- **Latest result polled** — Read frames each loop with getLatestResult(). (\`LLResult result = limelight.getLatestResult();\`)
-- **Targeting values read** — Read tx, ty, and ta from the Limelight result. (\`double tx = result.getTx(); double ty = result.getTy(); double ta = result.getTa();\`)
-
-**For a "good" grade (improvement):**
-- **Capture latency displayed** — Report getCaptureLatency() for frame timing diagnostics. (\`telemetry.addData("Latency (ms)", result.getCaptureLatency());\`)
-
-**Recommended structure:** keep \`runOpMode()\` for setup and put per-frame reads in a private helper. A helper method is **not** required — you can write everything in the loop — but extracting logic keeps init separate from telemetry.
-
-**Init sequence (before \`waitForStart()\`):**
+**Init sequence:**
 \`\`\`java
 limelight = hardwareMap.get(Limelight3A.class, "limelight");
 limelight.pipelineSwitch(0);
@@ -3756,12 +3352,6 @@ public class LimelightBasic extends LinearOpMode {
       "Display staleFrames, totalFrames, and health % in telemetry.",
     ],
     instructions: `The Limelight can appear to be running while actually freezing on the same frame — a hardware issue seen intermittently during competition. The team's \`LimelightDiagnostic\` class detects this by comparing consecutive results.
-
-**What the grader checks (required):**
-- **Limelight3A declared** — Limelight field configured for vision reads. (\`limelight = hardwareMap.get(Limelight3A.class, "limelight");\`)
-- **Latest result polled** — Read frames each loop with getLatestResult(). (\`LLResult result = limelight.getLatestResult();\`)
-- **Stale frame counter** — Increment a counter when consecutive frames match. (\`if (stale) staleFrames++;\`)
-
 
 **Stale detection logic:**
 \`\`\`java
@@ -3855,12 +3445,6 @@ public class StaleFrameDetect extends LinearOpMode {
       "Toggle between RED (24) and BLUE (20) tag IDs with a button.",
     ],
     instructions: `The Limelight returns all detected fiducials in one result. Your robot needs to track a **specific** AprilTag by ID — not just whichever tag is largest. This requires iterating the list.
-
-**What the grader checks (required):**
-- **Fiducial results retrieved** — Iterate the tag list from the Limelight result. (\`List<...> tags = result.getFiducialResults();\`)
-- **Tag ID filter** — Match a specific AprilTag by getFiducialId(). (\`if (tag.getFiducialId() == expectedTagId) { ... }\`)
-- **Horizontal offset extracted** — Read tx from the matched fiducial. (\`tx = tag.getTargetXDegrees();\`)
-
 
 **Fiducial iteration pattern:**
 \`\`\`java
@@ -3967,12 +3551,6 @@ public class AprilTagTarget extends LinearOpMode {
       "Display tx, correction power, and ON TARGET / TRACKING status.",
     ],
     instructions: `This challenge combines vision (Challenge 39–41) with proportional control (Challenge 23) to close the loop between the camera and the turret.
-
-**What the grader checks (required):**
-- **tx read from Limelight** — Horizontal error drives the correction. (\`tx = result.getTx();\`)
-- **Proportional correction** — Scale tx by Kp to produce motor power. (\`correctionPower = Kp * tx;\`)
-- **Turret motor powered** — Apply the correction to the turret motor. (\`turretMotor.setPower(correctionPower);\`)
-
 
 **tx** is the horizontal error in degrees. When tx = 0, the target is centered. When tx is positive, the target is to the right — the turret must rotate right. The proportional law directly converts this to motor power:
 
@@ -4091,12 +3669,6 @@ public class VisionServoLoop extends LinearOpMode {
     ],
     instructions: `The Limelight's poll rate controls how often the Control Hub requests a new frame from the camera. Surprisingly, **100 Hz can perform worse than 50 Hz** because the USB bus gets saturated at high poll rates, causing frames to queue up and increasing effective latency.
 
-**What the grader checks (required):**
-- **Poll rate array defined** — Rates {100, 50, 25, 10} Hz available for cycling. (\`int[] rates = {100, 50, 25, 10};\`)
-- **setPollRateHz called** — Apply the selected rate to the Limelight. (\`limelight.setPollRateHz(rates[rateIdx]);\`)
-- **Y button cycles rate** — Rising edge on Y advances to the next rate. (\`rates.length;\`)
-
-
 **The team's finding:** at 100 Hz, effective latency was ~40 ms due to USB saturation. At 50 Hz, latency dropped to ~18 ms with stable frame delivery. Always empirically verify your poll rate.
 
 **Cycling pattern:**
@@ -4192,12 +3764,6 @@ public class PollRateCycle extends LinearOpMode {
     ],
     instructions: `Pedro Pathing's \`Pose\` class stores a robot's position (x, y in inches) and heading (in radians). Heading = 0 means the robot faces the +X direction; heading = π (180°) means it faces −X.
 
-**What the grader checks (required):**
-- **Pose objects constructed** — Team field positions stored as Pose instances. (\`Pose startPose = new Pose(64, 8.35, Math.toRadians(180));\`)
-- **Heading in radians** — Convert degrees to radians for the Pose constructor. (\`Math.toRadians(180)\`)
-- **Degrees display** — Show heading in human-readable degrees. (\`Math.toDegrees(pose.getHeading())\`)
-
-
 **The team's three key poses (all facing backward at 180°):**
 \`\`\`java
 Pose startPose    = new Pose(64,     8.35,  Math.toRadians(180));
@@ -4271,13 +3837,6 @@ public class PoseConstruction extends LinearOpMode {
       "Call follower.update() in a loop until !follower.isBusy().",
     ],
     instructions: `A \`BezierLine\` creates a straight-line path segment between two points. It's the simplest Pedro Pathing path and a good starting point before tackling curves.
-
-**What the grader checks (required):**
-- **Follower used** — Pedro Follower drives the path. (\`Follower follower = new Follower(hardwareMap);\`)
-- **BezierLine used** — Single straight segment uses BezierLine. (\`new BezierLine(new Point(...), new Point(...))\`)
-- **Constant heading interpolation** — Heading held constant along the segment. (\`.setConstantHeadingInterpolation(startPose.getHeading())\`)
-- **followPath + update loop** — Path execution requires followPath() and update() while busy. (\`follower.followPath(path);\`)
-
 
 **PathChain with a single BezierLine:**
 \`\`\`java
@@ -4369,12 +3928,6 @@ public class BezierLineFollow extends LinearOpMode {
       "Explain how the control point Y value changes the arc shape.",
     ],
     instructions: `The team's field has a raised tape strip at Y ≈ 35.864 inches. The robot must arc over or around it rather than driving straight through. A **Bézier curve** with one control point creates a smooth arc — the control point "pulls" the path toward it like a rubber band.
-
-**What the grader checks (required):**
-- **BezierCurve used** — Curved detour uses a BezierCurve with control points. (\`new BezierCurve(new Point(...), new Point(...), new Point(...))\`)
-- **Tangent heading interpolation set** — Path follows tangent of the curve. (\`.setTangentHeadingInterpolation()\`)
-- **Follower updates inside loop** — Follower must tick every iteration while moving. (\`follower.update() inside the while loop.\`)
-
 
 **The tape detour curve:**
 \`\`\`java
@@ -4477,12 +4030,6 @@ public class TapeDetour extends LinearOpMode {
 - The mechanism is on the back and needs to face toward the goal on arrival
 - The path has a tight exit angle that's better handled backward
 
-**What the grader checks (required):**
-- **BezierLine used** — Return path built as a straight segment. (\`new BezierLine(new Point(...), new Point(...))\`)
-- **Path reversed** — Robot drives backward along the segment. (\`.setReversed(true)\`)
-- **Linear heading interpolation** — Heading blends between start and end. (\`.setLinearHeadingInterpolation(startHeading, endHeading)\`)
-
-
 **The team's use case:** after collecting from the human station (robot faces the station at 0°), the robot needs to arrive at the shot point facing 180° (back to goal). Driving backward on the return path naturally achieves this without needing a point-turn.
 
 \`\`\`java
@@ -4567,14 +4114,6 @@ public class ReversedPath extends LinearOpMode {
       "Display the start and end of each segment in telemetry.",
     ],
     instructions: `Hard-coding start points in every \`pathBuilder()\` call is error-prone when chaining many segments. A helper method that reads the follower's **current** pose at call-time is more robust.
-
-**What the grader checks (required):**
-- **Dynamic path helper** — Helper builds a path from the follower's current pose. (\`private PathChain buildPathTo(Pose target, boolean reversed) { ... }\`)
-- **BezierLine in helper** — Segment connects current position to the target.
-- **Multiple path segments** — Chain at least three waypoint moves. (\`Call the helper (or followPath) for each leg of the route.\`)
-
-**Helper method required:** The grader checks for \`buildPathTo()\` and \`BezierLine()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
 
 **Dynamic path helper:**
 \`\`\`java
@@ -4683,14 +4222,6 @@ public class DynamicPaths extends LinearOpMode {
     ],
     instructions: `The FTC field is **144 inches × 144 inches** (approximately 3.66 m × 3.66 m). Pedro Pathing and GoBilda Pinpoint both use **millimeters** internally, but robot positions are often described in inches in the field manual.
 
-**What the grader checks (required):**
-- **inchesToMm implemented** — Multiply inches by 25.4 to convert to millimeters. (\`return inches * 25.4;\`)
-- **mmToInches implemented** — Divide millimeters by 25.4 to convert to inches. (\`return mm / 25.4;\`)
-
-**For a "good" grade (improvement):**
-- **Conversion helpers called in loop** — Apply helpers to field dimensions in telemetry. (\`double fieldMm = inchesToMm(FIELD_INCHES);\`)
-
-
 **Conversion factors:**
 - 1 inch = **25.4 mm** (exact, by definition)
 - 1 mm = **1/25.4 ≈ 0.03937 inches**
@@ -4780,13 +4311,6 @@ public class UnitConversion extends LinearOpMode {
 - **Zero:** vectors are perpendicular (90° apart)
 - **Negative:** vectors point in opposite directions
 
-**What the grader checks (required):**
-- **dot() helper implemented** — 2D dot product: ax*bx + ay*by. (\`return ax * bx + ay * by;\`)
-- **dot() used in runOpMode** — Compute alignment from drive and reference vectors. (\`double dotProduct = dot(driveX, driveY, refX, refY);\`)
-
-**Helper method required:** The grader checks for \`dot()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
-
 **FTC use case:** comparing the gamepad drive vector with the robot's velocity vector. If the dot product is positive, the robot is moving the way the driver commands. If it's negative, the robot is decelerating (vectors opposed) and the motor braking pattern differs.
 
 **Normalized dot product** (cosine similarity) divides by both magnitudes. If the result is < 0, the robot is moving opposite to the drive command — a signal to enable stronger braking.
@@ -4866,13 +4390,6 @@ public class DotProductDemo extends LinearOpMode {
 double lerp(double a, double b, double t) { return a + t * (b - a); }
 \`\`\`
 When \`t = 0\`, result = \`a\`. When \`t = 1\`, result = \`b\`. When \`t = 0.5\`, result is the midpoint.
-
-**What the grader checks (required):**
-- **lerp() helper implemented** — Linear blend: a + t * (b - a). (\`return a + t * (b - a);\`)
-- **ElapsedTime drives ramp** — Timer computes t over the ramp duration. (\`ElapsedTime timer = new ElapsedTime();\`)
-
-**Helper method required:** The grader checks for \`lerp()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
 
 **Power ramp application:**
 \`\`\`java
@@ -4968,14 +4485,6 @@ public class LerpRamp extends LinearOpMode {
     ],
     instructions: `Challenge 25 maps **distance → TPS**. This challenge inverts it: given a measured TPS, find the **estimated shooting distance**. This is useful for localization — if you know the flywheel speed needed to make the shot, you can infer how far you are from the goal.
 
-**What the grader checks (required):**
-- **tpsToDistance() helper** — Inverse lookup maps TPS back to distance. (\`private double tpsToDistance(double tps) { ... }\`)
-- **Calibration tables used** — Search TPS_TABLE brackets and interpolate DIST_TABLE. (\`for (int i = 0;\`)
-- **Bracket interpolation** — Linearly interpolate between bracketing distances. (\`TPS_TABLE[i+1] - TPS_TABLE[i]);\`)
-
-**Helper method required:** The grader checks for \`tpsToDistance()\`. Fill in the starter skeleton — a placeholder \`return 0;\` will not pass.
-
-
 **Calibration table (same as before):**
 | Distance (in) | TPS  |
 |--------------|------|
@@ -5070,12 +4579,6 @@ public class TpsToDistance extends LinearOpMode {
       "Display speed, threshold, and TOO FAST TO SHOOT / SPEED OK status.",
     ],
     instructions: `Before shooting, the team's code checks that the robot isn't moving too fast — a moving robot disturbs the shooter's aim. The speed check uses forward and strafe encoder velocities.
-
-**What the grader checks (required):**
-- **DcMotorEx declared** — Velocity APIs require DcMotorEx. (\`DcMotorEx forwardMotor = hardwareMap.get(DcMotorEx.class, ...);\`)
-- **getVelocity() called** — Read forward and strafe wheel speeds. (\`double fwdTPS = forwardMotor.getVelocity();\`)
-- **Speed magnitude computed** — Combine vx and vy with sqrt or hypot. (\`double speed = Math.sqrt(vxMMs * vxMMs + vyMMs * vyMMs);\`)
-
 
 **Ticks/s to mm/s conversion:**
 \`\`\`java
