@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "audit:rubrics": "node scripts/audit-rubric-alignment.mjs"
+    "audit:rubrics": "node scripts/audit-rubric-alignment.mjs",
+    "sync:grader-instructions": "node scripts/sync-challenge-grader-instructions.mjs --write"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
