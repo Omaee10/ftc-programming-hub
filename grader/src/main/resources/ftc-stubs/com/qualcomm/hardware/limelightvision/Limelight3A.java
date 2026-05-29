@@ -9,6 +9,8 @@ public class Limelight3A implements HardwareDevice {
     public LLResult getLatestResult() { return new LLResult(); }
     public boolean isConnected() { return true; }
     public void setPollRateHz(int hz) {}
+    public void updateRobotOrientation(double yawDegrees) {}
+    public LLStatus getStatus() { return new LLStatus(); }
 
     @Override public void close() {}
     @Override public String getDeviceName() { return ""; }

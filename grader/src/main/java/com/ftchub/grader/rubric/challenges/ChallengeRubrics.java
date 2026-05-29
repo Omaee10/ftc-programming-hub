@@ -264,7 +264,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 5 — Pedro Pathing Multi-leg Path. */
+    /** Challenge 5 — Pedro Pathing Chain. */
     private static List<RubricRule> challenge5() {
         return Rules.of(
             Rules.required("Follower declared and constructed",
@@ -294,7 +294,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 6 — Tank Drive. */
+    /** Challenge 6 — Dual Motor TeleOp. */
     private static List<RubricRule> challenge6() {
         return Rules.of(
             Rules.required("Two DcMotor fields declared",
@@ -325,7 +325,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 7 — Servo Sweep. */
+    /** Challenge 7 — Servo Position Control. */
     private static List<RubricRule> challenge7() {
         return Rules.of(
             Rules.required("Servo field declared",
@@ -355,7 +355,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 8 — CRServo Continuous Rotation. */
+    /** Challenge 8 — CRServo Intake. */
     private static List<RubricRule> challenge8() {
         return Rules.of(
             Rules.required("CRServo declared",
@@ -377,257 +377,302 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 9 — IMU heading. */
+    /** Challenge 9 — Telemetry Dashboard. */
     private static List<RubricRule> challenge9() {
         return Rules.of(
-            Rules.required("IMU field declared",
-                "An IMU instance is declared.",
-                "IMU imu = hardwareMap.get(IMU.class, \"imu\");",
-                ctx -> declaresField(ctx, "IMU")),
-            Rules.required("IMU initialised",
-                "imu.initialize(...) called before reading.",
-                "imu.initialize(new IMU.Parameters(orientation));",
-                ctx -> callsMethod(ctx, "initialize")),
-            Rules.improvement("Heading telemetry",
-                "Heading shown on the Driver Station for debugging.",
-                "telemetry.addData(\"Heading\", heading);",
-                ctx -> callsMethod(ctx, "addData"))
+            Rules.required("ElapsedTime tracks runtime",
+                "Timer measures total OpMode elapsed time.",
+                "ElapsedTime runtime = new ElapsedTime();",
+                ctx -> instantiates(ctx, "ElapsedTime")),
+            Rules.required("Loop counter incremented",
+                "A counter accumulates across loop iterations.",
+                "loopCount++;",
+                ctx -> sourceContains(ctx, Pattern.compile("\\+\\+|loopCount\\s*=\\s*loopCount\\s*\\+"))),
+            Rules.required("Encoder position read",
+                "Motor position surfaced with getCurrentPosition().",
+                "motor.getCurrentPosition()",
+                ctx -> callsMethod(ctx, "getCurrentPosition")),
+            Rules.required("Section headers in telemetry",
+                "Use addLine() to organize the dashboard.",
+                "telemetry.addLine(\"--- Status ---\");",
+                ctx -> callsMethod(ctx, "addLine")),
+            Rules.improvement("Multiple telemetry fields",
+                "Show loop count, time, power, encoder, and status.",
+                "telemetry.addData(...); telemetry.update();",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "addData") >= 4
+                       && callsMethodInsideWhileLoop(ctx, "update"))
         );
     }
 
-    /** Challenge 10 — Strafing on Mecanum. */
+    /** Challenge 10 — Button Debouncing. */
     private static List<RubricRule> challenge10() {
         return Rules.of(
-            Rules.required("Four DcMotor fields declared",
-                "Mecanum drive needs four motors (FL, FR, BL, BR).",
-                "Declare four DcMotor (or DcMotorEx) fields for the wheels.",
-                ctx -> TreeHelpers.countMethodCalls(ctx, "get") >= 4
-                       && (declaresField(ctx, "DcMotor") || declaresField(ctx, "DcMotorEx"))),
-            Rules.required("All three sticks read",
-                "x and y axes for translation, right_stick_x for rotation.",
-                "Read gamepad1.left_stick_x, gamepad1.left_stick_y, gamepad1.right_stick_x.",
-                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.left_stick_x"))
-                       && sourceContains(ctx, Pattern.compile("gamepad1\\.left_stick_y"))
-                       && sourceContains(ctx, Pattern.compile("gamepad1\\.right_stick_x"))),
-            Rules.required("Four setPower() calls",
-                "Each wheel is powered independently.",
-                "fl.setPower(...); fr.setPower(...); bl.setPower(...); br.setPower(...);",
-                ctx -> TreeHelpers.countMethodCalls(ctx, "setPower") >= 4),
-            Rules.improvement("Power normalisation",
-                "Normalise wheel powers so the largest absolute value is 1.0.",
-                "double max = Math.max(Math.abs(fl), Math.max(Math.abs(fr), ...));",
-                ctx -> sourceContains(ctx, Pattern.compile("Math\\.max|Math\\.abs")))
+            Rules.required("Previous button state tracked",
+                "Store last frame's button value for edge detection.",
+                "boolean lastAButton = false;",
+                ctx -> sourceContains(ctx, Pattern.compile("boolean\\s+\\w+"))
+                       && sourceContains(ctx, Pattern.compile("&&\\s*!\\w+|!\\w+\\s*&&"))),
+            Rules.required("Toggle state stored",
+                "A boolean holds the current intake on/off state.",
+                "boolean intakeRunning = false;",
+                ctx -> sourceContains(ctx, Pattern.compile("intakeRunning|toggle|running"))),
+            Rules.required("CRServo powered from toggle",
+                "Intake runs with setPower() based on toggle state.",
+                "intakeServo.setPower(intakeRunning ? 1.0 : 0.0);",
+                ctx -> declaresField(ctx, "CRServo") && callsMethod(ctx, "setPower")),
+            Rules.improvement("lastButton updated at loop end",
+                "Edge detection requires updating previous state after the check.",
+                "lastAButton = gamepad1.a;",
+                ctx -> sourceContains(ctx, Pattern.compile("=\\s*gamepad1\\.a")))
         );
     }
 
-    /** Challenge 11 — Button toggle with edge detection. */
+    /** Challenge 11 — ElapsedTime Patterns. */
     private static List<RubricRule> challenge11() {
         return Rules.of(
-            Rules.required("Edge-detection boolean tracked",
-                "A boolean (e.g. lastA) holds the previous button state.",
-                "boolean lastA = false; if (gamepad1.a && !lastA) toggle();",
-                ctx -> sourceContains(ctx, Pattern.compile("boolean\\s+\\w+\\s*="))
-                       && sourceContains(ctx, Pattern.compile("&&\\s*!\\w+|!\\w+\\s*&&"))),
-            Rules.required("Edge-detection variable updated at the END of the loop",
-                "Update lastA = gamepad1.a after the check, not before.",
-                "Place `lastA = gamepad1.a;` as the LAST line of the while body.",
-                ctx -> {
-                    // Best-effort: the assignment must appear AFTER the if-check line.
-                    long ifLine = TreeHelpers.firstIdentifierLine(ctx, "gamepad1");
-                    var updates = TreeHelpers.lineNumbersMatching(ctx,
-                            Pattern.compile("\\w+\\s*=\\s*gamepad1\\.[abxy]"));
-                    return ifLine < 0 || updates.isEmpty() || updates.get(updates.size() - 1) > ifLine;
-                }),
-            Rules.improvement("Toggle state stored",
-                "A separate boolean (e.g. intakeRunning) flips on each press.",
-                "if (gamepad1.a && !lastA) { intakeRunning = !intakeRunning; }",
-                ctx -> sourceContains(ctx, Pattern.compile("=\\s*!\\w+")))
-        );
-    }
-
-    /** Challenge 12 — Trigger-driven analog power. */
-    private static List<RubricRule> challenge12() {
-        return Rules.of(
-            Rules.required("Trigger value read",
-                "gamepad1.right_trigger or left_trigger used.",
-                "double power = gamepad1.right_trigger;",
-                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.(?:left|right)_trigger"))),
-            Rules.required("Trigger comparison uses a threshold (not == 1.0)",
-                "Triggers are floats — `== 1.0` almost never fires.",
-                "Use `gamepad1.right_trigger > 0.05` to detect any meaningful press.",
-                ctx -> !sourceContains(ctx, Pattern.compile("trigger\\s*==\\s*1"))),
-            Rules.improvement("Power passed to setPower()",
-                "Trigger value drives motor power.",
-                "motor.setPower(gamepad1.right_trigger);",
-                ctx -> callsMethod(ctx, "setPower"))
-        );
-    }
-
-    /** Challenge 13 — Telemetry dashboard. */
-    private static List<RubricRule> challenge13() {
-        return Rules.of(
-            Rules.required("addData() called at least 3 times",
-                "Multiple values shown for a useful dashboard.",
-                "telemetry.addData(\"Power\", ...); telemetry.addData(\"Position\", ...);",
-                ctx -> TreeHelpers.countMethodCalls(ctx, "addData") >= 3),
-            Rules.required("telemetry.update() called",
-                "Without update() nothing is flushed to the screen.",
-                "telemetry.update();",
-                ctx -> callsMethod(ctx, "update")),
-            Rules.improvement("Update inside the loop",
-                "Refresh every iteration to see live values.",
-                "Call telemetry.update() inside while(opModeIsActive()).",
-                ctx -> callsMethodInsideWhileLoop(ctx, "update"))
-        );
-    }
-
-    /** Challenge 14 — Field-centric driving (IMU). */
-    private static List<RubricRule> challenge14() {
-        return Rules.of(
-            Rules.required("IMU declared and initialised",
-                "Field-centric needs current heading from the IMU.",
-                "IMU imu = hardwareMap.get(IMU.class, \"imu\");",
-                ctx -> declaresField(ctx, "IMU") && callsMethod(ctx, "initialize")),
-            Rules.required("Heading rotation applied",
-                "Translate joystick vector by -heading using sin/cos.",
-                "double rotX = x * Math.cos(-heading) - y * Math.sin(-heading);",
-                ctx -> sourceContains(ctx, Pattern.compile("Math\\.(sin|cos)"))),
-            Rules.improvement("Reset-yaw button",
-                "Button (often start) resets the IMU yaw mid-match.",
-                "if (gamepad1.options) imu.resetYaw();",
-                ctx -> callsMethod(ctx, "resetYaw"))
-        );
-    }
-
-    /** Challenge 15 — Drive distance with encoders. */
-    private static List<RubricRule> challenge15() {
-        return Rules.of(
-            Rules.required("Encoder constants defined",
-                "Ticks-per-rev and wheel diameter declared as constants.",
-                "static final double TICKS_PER_REV = 537.7;",
-                ctx -> sourceContains(ctx, Pattern.compile("static\\s+final\\s+(?:double|int)"))),
-            Rules.required("RUN_TO_POSITION used",
-                "Encoder-driven move requires RUN_TO_POSITION.",
-                "motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);",
-                ctx -> sourceContains(ctx, Pattern.compile("RUN_TO_POSITION"))),
-            Rules.required("setTargetPosition() called",
-                "Target tick count specified.",
-                "motor.setTargetPosition(targetTicks);",
-                ctx -> callsMethod(ctx, "setTargetPosition")),
-            Rules.improvement("isBusy() wait loop",
-                "Block until target reached.",
-                "while (motor.isBusy() && opModeIsActive()) { idle(); }",
-                ctx -> sourceContains(ctx, Pattern.compile("\\.isBusy\\s*\\(")))
-        );
-    }
-
-    /** Challenge 16 — Servo claw open/close. */
-    private static List<RubricRule> challenge16() {
-        return Rules.of(
-            Rules.required("Servo declared",
-                "Claw uses a Servo (not CRServo).",
-                "private Servo claw;",
-                ctx -> declaresField(ctx, "Servo")),
-            Rules.required("Two distinct setPosition values",
-                "Open and close use different position values.",
-                "claw.setPosition(OPEN); claw.setPosition(CLOSE);",
-                ctx -> TreeHelpers.countMethodCalls(ctx, "setPosition") >= 2),
-            Rules.required("Button-driven open and close",
-                "Two buttons (or one toggle) trigger open/close.",
-                "if (gamepad1.a) claw.setPosition(OPEN); else if (gamepad1.b) claw.setPosition(CLOSE);",
-                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.[abxy]")))
-        );
-    }
-
-    /** Challenge 17 — Two timed segments (forward + reverse). */
-    private static List<RubricRule> challenge17() {
-        return Rules.of(
             Rules.required("ElapsedTime used",
-                "Timer drives both segments.",
+                "Timer drives timed segments.",
                 "ElapsedTime timer = new ElapsedTime();",
                 ctx -> instantiates(ctx, "ElapsedTime")),
-            Rules.required("timer.reset() called between segments",
-                "Without reset() the second segment uses time from the start of the OpMode.",
-                "Call timer.reset() between segments.",
+            Rules.required("timer.seconds() in while condition",
+                "Blocking wait uses timer.seconds() with opModeIsActive().",
+                "while (timer.seconds() < 1.0 && opModeIsActive()) { ... }",
+                ctx -> sourceContains(ctx, TIMER_SECONDS_CMP)),
+            Rules.required("timer.reset() between segments",
+                "Reset timer before each new timed segment.",
+                "timer.reset();",
                 ctx -> callsMethod(ctx, "reset")),
-            Rules.required("Both forward and reverse power used",
-                "Forward and reverse setPower values.",
-                "setPower(0.5); ... setPower(-0.5);",
-                ctx -> sourceContains(ctx, Pattern.compile("setPower\\(\\s*-\\s*\\d"))
-                       && sourceContains(ctx, NON_ZERO_POWER)),
-            Rules.required("Motors stopped between segments",
-                "setPower(0) between forward and reverse halts the bot cleanly.",
-                "setPower(0); timer.reset();",
+            Rules.required("Motor stopped after timed move",
+                "setPower(0) after the timed segment completes.",
+                "motor.setPower(0);",
                 ctx -> sourceContains(ctx, ZERO_POWER))
         );
     }
 
-    /** Challenge 18 — Touch-sensor-bounded arm. */
-    private static List<RubricRule> challenge18() {
+    /** Challenge 12 — Motor Zero Power Behavior. */
+    private static List<RubricRule> challenge12() {
+        return Rules.of(
+            Rules.required("setZeroPowerBehavior() called",
+                "Explicitly choose BRAKE or FLOAT mode.",
+                "motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);",
+                ctx -> callsMethod(ctx, "setZeroPowerBehavior")),
+            Rules.required("Both BRAKE and FLOAT referenced",
+                "Toggle between brake and float behaviors.",
+                "ZeroPowerBehavior.BRAKE ... ZeroPowerBehavior.FLOAT",
+                ctx -> sourceContains(ctx, BRAKE_BEHAVIOR)
+                       && sourceContains(ctx, Pattern.compile("ZeroPowerBehavior\\.FLOAT"))),
+            Rules.required("X button toggles mode",
+                "Rising edge on gamepad1.x switches behavior.",
+                "if (gamepad1.x && !lastX) { ... }",
+                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.x")))
+        );
+    }
+
+    /** Challenge 13 — Init-Loop Configuration. */
+    private static List<RubricRule> challenge13() {
+        return Rules.of(
+            Rules.required("Alliance flag declared",
+                "Boolean tracks RED vs BLUE selection.",
+                "boolean isRedAlliance = true;",
+                ctx -> sourceContains(ctx, Pattern.compile("isRedAlliance|redAlliance"))),
+            Rules.required("Init loop before start",
+                "Configure alliance while !isStarted() && !isStopRequested().",
+                "while (!isStarted() && !isStopRequested()) { ... }",
+                ctx -> sourceContains(ctx, Pattern.compile("isStarted\\s*\\(\\s*\\)"))
+                       && sourceContains(ctx, Pattern.compile("isStopRequested\\s*\\(\\s*\\)"))),
+            Rules.required("B and X set alliance",
+                "B selects RED, X selects BLUE.",
+                "if (gamepad1.b) ... if (gamepad1.x) ...",
+                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.b"))
+                       && sourceContains(ctx, Pattern.compile("gamepad1\\.x"))),
+            Rules.improvement("Alliance shown in telemetry",
+                "Driver sees current selection during init.",
+                "telemetry.addData(\"Alliance\", isRedAlliance ? \"RED\" : \"BLUE\");",
+                ctx -> callsMethod(ctx, "addData"))
+        );
+    }
+
+    /** Challenge 14 — Encoder-Based Drive Distance. */
+    private static List<RubricRule> challenge14() {
+        return Rules.of(
+            Rules.required("Encoder reset",
+                "STOP_AND_RESET_ENCODER before the move.",
+                "motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);",
+                ctx -> sourceContains(ctx, Pattern.compile("STOP_AND_RESET_ENCODER"))),
+            Rules.required("RUN_TO_POSITION mode",
+                "Encoder move uses RUN_TO_POSITION.",
+                "motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);",
+                ctx -> sourceContains(ctx, Pattern.compile("RUN_TO_POSITION"))),
+            Rules.required("setTargetPosition() called",
+                "Target tick count specified before the move.",
+                "motor.setTargetPosition(1000);",
+                ctx -> callsMethod(ctx, "setTargetPosition")),
+            Rules.required("isBusy() wait loop",
+                "Block until the motor reaches its target.",
+                "while (motor.isBusy() && opModeIsActive()) { idle(); }",
+                ctx -> sourceContains(ctx, Pattern.compile("\\.isBusy\\s*\\("))),
+            Rules.improvement("Return to RUN_USING_ENCODER",
+                "Switch back after the move for manual control.",
+                "motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);",
+                ctx -> sourceContains(ctx, RUN_USING_ENCODER))
+        );
+    }
+
+    /** Challenge 15 — Bulk Cache Reads. */
+    private static List<RubricRule> challenge15() {
+        return Rules.of(
+            Rules.required("LynxModule hubs retrieved",
+                "Get all expansion/control hubs from hardwareMap.",
+                "List<LynxModule> modules = hardwareMap.getAll(LynxModule.class);",
+                ctx -> sourceContains(ctx, Pattern.compile("getAll\\s*\\(\\s*LynxModule"))),
+            Rules.required("Manual bulk caching enabled",
+                "Set BulkCachingMode.MANUAL on each hub.",
+                "module.setBulkCachingMode(BulkCachingMode.MANUAL);",
+                ctx -> sourceContains(ctx, Pattern.compile("BulkCachingMode\\.MANUAL"))),
+            Rules.required("clearBulkCache() each loop",
+                "Clear bulk cache at the top of the main loop.",
+                "module.clearBulkCache();",
+                ctx -> callsMethod(ctx, "clearBulkCache")),
+            Rules.improvement("Loop Hz measured",
+                "Display measured loop frequency in telemetry.",
+                "telemetry.addData(\"Loop Hz\", hz);",
+                ctx -> sourceContains(ctx, Pattern.compile("Hz|hz|loopCount"))
+                       && callsMethod(ctx, "addData"))
+        );
+    }
+
+    /** Challenge 16 — REV Touch Sensor Homing. */
+    private static List<RubricRule> challenge16() {
         return Rules.of(
             Rules.required("TouchSensor declared",
-                "TouchSensor field is declared.",
-                "TouchSensor limitSwitch = hardwareMap.get(TouchSensor.class, \"limit\");",
+                "Limit switch retrieved from hardwareMap.",
+                "TouchSensor touchSensor = hardwareMap.get(TouchSensor.class, \"touch_sensor\");",
                 ctx -> declaresField(ctx, "TouchSensor")),
-            Rules.required("isPressed() consulted",
-                "Sensor state checked before commanding motion.",
-                "if (!limitSwitch.isPressed()) motor.setPower(0.5);",
+            Rules.required("Homing loop until pressed",
+                "Drive slowly until isPressed() returns true.",
+                "while (!touchSensor.isPressed() && opModeIsActive()) { ... }",
                 ctx -> callsMethod(ctx, "isPressed")),
-            Rules.improvement("Telemetry shows sensor state",
-                "Sensor reading shown on the Driver Station.",
-                "telemetry.addData(\"Switch\", limitSwitch.isPressed());",
-                ctx -> callsMethod(ctx, "addData"))
+            Rules.required("Encoder reset at home",
+                "Zero encoder when the limit triggers.",
+                "motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);",
+                ctx -> sourceContains(ctx, Pattern.compile("STOP_AND_RESET_ENCODER"))),
+            Rules.improvement("Motor stopped at limit",
+                "Cut power immediately when the sensor fires.",
+                "motor.setPower(0);",
+                ctx -> sourceContains(ctx, ZERO_POWER))
         );
     }
 
-    /** Challenge 19 — Color sensor. */
+    /** Challenge 17 — Basic 4-Motor Mecanum. */
+    private static List<RubricRule> challenge17() {
+        return Rules.of(
+            Rules.required("Four motors initialized",
+                "All four mecanum wheels retrieved from hardwareMap.",
+                "frontLeft, frontRight, backLeft, backRight",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "get") >= 4),
+            Rules.required("Left side reversed",
+                "Reverse left-side motors for mirrored mounting.",
+                "frontLeft.setDirection(DcMotorSimple.Direction.REVERSE);",
+                ctx -> sourceContains(ctx, REVERSE_DIRECTION)),
+            Rules.required("Three sticks read",
+                "Drive, strafe, and rotate from gamepad.",
+                "gamepad1.left_stick_y, left_stick_x, right_stick_x",
+                ctx -> sourceContains(ctx, Pattern.compile("left_stick_y"))
+                       && sourceContains(ctx, Pattern.compile("left_stick_x"))
+                       && sourceContains(ctx, Pattern.compile("right_stick_x"))),
+            Rules.required("Four setPower() calls",
+                "Each wheel powered independently.",
+                "frontLeft.setPower(...); ... backRight.setPower(...);",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "setPower") >= 4),
+            Rules.improvement("Power normalization",
+                "Scale powers so max absolute value is 1.0.",
+                "double max = Math.max(Math.abs(fl), ...);",
+                ctx -> sourceContains(ctx, Pattern.compile("Math\\.max|Math\\.abs")))
+        );
+    }
+
+    /** Challenge 18 — Mecanum Power Normalization. */
+    private static List<RubricRule> challenge18() {
+        return Rules.of(
+            Rules.required("normalize() helper declared",
+                "Encapsulate scaling logic in a reusable method.",
+                "private double[] normalize(double fl, double fr, double bl, double br) { ... }",
+                ctx -> declaresMethod(ctx, "normalize")),
+            Rules.required("Max absolute value found",
+                "Find the largest wheel power magnitude.",
+                "double max = Math.max(Math.abs(fl), ...);",
+                ctx -> sourceContains(ctx, Pattern.compile("Math\\.max"))
+                       && sourceContains(ctx, Pattern.compile("Math\\.abs"))),
+            Rules.required("Helper called from loop",
+                "Apply normalized powers each iteration.",
+                "double[] powers = normalize(fl, fr, bl, br);",
+                ctx -> callsMethod(ctx, "normalize")),
+            Rules.improvement("Scale only when max > 1",
+                "Divide by max only when exceeding motor range.",
+                "if (max > 1.0) { ... }",
+                ctx -> sourceContains(ctx, Pattern.compile("max\\s*>\\s*1")))
+        );
+    }
+
+    /** Challenge 19 — Field-Relative Mecanum. */
     private static List<RubricRule> challenge19() {
         return Rules.of(
-            Rules.required("ColorSensor declared",
-                "ColorSensor field is declared.",
-                "ColorSensor color = hardwareMap.get(ColorSensor.class, \"color\");",
-                ctx -> declaresField(ctx, "ColorSensor")),
-            Rules.required("Color components read",
-                "Read at least red/green/blue values.",
-                "int r = color.red(); int g = color.green(); int b = color.blue();",
-                ctx -> callsMethod(ctx, "red") || callsMethod(ctx, "green") || callsMethod(ctx, "blue"))
+            Rules.required("Rotation matrix applied",
+                "Rotate drive/strafe by heading using sin/cos.",
+                "rotX = x * Math.cos(-heading) - y * Math.sin(-heading);",
+                ctx -> sourceContains(ctx, Pattern.compile("Math\\.(sin|cos)"))),
+            Rules.required("Four motors powered",
+                "Mecanum formula applied to all wheels.",
+                "frontLeft.setPower(...); backRight.setPower(...);",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "setPower") >= 4),
+            Rules.improvement("Raw and rotated vectors in telemetry",
+                "Show both stick input and field-relative values.",
+                "telemetry.addData(\"Rotated drive\", rotY);",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "addData") >= 2)
         );
     }
 
-    /** Challenge 20 — Distance sensor + telemetry. */
+    /** Challenge 20 — Mecanum Strafing Test. */
     private static List<RubricRule> challenge20() {
         return Rules.of(
-            Rules.required("DistanceSensor declared",
-                "DistanceSensor field is declared.",
-                "DistanceSensor dist = hardwareMap.get(DistanceSensor.class, \"dist\");",
-                ctx -> declaresField(ctx, "DistanceSensor")),
-            Rules.required("getDistance() called",
-                "Distance read each loop.",
-                "double cm = dist.getDistance(DistanceUnit.CM);",
-                ctx -> callsMethod(ctx, "getDistance")),
-            Rules.improvement("Distance shown via telemetry",
-                "Sensor value surfaced on the dashboard.",
-                "telemetry.addData(\"Dist\", cm);",
+            Rules.required("Four motors configured",
+                "All mecanum wheels initialized with directions.",
+                "setDirection() on left-side motors",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "get") >= 4),
+            Rules.required("Strafe power applied",
+                "Mecanum strafe uses left_stick_x or fixed strafe value.",
+                "strafe = gamepad1.left_stick_x;",
+                ctx -> sourceContains(ctx, Pattern.compile("left_stick_x|strafe"))),
+            Rules.required("Timed strafe segments",
+                "Use sleep() between strafe directions.",
+                "sleep(1000);",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "sleep") >= 2),
+            Rules.improvement("Motors stopped at end",
+                "All wheels set to zero power after test.",
+                "motor.setPower(0);",
+                ctx -> sourceContains(ctx, ZERO_POWER))
+        );
+    }
+
+    /** Challenge 21 — Velocity-Magnitude Braking. */
+    private static List<RubricRule> challenge21() {
+        return Rules.of(
+            Rules.required("Input magnitude computed",
+                "Combine drive and strafe with sqrt or hypot.",
+                "double magnitude = Math.hypot(drive, strafe);",
+                ctx -> sourceContains(ctx, Pattern.compile("Math\\.sqrt|Math\\.hypot"))),
+            Rules.required("Deadband applied",
+                "Zero motors when stick input is below threshold.",
+                "if (magnitude < 0.05) { ... setPower(0); }",
+                ctx -> sourceContains(ctx, Pattern.compile("0\\.05|DEADBAND|deadband"))),
+            Rules.improvement("Magnitude shown in telemetry",
+                "Display input magnitude for tuning.",
+                "telemetry.addData(\"Magnitude\", magnitude);",
                 ctx -> callsMethod(ctx, "addData"))
         );
     }
 
-    /** Challenge 21 — Two-button stateful intake. */
-    private static List<RubricRule> challenge21() {
-        return Rules.of(
-            Rules.required("Two gamepad buttons read",
-                "Different buttons control intake on / off.",
-                "if (gamepad1.a) ...; if (gamepad1.b) ...;",
-                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.a"))
-                       && sourceContains(ctx, Pattern.compile("gamepad1\\.b"))),
-            Rules.required("Intake motor or servo controlled",
-                "setPower() commands the intake.",
-                "intake.setPower(1.0); ... intake.setPower(0);",
-                ctx -> callsMethod(ctx, "setPower"))
-        );
-    }
-
-    /** Challenge 22 — Velocity-controlled shooter (DcMotorEx). */
+    /** Challenge 22 — DcMotorEx Velocity Control. */
     private static List<RubricRule> challenge22() {
         return Rules.of(
             Rules.required("DcMotorEx declared",
@@ -640,7 +685,7 @@ public final class ChallengeRubrics {
                 ctx -> callsMethod(ctx, "setVelocity")),
             Rules.required("RUN_USING_ENCODER set before setVelocity",
                 "setVelocity() needs the motor in RUN_USING_ENCODER mode.",
-                "shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER); before setVelocity(...).",
+                "shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);",
                 ctx -> sourceContains(ctx, RUN_USING_ENCODER)),
             Rules.improvement("getVelocity() shown in telemetry",
                 "Current velocity displayed for tuning.",
@@ -649,20 +694,20 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 23 — Simple P-controller. */
+    /** Challenge 23 — Simple P Controller. */
     private static List<RubricRule> challenge23() {
         return Rules.of(
             Rules.required("Error term computed (target - current)",
                 "Sign convention matters — error must be target - current.",
                 "double error = target - current;",
-                ctx -> sourceContains(ctx, Pattern.compile("(?:target|setpoint|goal)\\s*-\\s*(?:current|measured|actual|pos)"))),
+                ctx -> sourceContains(ctx, Pattern.compile("(?:target|setpoint|goal)\\s*-\\s*(?:current|measured|actual|pos|getCurrentPosition)"))),
             Rules.required("Proportional gain applied",
                 "Multiply error by Kp.",
                 "double power = Kp * error;",
                 ctx -> sourceContains(ctx, Pattern.compile("\\bKp\\b\\s*\\*\\s*error|\\berror\\b\\s*\\*\\s*Kp"))),
-            Rules.required("Output clamped to [-1, 1]",
+            Rules.required("Output clamped",
                 "Math.max/Math.min keep power within motor range.",
-                "power = Math.max(-1.0, Math.min(1.0, power));",
+                "power = Math.max(-0.8, Math.min(0.8, power));",
                 ctx -> sourceContains(ctx, Pattern.compile("Math\\.max[\\s\\S]*Math\\.min|Range\\.clip"))),
             Rules.improvement("Telemetry shows error and power",
                 "Tuning a P-controller needs live values.",
@@ -671,243 +716,396 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 24 — Spline + waypoint Road Runner auto. */
+    /** Challenge 24 — Encoder Ticks to Degrees. */
     private static List<RubricRule> challenge24() {
         return Rules.of(
-            Rules.required("Trajectory built with splineTo()",
-                "splineTo() creates curved segments.",
-                ".splineTo(new Vector2d(36, 36), Math.PI / 2)",
-                ctx -> callsMethod(ctx, "splineTo")),
-            Rules.required("Multiple segments (>=2 splineTo)",
-                "A waypoint path needs at least two segments.",
-                "Chain at least two splineTo() calls.",
-                ctx -> TreeHelpers.countMethodCalls(ctx, "splineTo") >= 2),
-            Rules.required("Trajectory executed",
-                "followTrajectorySequence() or Actions.runBlocking() runs the path.",
-                "drive.followTrajectorySequence(seq); or Actions.runBlocking(action);",
-                ctx -> callsMethod(ctx, "followTrajectorySequence") || callsMethod(ctx, "runBlocking"))
+            Rules.required("ticksToDegrees() helper",
+                "Convert encoder ticks to degrees.",
+                "private double ticksToDegrees(int ticks) { return ticks * 360.0 / (TICKS_PER_REV * GEAR_RATIO); }",
+                ctx -> declaresMethod(ctx, "ticksToDegrees")),
+            Rules.required("Calibration constants defined",
+                "TICKS_PER_REV and gear ratio declared.",
+                "static final double TICKS_PER_REV = 537.7;",
+                ctx -> sourceContains(ctx, Pattern.compile("TICKS_PER_REV|537\\.7"))),
+            Rules.required("Helper used in loop",
+                "Display degrees converted from encoder ticks.",
+                "double degrees = ticksToDegrees(motor.getCurrentPosition());",
+                ctx -> callsMethod(ctx, "ticksToDegrees")),
+            Rules.improvement("Both ticks and degrees in telemetry",
+                "Show raw ticks and converted degrees.",
+                "telemetry.addData(\"Degrees\", degrees);",
+                ctx -> callsMethod(ctx, "getCurrentPosition") && callsMethod(ctx, "addData"))
         );
     }
 
-    /** Challenge 25 — Sleep-free wait via ElapsedTime. */
+    /** Challenge 25 — Flywheel TPS Calibration. */
     private static List<RubricRule> challenge25() {
         return Rules.of(
-            Rules.required("ElapsedTime drives the wait",
-                "Wait implemented with timer.seconds(), not sleep().",
-                "while (timer.seconds() < 1.0 && opModeIsActive()) { idle(); }",
-                ctx -> instantiates(ctx, "ElapsedTime") && sourceContains(ctx, TIMER_SECONDS_CMP)),
-            Rules.required("No sleep() used",
-                "Replaces sleep() — the whole point of the challenge.",
-                "Use the timer-based wait instead of sleep(ms).",
-                ctx -> !callsMethod(ctx, "sleep"))
+            Rules.required("Calibration tables defined",
+                "Parallel DIST_TABLE and TPS_TABLE arrays.",
+                "private static final double[] DIST_TABLE = { ... };",
+                ctx -> sourceContains(ctx, Pattern.compile("DIST_TABLE"))
+                       && sourceContains(ctx, Pattern.compile("TPS_TABLE"))),
+            Rules.required("Interpolation helper",
+                "Map distance to TPS with bracket search.",
+                "private double interpolateTPS(double distanceIn) { ... }",
+                ctx -> declaresMethod(ctx, "interpolateTPS")),
+            Rules.improvement("Interpolated TPS displayed",
+                "Show distance and computed TPS in telemetry.",
+                "telemetry.addData(\"TPS\", interpolateTPS(distance));",
+                ctx -> callsMethod(ctx, "interpolateTPS") && callsMethod(ctx, "addData"))
         );
     }
 
-    /** Challenge 26 — Brake vs Float. */
+    /** Challenge 26 — PIDF Velocity Loop. */
     private static List<RubricRule> challenge26() {
         return Rules.of(
-            Rules.required("setZeroPowerBehavior() called",
-                "Explicit brake/float choice.",
-                "motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);",
-                ctx -> callsMethod(ctx, "setZeroPowerBehavior")),
-            Rules.required("BRAKE value used",
-                "Brake mode holds position when power is zero.",
-                "DcMotor.ZeroPowerBehavior.BRAKE",
-                ctx -> sourceContains(ctx, BRAKE_BEHAVIOR))
+            Rules.required("Velocity error computed",
+                "Error is target TPS minus measured velocity.",
+                "double error = targetTps - shooter.getVelocity();",
+                ctx -> sourceContains(ctx, Pattern.compile("getVelocity\\s*\\("))
+                       && sourceContains(ctx, Pattern.compile("\\berror\\b"))),
+            Rules.required("PIDF gains used",
+                "Proportional, integral, derivative, and feedforward terms.",
+                "Kp, Ki, Kd, and Kf referenced in power calculation.",
+                ctx -> sourceContains(ctx, Pattern.compile("\\bKp\\b"))
+                       && sourceContains(ctx, Pattern.compile("\\bKi\\b"))
+                       && sourceContains(ctx, Pattern.compile("\\bKd\\b"))
+                       && sourceContains(ctx, Pattern.compile("\\bKf\\b"))),
+            Rules.required("Output clamped to [0, 1]",
+                "Flywheel power clamped for one-direction spin.",
+                "power = Math.max(0.0, Math.min(1.0, power));",
+                ctx -> sourceContains(ctx, Pattern.compile("Math\\.max[\\s\\S]*Math\\.min"))),
+            Rules.improvement("PIDF terms in telemetry",
+                "Display each term for tuning.",
+                "telemetry.addData(\"P term\", pTerm);",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "addData") >= 3)
         );
     }
 
-    /** Challenge 27 — Encoder-based velocity. */
+    /** Challenge 27 — Loop Frequency Measurement. */
     private static List<RubricRule> challenge27() {
         return Rules.of(
-            Rules.required("DcMotorEx used for velocity",
-                "DcMotor lacks getVelocity().",
-                "DcMotorEx shooter = ...",
-                ctx -> declaresField(ctx, "DcMotorEx")),
-            Rules.required("getVelocity() called",
-                "Measured velocity read each loop.",
-                "double v = shooter.getVelocity();",
-                ctx -> callsMethod(ctx, "getVelocity")),
-            Rules.improvement("Telemetry shows velocity",
-                "Live velocity helps tune.",
-                "telemetry.addData(\"vel\", v);",
-                ctx -> callsMethod(ctx, "addData"))
+            Rules.required("Loop counter incremented",
+                "Count iterations each frame.",
+                "loopCount++;",
+                ctx -> sourceContains(ctx, Pattern.compile("\\+\\+|loopCount\\s*=\\s*loopCount\\s*\\+"))),
+            Rules.required("ElapsedTime gates Hz calculation",
+                "Recompute Hz about once per second.",
+                "if (hzTimer.seconds() >= 1.0) { ... hzTimer.reset(); }",
+                ctx -> instantiates(ctx, "ElapsedTime")
+                       && sourceContains(ctx, Pattern.compile("Hz|loopCount|seconds\\s*\\(\\s*\\)\\s*>="))),
+            Rules.improvement("Hz and loop time in telemetry",
+                "Show Hz, average ms per loop, and total count.",
+                "telemetry.addData(\"Loop Hz\", hz);",
+                ctx -> sourceContains(ctx, Pattern.compile("Hz|ms"))
+                       && callsMethod(ctx, "addData"))
         );
     }
 
-    /** Challenge 28 — Hardware initialisation pattern. */
+    /** Challenge 28 — Button-Latch Shooting. */
     private static List<RubricRule> challenge28() {
         return Rules.of(
-            Rules.required("hardwareMap.get() called BEFORE waitForStart()",
-                "Hardware initialisation must happen before waitForStart().",
-                "Move all hardwareMap.get(...) calls above waitForStart().",
-                ctx -> {
-                    long wait = TreeHelpers.firstCallLine(ctx, "waitForStart");
-                    long get  = TreeHelpers.firstCallLine(ctx, "get");
-                    return wait < 0 || get < 0 || get < wait;
-                }),
-            Rules.required("Status telemetry before waitForStart()",
-                "An init telemetry message confirms the OpMode initialised.",
-                "telemetry.addData(\"Status\", \"Ready\"); telemetry.update(); before waitForStart().",
-                ctx -> {
-                    long wait = TreeHelpers.firstCallLine(ctx, "waitForStart");
-                    long upd  = TreeHelpers.firstCallLine(ctx, "update");
-                    return wait < 0 || (upd > 0 && upd < wait);
-                })
+            Rules.required("Latch booleans declared",
+                "Track shootingLatched and shooterReady state.",
+                "boolean shootingLatched = false; boolean shooterReady = false;",
+                ctx -> sourceContains(ctx, Pattern.compile("shootingLatched|latched"))
+                       && sourceContains(ctx, Pattern.compile("shooterReady|ready"))),
+            Rules.required("Feeder motor controlled by latch",
+                "Transfer/feeder motor runs only when latched and firing.",
+                "feederMotor.setPower(shootingLatched ? 1.0 : 0.0);",
+                ctx -> callsMethod(ctx, "setPower")),
+            Rules.improvement("Latch state in telemetry",
+                "Show latch, readiness, and feeder status.",
+                "telemetry.addData(\"Latched\", shootingLatched);",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "addData") >= 2)
         );
     }
 
-    /** Challenge 29 — Servo position presets. */
+    /** Challenge 29 — Turret Zeroing State Machine. */
     private static List<RubricRule> challenge29() {
         return Rules.of(
-            Rules.required("Servo declared",
-                "Standard Servo type.",
-                "private Servo arm;",
-                ctx -> declaresField(ctx, "Servo")),
-            Rules.required("Position constants declared",
-                "Named constants (e.g. OPEN, CLOSE) for the preset positions.",
-                "static final double OPEN = 0.0, CLOSE = 1.0;",
-                ctx -> sourceContains(ctx, Pattern.compile("static\\s+final\\s+double")))
+            Rules.required("State enum declared",
+                "Turret uses IDLE and ZEROING states.",
+                "enum TurretState { IDLE, ZEROING }",
+                ctx -> sourceContains(ctx, Pattern.compile("enum\\s+\\w+"))
+                       && sourceContains(ctx, Pattern.compile("IDLE|ZEROING"))),
+            Rules.required("switch on state",
+                "State machine uses switch(state) or if/else branches.",
+                "switch (state) { case ZEROING: ... }",
+                ctx -> sourceContains(ctx, Pattern.compile("switch\\s*\\(\\s*\\w*[Ss]tate"))),
+            Rules.required("Touch sensor ends zeroing",
+                "Transition to IDLE when limit switch triggers.",
+                "if (limitSwitch.isPressed()) state = TurretState.IDLE;",
+                ctx -> callsMethod(ctx, "isPressed")),
+            Rules.improvement("Encoder reset after homing",
+                "Zero encoder when homing completes.",
+                "motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);",
+                ctx -> sourceContains(ctx, Pattern.compile("STOP_AND_RESET_ENCODER")))
         );
     }
 
-    /** Challenge 30 — Rumble feedback. */
+    /** Challenge 30 — Autonomous State Machine. */
     private static List<RubricRule> challenge30() {
         return Rules.of(
-            Rules.required("rumble() called on a gamepad",
-                "Force feedback via the gamepad.rumble API.",
-                "gamepad1.rumble(500);",
-                ctx -> callsMethod(ctx, "rumble"))
+            Rules.required("Multi-state enum",
+                "Autonomous sequence uses named states.",
+                "enum State { DRIVE_TO_SHOOT, SHOOTING, DRIVE_TO_COLLECT, DONE }",
+                ctx -> sourceContains(ctx, Pattern.compile("enum\\s+\\w+"))
+                       && sourceContains(ctx, Pattern.compile("DONE|SHOOT|COLLECT"))),
+            Rules.required("ElapsedTime per state",
+                "Timer drives state transitions.",
+                "stateTimer.reset(); if (stateTimer.seconds() > ...) { next state }",
+                ctx -> instantiates(ctx, "ElapsedTime") && callsMethod(ctx, "reset")),
+            Rules.required("Motors stopped in DONE",
+                "All drive motors zeroed in final state.",
+                "case DONE: leftDrive.setPower(0);",
+                ctx -> sourceContains(ctx, ZERO_POWER)),
+            Rules.improvement("@Autonomous annotation",
+                "Register as an autonomous OpMode.",
+                "@Autonomous(name = \"State Machine Auto\")",
+                ctx -> TreeHelpers.hasAnnotation(ctx, "Autonomous"))
         );
     }
 
-    /** Challenge 31 — Sequence of timed actions. */
+    /** Challenge 31 — Multi-Shot Cycling. */
     private static List<RubricRule> challenge31() {
         return Rules.of(
-            Rules.required("ElapsedTime used",
-                "Timer drives the sequence.",
-                "ElapsedTime timer = new ElapsedTime();",
-                ctx -> instantiates(ctx, "ElapsedTime")),
-            Rules.required("Multiple timer.seconds() comparisons",
-                "Each action segment uses its own time threshold.",
-                "Chain `if (timer.seconds() < ...)` blocks or call timer.reset() between segments.",
-                ctx -> TreeHelpers.lineNumbersMatching(ctx, TIMER_SECONDS_CMP).size() >= 2)
+            Rules.required("Remaining cycles tracked",
+                "Counter decrements after each shot.",
+                "remainingCycles--;",
+                ctx -> sourceContains(ctx, Pattern.compile("remainingCycles|--"))),
+            Rules.required("State machine with shot states",
+                "TO_HUMAN, SHOOT, and LEAVE states present.",
+                "enum State { TO_HUMAN, SHOOT, LEAVE, DONE }",
+                ctx -> sourceContains(ctx, Pattern.compile("SHOOT|TO_HUMAN|LEAVE"))),
+            Rules.required("Dpad adjusts cycle count in init",
+                "Configure 1–8 cycles before start.",
+                "if (gamepad1.dpad_up) remainingCycles++;",
+                ctx -> sourceContains(ctx, Pattern.compile("dpad_up|dpad_down"))),
+            Rules.improvement("Cycles shown in telemetry",
+                "Display remaining cycles during the match.",
+                "telemetry.addData(\"Cycles left\", remainingCycles);",
+                ctx -> sourceContains(ctx, Pattern.compile("remainingCycles"))
+                       && callsMethod(ctx, "addData"))
         );
     }
 
-    /** Challenge 32 — Autonomous routine — no gamepad. */
+    /** Challenge 32 — TeleOp Mode Switching. */
     private static List<RubricRule> challenge32() {
         return Rules.of(
-            Rules.required("@Autonomous annotation",
-                "OpMode must be registered as Autonomous.",
-                "@Autonomous(name = \"My Auto\")",
-                ctx -> TreeHelpers.hasAnnotation(ctx, "Autonomous")),
-            Rules.required("No gamepad reads",
-                "Autonomous OpModes must not depend on driver input.",
-                "Remove any gamepad1.* references — use timers, sensors, or encoders instead.",
-                ctx -> !sourceContains(ctx, Pattern.compile("gamepad[12]\\."))),
-            Rules.required("Either timer or encoder-based motion",
-                "Autonomous needs deterministic motion.",
-                "Use ElapsedTime, encoders, or sensors to control the path.",
-                ctx -> instantiates(ctx, "ElapsedTime")
-                       || sourceContains(ctx, Pattern.compile("RUN_TO_POSITION|RUN_USING_ENCODER"))
-                       || callsMethod(ctx, "followTrajectorySequence")
-                       || callsMethod(ctx, "followPath"))
+            Rules.required("safeMode flag declared",
+                "Boolean tracks reduced-power safe mode.",
+                "boolean safeMode = false;",
+                ctx -> sourceContains(ctx, Pattern.compile("safeMode"))),
+            Rules.required("B enters safe mode",
+                "Debounced B button enables safe mode.",
+                "if (gamepad1.b && !lastB) safeMode = true;",
+                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.b"))),
+            Rules.required("Y exits safe mode",
+                "Y button disables safe mode.",
+                "if (gamepad1.y) safeMode = false;",
+                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.y"))),
+            Rules.improvement("Power capped in safe mode",
+                "Limit motor power to 50% when safeMode is true.",
+                "power = safeMode ? power * 0.5 : power;",
+                ctx -> sourceContains(ctx, Pattern.compile("safeMode"))
+                       && sourceContains(ctx, Pattern.compile("0\\.5|50")))
         );
     }
 
-    /** Challenge 33 — Loop safety: opModeIsActive(). */
+    /** Challenge 33 — Pythagorean Distance to Goal. */
     private static List<RubricRule> challenge33() {
         return Rules.of(
-            Rules.required("while(opModeIsActive())",
-                "Main loop condition must be opModeIsActive().",
-                "while (opModeIsActive()) { ... }",
-                TreeHelpers::hasOpModeIsActiveWhile),
-            Rules.required("No while(true)",
-                "while(true) makes the OpMode unstoppable.",
-                "Use while(opModeIsActive()).",
-                ctx -> !sourceContains(ctx, Pattern.compile("while\\s*\\(\\s*true\\s*\\)")))
+            Rules.required("distanceToGoal() helper",
+                "Compute distance with Math.hypot(dx, dy).",
+                "return Math.hypot(goalX - x, goalY - y);",
+                ctx -> declaresMethod(ctx, "distanceToGoal")),
+            Rules.required("Goal coordinates defined",
+                "Goal position constants in mm or inches.",
+                "private static final double GOAL_X = 72 * 25.4;",
+                ctx -> sourceContains(ctx, Pattern.compile("GOAL_X|goalX"))),
+            Rules.required("Helper called from loop",
+                "Display live distance to goal.",
+                "double dist = distanceToGoal(robotX, robotY);",
+                ctx -> callsMethod(ctx, "distanceToGoal")),
+            Rules.improvement("Position and distance in telemetry",
+                "Show robot position and distance to goal.",
+                "telemetry.addData(\"Distance (mm)\", dist);",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "addData") >= 2)
         );
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // Generic rubrics for previously-uncovered challenges (34–48, 50, 52)
+    // Challenges 34–38 — math / odometry (must match challenges.ts titles)
     // ──────────────────────────────────────────────────────────────────────
 
-    /** Challenge 34 — TeleOp + Telemetry combo (basic). */
+    /** Challenge 34 — atan2 Turret Bearing. */
     private static List<RubricRule> challenge34() {
         return Rules.of(
-            Rules.required("Gamepad read present",
-                "Driver controls motors via the gamepad.",
-                "Read gamepad1 stick or button values.",
-                ctx -> sourceContains(ctx, Pattern.compile("gamepad[12]\\."))),
-            Rules.required("Telemetry data sent",
-                "Driver-station telemetry shows live status.",
-                "telemetry.addData(...); telemetry.update();",
-                ctx -> callsMethod(ctx, "addData") && callsMethod(ctx, "update"))
+            Rules.required("Math.atan2 bearing computed",
+                "Field bearing uses atan2 on dy and dx.",
+                "double fieldBearing = Math.toDegrees(Math.atan2(dy, dx));",
+                ctx -> sourceContains(ctx, Pattern.compile("Math\\.atan2\\s*\\("))),
+            Rules.required("Goal delta computed",
+                "Compute dx and dy from goal minus robot position.",
+                "double dx = GOAL_X - robotX; double dy = GOAL_Y - robotY;",
+                ctx -> sourceContains(ctx, Pattern.compile("\\bdx\\b"))
+                       && sourceContains(ctx, Pattern.compile("\\bdy\\b"))),
+            Rules.required("Turret angle relative to heading",
+                "Subtract robot heading from field bearing.",
+                "double turretAngle = fieldBearing - robotHeading;",
+                ctx -> sourceContains(ctx, Pattern.compile("turretAngle|turret"))
+                       && sourceContains(ctx, Pattern.compile("-\\s*robotHeading|robotHeading\\s*-"))),
+            Rules.required("Angle wrapped to [-180, 180]",
+                "Wrap turret angle so corrections take the shortest path.",
+                "while (turretAngle > 180) turretAngle -= 360;",
+                ctx -> sourceContains(ctx, Pattern.compile(">\\s*180\\).*360|<\\s*-180\\).*360"))),
+            Rules.improvement("Bearing values in telemetry",
+                "Show field bearing and turret angle on the Driver Station.",
+                "telemetry.addData(\"Field Bearing\", fieldBearingDeg);",
+                ctx -> TreeHelpers.countMethodCalls(ctx, "addData") >= 3)
         );
     }
 
-    /** Challenge 35 — Sleep helper for short auto. */
+    /** Challenge 35 — Alliance Coordinate Mirror. */
     private static List<RubricRule> challenge35() {
         return Rules.of(
-            Rules.required("LinearOpMode sleep() used",
-                "Use sleep(ms) — never Thread.sleep().",
-                "sleep(500);",
-                ctx -> callsMethod(ctx, "sleep")),
-            Rules.required("Motor commands before sleep",
-                "Set power, sleep to let the move happen, then stop.",
-                "motor.setPower(0.5); sleep(800); motor.setPower(0);",
-                ctx -> callsMethod(ctx, "setPower"))
+            Rules.required("Field width constant",
+                "FIELD_MM defined as 144 * 25.4 mm.",
+                "private static final double FIELD_MM = 144.0 * 25.4;",
+                ctx -> sourceContains(ctx, Pattern.compile("FIELD_MM|144\\.0\\s*\\*\\s*25\\.4"))),
+            Rules.required("mirrorX() helper implemented",
+                "Mirror blue X coordinates across the field center.",
+                "private double mirrorX(double x) { return FIELD_MM - x; }",
+                ctx -> declaresMethod(ctx, "mirrorX")
+                       && sourceContains(ctx, Pattern.compile("FIELD_MM\\s*-\\s*x"))),
+            Rules.required("mirrorX() applied to coordinates",
+                "Convert BLUE X values to RED with mirrorX().",
+                "double redShotX = mirrorX(BLUE_SHOT_X);",
+                ctx -> callsMethod(ctx, "mirrorX")),
+            Rules.improvement("Both alliances shown in telemetry",
+                "Display BLUE and RED coordinate sections.",
+                "telemetry.addLine(\"=== RED ===\");",
+                ctx -> sourceContains(ctx, Pattern.compile("BLUE"))
+                       && sourceContains(ctx, Pattern.compile("RED")))
         );
     }
 
-    /** Challenge 36 — Multiple LED / digital outputs. */
+    /** Challenge 36 — Degrees ↔ Radians Conversion. */
     private static List<RubricRule> challenge36() {
         return Rules.of(
-            Rules.required("Hardware get() calls present",
-                "Outputs configured from hardwareMap.",
-                "hardwareMap.get(...)",
-                ctx -> callsMethod(ctx, "get"))
+            Rules.required("toRadians() helper implemented",
+                "Convert degrees to radians with Math.PI / 180.",
+                "return degrees * Math.PI / 180.0;",
+                ctx -> declaresMethod(ctx, "toRadians")
+                       && sourceContains(ctx, Pattern.compile("toRadians[^{]*\\{[^}]*Math\\.PI\\s*/\\s*180"))),
+            Rules.required("toDegrees() helper implemented",
+                "Convert radians to degrees with 180 / Math.PI.",
+                "return radians * 180.0 / Math.PI;",
+                ctx -> declaresMethod(ctx, "toDegrees")
+                       && sourceContains(ctx, Pattern.compile("toDegrees[^{]*\\{[^}]*180[^}]*Math\\.PI"))),
+            Rules.required("Conversion helpers used",
+                "Call toRadians and toDegrees from runOpMode.",
+                "double rad = toRadians(deg); double back = toDegrees(rad);",
+                ctx -> callsMethod(ctx, "toRadians") && callsMethod(ctx, "toDegrees")),
+            Rules.improvement("Round-trip verification",
+                "Convert back to degrees to verify accuracy.",
+                "double roundTrip = toDegrees(toRadians(90));",
+                ctx -> sourceContains(ctx, Pattern.compile("toDegrees\\s*\\(\\s*toRadians")))
         );
     }
 
-    /** Challenge 37 — REV Color/Range fusion. */
+    /** Challenge 37 — GoBilda Pinpoint Odometry. */
     private static List<RubricRule> challenge37() {
         return Rules.of(
-            Rules.required("ColorSensor declared",
-                "Sensor field configured.",
-                "ColorSensor color = hardwareMap.get(...)",
-                ctx -> declaresField(ctx, "ColorSensor") || declaresField(ctx, "DistanceSensor"))
+            Rules.required("GoBildaPinpointDriver declared",
+                "Retrieve Pinpoint from hardwareMap.",
+                "odo = hardwareMap.get(GoBildaPinpointDriver.class, \"odo\");",
+                ctx -> declaresField(ctx, "GoBildaPinpointDriver")),
+            Rules.required("Pod offsets configured",
+                "setOffsets() with X/Y mm from robot center.",
+                "odo.setOffsets(-84.0, -168.0);",
+                ctx -> callsMethod(ctx, "setOffsets")),
+            Rules.required("Encoder resolution set",
+                "Configure goBILDA pod resolution before tracking.",
+                "odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);",
+                ctx -> callsMethod(ctx, "setEncoderResolution")),
+            Rules.required("Position reset at init",
+                "resetPosAndIMU() zeros pose and calibrates IMU.",
+                "odo.resetPosAndIMU();",
+                ctx -> callsMethod(ctx, "resetPosAndIMU")),
+            Rules.required("update() each loop",
+                "Call update() before reading position each iteration.",
+                "odo.update(); Pose2D pos = odo.getPosition();",
+                ctx -> callsMethodInsideWhileLoop(ctx, "update")),
+            Rules.improvement("Position telemetry",
+                "Display X, Y, and heading from getPosition().",
+                "telemetry.addData(\"X (mm)\", pos.getX(DistanceUnit.MM));",
+                ctx -> callsMethod(ctx, "getPosition") && callsMethod(ctx, "addData"))
         );
     }
 
-    /** Challenge 38 — Use IMU for heading-hold. */
+    /** Challenge 38 — Field Position Reset. */
     private static List<RubricRule> challenge38() {
         return Rules.of(
-            Rules.required("IMU declared",
-                "IMU is the source of heading feedback.",
-                "IMU imu = hardwareMap.get(IMU.class, \"imu\");",
-                ctx -> declaresField(ctx, "IMU")),
-            Rules.required("Heading polled each iteration",
-                "Some method called inside the main loop produces heading.",
-                "Call imu.getRobotYawPitchRollAngles() inside while(opModeIsActive()).",
-                ctx -> callsMethodInsideWhileLoop(ctx, "getRobotYawPitchRollAngles")
-                       || callsMethodInsideWhileLoop(ctx, "getAngularOrientation"))
+            Rules.required("GoBildaPinpointDriver declared",
+                "Pinpoint localizer configured for position reset.",
+                "private GoBildaPinpointDriver odo;",
+                ctx -> declaresField(ctx, "GoBildaPinpointDriver")),
+            Rules.required("setPosition() called",
+                "Re-anchor odometry to a known field pose.",
+                "odo.setPosition(new Pose2D(DistanceUnit.MM, 72*25.4, 72*25.4, AngleUnit.DEGREES, 0));",
+                ctx -> callsMethod(ctx, "setPosition")),
+            Rules.required("Field center in millimeters",
+                "Reset coordinates use 72 inches converted to mm.",
+                "private static final double RESET_X_MM = 72 * 25.4;",
+                ctx -> sourceContains(ctx, Pattern.compile("72\\s*\\*\\s*25\\.4"))),
+            Rules.required("X button debounced",
+                "Rising-edge detection on gamepad1.x triggers reset.",
+                "if (gamepad1.x && !lastX) { odo.setPosition(...); }",
+                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.x"))
+                       && sourceContains(ctx, Pattern.compile("&&\\s*!lastX|!lastX\\s*&&"))),
+            Rules.improvement("Position shown after reset",
+                "Telemetry displays pose from getPosition().",
+                "telemetry.addData(\"X (mm)\", pos.getX(DistanceUnit.MM));",
+                ctx -> callsMethod(ctx, "getPosition") && callsMethod(ctx, "addData"))
         );
     }
 
-    /** Challenge 39 — Custom subsystem class. */
+    // ──────────────────────────────────────────────────────────────────────
+    // Previously generic rubrics — challenges 35–36 section removed above
+    // ──────────────────────────────────────────────────────────────────────
+
+    /** Challenge 39 — Limelight3A Init & Read. */
     private static List<RubricRule> challenge39() {
         return Rules.of(
-            Rules.required("Helper method declared",
-                "Encapsulate behaviour in a method.",
-                "private void driveForward(double power) { ... }",
-                ctx -> sourceContains(ctx, Pattern.compile("(?m)^\\s*(?:private|public|protected)?\\s*\\w+\\s+\\w+\\s*\\([^)]*\\)\\s*\\{")))
+            Rules.required("Limelight3A declared",
+                "Retrieve the Limelight from hardwareMap.",
+                "limelight = hardwareMap.get(Limelight3A.class, \"limelight\");",
+                ctx -> declaresField(ctx, "Limelight3A")),
+            Rules.required("Pipeline started",
+                "Switch to pipeline 0 and call start() before the match loop.",
+                "limelight.pipelineSwitch(0); limelight.start();",
+                ctx -> callsMethod(ctx, "pipelineSwitch") && callsMethod(ctx, "start")),
+            Rules.required("Latest result polled",
+                "Read frames each loop with getLatestResult().",
+                "LLResult result = limelight.getLatestResult();",
+                ctx -> callsMethod(ctx, "getLatestResult")),
+            Rules.required("Targeting values read",
+                "Read tx, ty, and ta from the Limelight result.",
+                "double tx = result.getTx(); double ty = result.getTy(); double ta = result.getTa();",
+                ctx -> callsMethod(ctx, "getTx")
+                       && callsMethod(ctx, "getTy")
+                       && callsMethod(ctx, "getTa")),
+            Rules.improvement("Capture latency displayed",
+                "Report getCaptureLatency() for frame timing diagnostics.",
+                "telemetry.addData(\"Latency (ms)\", result.getCaptureLatency());",
+                ctx -> callsMethod(ctx, "getCaptureLatency"))
         );
     }
 
-    /** Challenge 40 — Stale frame detection (Limelight diagnostics). */
+    /** Challenge 40 — Stale Frame Detection. */
     private static List<RubricRule> challenge40() {
         return Rules.of(
             Rules.required("Limelight3A declared",
@@ -964,7 +1162,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 43 — Limelight poll rate cycling. */
+    /** Challenge 43 — Poll Rate Cycling. */
     private static List<RubricRule> challenge43() {
         return Rules.of(
             Rules.required("Poll rate array defined",
@@ -983,7 +1181,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 44 — Pose construction and heading conversion. */
+    /** Challenge 44 — Pose Construction & Heading. */
     private static List<RubricRule> challenge44() {
         return Rules.of(
             Rules.required("Pose objects constructed",
@@ -1060,7 +1258,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 48 — Dynamic path building helper. */
+    /** Challenge 48 — Dynamic Path Building. */
     private static List<RubricRule> challenge48() {
         return Rules.of(
             Rules.required("Dynamic path helper",
@@ -1080,7 +1278,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 49 — Unit conversion (inches ↔ mm). */
+    /** Challenge 49 — Unit Conversion. */
     private static List<RubricRule> challenge49() {
         return Rules.of(
             Rules.required("inchesToMm implemented",
@@ -1118,7 +1316,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 51 — Linear interpolation (lerp) ramp. */
+    /** Challenge 51 — Linear Interpolation. */
     private static List<RubricRule> challenge51() {
         return Rules.of(
             Rules.required("lerp() helper implemented",
@@ -1134,7 +1332,7 @@ public final class ChallengeRubrics {
         );
     }
 
-    /** Challenge 52 — Projectile distance from TPS (inverse lookup). */
+    /** Challenge 52 — Projectile Distance from TPS. */
     private static List<RubricRule> challenge52() {
         return Rules.of(
             Rules.required("tpsToDistance() helper",

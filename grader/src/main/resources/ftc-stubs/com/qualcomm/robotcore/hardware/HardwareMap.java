@@ -10,6 +10,9 @@ public class HardwareMap {
     public <T extends HardwareDevice> T get(Class<? extends T> classOrInterface, String deviceName) {
         return null;
     }
+    public <T> java.util.List<T> getAll(Class<? extends T> classOrInterface) {
+        return java.util.Collections.emptyList();
+    }
     public Object get(String deviceName) { return null; }
 
     public <T> T tryGet(Class<? extends T> classOrInterface, String deviceName) { return null; }

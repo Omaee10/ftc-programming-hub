@@ -5,9 +5,21 @@ the real `javax.tools.JavaCompiler`, then runs a type-aware AST rubric on
 the parsed tree. Replaces the regex-based grader that used to live in
 `src/lib/codeValidator.ts`.
 
-## What it does
+## Keeping rubrics aligned with challenges
 
-1. Accepts `POST /compile { code, challengeId, mentorRules? }`.
+Challenge definitions live in `src/data/challenges.ts`. Each rubric method in
+`ChallengeRubrics.java` must have a header comment whose title matches the
+challenge title, and its **required checks + tip strings** must match that
+challenge's objectives (not generic copy-paste from another challenge).
+
+Before merging rubric changes, run:
+
+```bash
+npm run audit:rubrics
+```
+
+This fails if any challenge id is missing a rubric header or if titles diverge.
+
 2. Compiles the submission against the bundled FTC SDK source stubs (plus
    any real jars in `libs/`) using an in-memory file manager — no disk I/O.
 3. Surfaces structured compile diagnostics with student-friendly wording.
