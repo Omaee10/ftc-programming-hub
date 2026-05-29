@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useTransition } from "react";
+import { useState, useEffect, useCallback, useTransition, useRef } from "react";
 import {
   Users,
   Shield,
@@ -22,6 +22,7 @@ import {
 import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { challenges as staticChallenges } from "@/data/challenges";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -265,8 +266,14 @@ function CodeManager({
   const [newCode, setNewCode] = useState("");
   const [error, setError] = useState("");
   const [showCodes, setShowCodes] = useState<Set<string>>(new Set());
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    displayName: string;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const session = typeof window !== "undefined" ? getSession() : null;
+  const roleLabel = table === "students" ? "student" : "mentor";
 
   const load = useCallback(async () => {
     if (!session?.id) return;
@@ -325,15 +332,22 @@ function CodeManager({
     });
   };
 
-  const handleDelete = (id: string, displayName: string) => {
-    const roleLabel = table === "students" ? "student" : "mentor";
-    const confirmed = window.confirm(
-      `Delete ${roleLabel} ${displayName}? This cannot be undone.`
-    );
-    if (!confirmed) return;
+  const requestDelete = (id: string, displayName: string, trigger: HTMLButtonElement) => {
+    deleteTriggerRef.current = trigger;
+    setPendingDelete({ id, displayName });
+  };
+
+  const cancelDelete = () => {
+    if (isPending) return;
+    setPendingDelete(null);
+  };
+
+  const confirmDelete = () => {
+    if (!pendingDelete || isPending) return;
 
     startTransition(async () => {
-      await supabase.from(table).delete().eq("id", id);
+      await supabase.from(table).delete().eq("id", pendingDelete.id);
+      setPendingDelete(null);
       load();
     });
   };
@@ -423,8 +437,8 @@ function CodeManager({
                   )}
                 </button>
                 <button
-                  onClick={() => handleDelete(row.id, displayName)}
-                  disabled={isPending}
+                  onClick={(e) => requestDelete(row.id, displayName, e.currentTarget)}
+                  disabled={isPending || pendingDelete !== null}
                   className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
                   title={`Delete ${label.toLowerCase()}`}
                 >
@@ -436,6 +450,20 @@ function CodeManager({
           </ul>
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`Delete ${roleLabel}?`}
+        message={
+          pendingDelete
+            ? `Delete ${roleLabel} ${pendingDelete.displayName}? This cannot be undone.`
+            : ""
+        }
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        pending={isPending}
+        returnFocusRef={deleteTriggerRef}
+      />
 
       {/* Add form */}
       <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
