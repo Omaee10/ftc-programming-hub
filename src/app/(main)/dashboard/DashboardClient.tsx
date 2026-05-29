@@ -281,6 +281,7 @@ function MentorDashboard() {
           {[
             { label: "Mentor Portal", sub: "Students, challenges, submissions", href: "/mentor/dashboard", icon: Users },
             { label: "Coding Challenges", sub: "53 built-in challenges", href: "/challenges", icon: Code2 },
+            { label: "Team Past Programs", sub: "Real competition OpMode archive", href: "/past-programs", icon: Archive },
           ].map(({ label, sub, href, icon: Icon }) => (
             <Link
               key={href}

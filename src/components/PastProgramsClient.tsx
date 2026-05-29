@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Archive,
   ArrowRight,
@@ -14,10 +15,10 @@ import {
   Tag,
 } from "lucide-react";
 import {
-  pastPrograms,
+  pastProgramCatalog,
   categoryColors,
   type ProgramCategory,
-} from "@/data/pastPrograms";
+} from "@/data/pastProgramCatalog";
 
 const ALL = "All" as const;
 type FilterValue = typeof ALL | ProgramCategory;
@@ -30,16 +31,42 @@ const FILTERS: FilterValue[] = [
   "Subsystem Tuning",
 ];
 
-export default function PastProgramsClient() {
-  const [active, setActive] = useState<FilterValue>(ALL);
+const CATEGORY_SLUG: Record<ProgramCategory, string> = {
+  TeleOp: "teleop",
+  Autonomous: "autonomous",
+  "Vision / Diagnostics": "vision-diagnostics",
+  "Subsystem Tuning": "subsystem-tuning",
+};
 
-  const visible =
-    active === ALL
-      ? pastPrograms
-      : pastPrograms.filter((p) => p.category === active);
+const SLUG_TO_CATEGORY: Record<string, ProgramCategory> = Object.fromEntries(
+  Object.entries(CATEGORY_SLUG).map(([cat, slug]) => [slug, cat as ProgramCategory])
+) as Record<string, ProgramCategory>;
+
+export function categoryToSlug(category: FilterValue): string | null {
+  if (category === ALL) return null;
+  return CATEGORY_SLUG[category];
+}
+
+function parseCategoryParam(param: string | null): FilterValue {
+  if (!param || param === "all") return ALL;
+  return SLUG_TO_CATEGORY[param] ?? ALL;
+}
+
+export default function PastProgramsClient() {
+  const searchParams = useSearchParams();
+  const active = parseCategoryParam(searchParams.get("category"));
+  const activeSlug = categoryToSlug(active);
+
+  const visible = useMemo(
+    () =>
+      active === ALL
+        ? pastProgramCatalog
+        : pastProgramCatalog.filter((p) => p.category === active),
+    [active]
+  );
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10 space-y-10">
+    <div className="mx-auto max-w-6xl px-6 py-10 space-y-10 page-enter">
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div className="flex items-center gap-2.5">
@@ -61,7 +88,7 @@ export default function PastProgramsClient() {
         <div className="flex flex-wrap gap-4 pt-1">
           {(
             [
-              { label: "Programs", value: pastPrograms.length, icon: FileCode, color: "text-zinc-100" },
+              { label: "Programs", value: pastProgramCatalog.length, icon: FileCode, color: "text-zinc-100" },
               { label: "Season",   value: "2025–26",           icon: Calendar, color: "text-blue-400"  },
               { label: "Language", value: "Java",              icon: Code2,    color: "text-zinc-300"},
             ] as const
@@ -88,10 +115,14 @@ export default function PastProgramsClient() {
           const isAll = f === ALL;
           const colors = isAll ? null : categoryColors[f as ProgramCategory];
           const isActive = active === f;
+          const slug = categoryToSlug(f);
+          const href = slug ? `/past-programs?category=${slug}` : "/past-programs";
           return (
-            <button
+            <Link
               key={f}
-              onClick={() => setActive(f)}
+              href={href}
+              scroll={false}
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
               className={`rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150 ${
                 isActive
                   ? isAll
@@ -103,10 +134,10 @@ export default function PastProgramsClient() {
               {f}
               {f !== ALL && (
                 <span className="ml-1.5 text-[10px] opacity-60">
-                  ({pastPrograms.filter((p) => p.category === f).length})
+                  ({pastProgramCatalog.filter((p) => p.category === f).length})
                 </span>
               )}
-            </button>
+            </Link>
           );
         })}
       </div>
@@ -118,10 +149,13 @@ export default function PastProgramsClient() {
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-2">
           {visible.map((program) => {
             const colors = categoryColors[program.category];
+            const detailHref = activeSlug
+              ? `/past-programs/${program.id}?category=${activeSlug}`
+              : `/past-programs/${program.id}`;
             return (
               <Link
                 key={program.id}
-                href={`/past-programs/${program.id}`}
+                href={detailHref}
                 className="group relative flex flex-col rounded-xl border border-slate-800 bg-slate-900/60 p-5 transition-all duration-200 hover:border-slate-700 hover:bg-slate-900 hover:shadow-lg hover:shadow-black/20"
               >
                 {/* Card header */}

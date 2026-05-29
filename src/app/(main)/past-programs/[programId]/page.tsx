@@ -11,13 +11,13 @@ import {
   Tag,
 } from "lucide-react";
 
-import { getProgramById, pastPrograms, categoryColors } from "@/data/pastPrograms";
+import { getProgramById, pastProgramCatalog, categoryColors } from "@/data/pastPrograms";
 import CodeBlock from "@/components/CodeBlock";
 
 // ─── Static generation ────────────────────────────────────────────────────────
 
 export function generateStaticParams() {
-  return pastPrograms.map((p) => ({ programId: p.id }));
+  return pastProgramCatalog.map((p) => ({ programId: p.id }));
 }
 
 export async function generateMetadata({
@@ -85,21 +85,29 @@ function DescriptionBlock({ text }: { text: string }) {
 
 export default async function ProgramPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ programId: string }>;
+  searchParams: Promise<{ category?: string }>;
 }) {
   const { programId } = await params;
+  const { category } = await searchParams;
   const program = getProgramById(programId);
   if (!program) notFound();
+
+  const archiveHref =
+    category && category !== "all"
+      ? `/past-programs?category=${category}`
+      : "/past-programs";
 
   const colors = categoryColors[program.category];
 
   return (
-    <div className="mx-auto max-w-screen-2xl px-4 py-8 lg:px-8 space-y-6">
+    <div className="mx-auto max-w-screen-2xl px-4 py-8 lg:px-8 space-y-6 page-enter">
       {/* ── Breadcrumb ───────────────────────────────────────────────────── */}
       <nav className="flex items-center gap-1.5 text-xs text-slate-600">
         <Link
-          href="/past-programs"
+          href={archiveHref}
           className="flex items-center gap-1 hover:text-slate-300 transition-colors"
         >
           <Archive className="h-3 w-3" />
@@ -134,7 +142,7 @@ export default async function ProgramPage({
         </div>
 
         <Link
-          href="/past-programs"
+          href={archiveHref}
           className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-700 hover:text-slate-200 transition-all"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
