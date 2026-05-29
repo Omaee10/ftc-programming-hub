@@ -699,8 +699,10 @@ public final class ChallengeRubrics {
         return Rules.of(
             Rules.required("Error term computed (target - current)",
                 "Sign convention matters — error must be target - current.",
-                "double error = target - current;",
-                ctx -> sourceContains(ctx, Pattern.compile("(?:target|setpoint|goal)\\s*-\\s*(?:current|measured|actual|pos|getCurrentPosition)"))),
+                "int error = targetPosition - currentPosition;",
+                ctx -> sourceContains(ctx, Pattern.compile(
+                    "(?:target|setpoint|goal)\\w*\\s*-\\s*"
+                    + "(?:current\\w*|measured\\w*|actual\\w*|\\bpos\\b|getCurrentPosition\\s*\\()"))),
             Rules.required("Proportional gain applied",
                 "Multiply error by Kp.",
                 "double power = Kp * error;",
