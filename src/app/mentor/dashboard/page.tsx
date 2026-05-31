@@ -13,7 +13,6 @@ import {
   ClipboardCheck,
   Loader2,
   Code2,
-  Sparkles,
   AlertCircle,
   Eye,
   EyeOff,
@@ -604,41 +603,10 @@ function CreateChallengeTab() {
   const [tags, setTags] = useState("");
   const [objectives, setObjectives] = useState<string[]>([""]);
 
-  const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [genError, setGenError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const session = typeof window !== "undefined" ? getSession() : null;
-
-  const handleGenerate = async () => {
-    if (!gist.trim()) { setGenError("Please enter a description first."); return; }
-    setGenError("");
-    setGenerating(true);
-
-    try {
-      const res = await fetch("/api/generate-challenge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gist, title }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const json = await res.json();
-
-      if (json.title) setTitle(json.title);
-      if (json.instructions) setInstructions(json.instructions);
-      if (json.hints?.length) setHints(json.hints);
-      if (json.starterCode) setStarterCode(json.starterCode);
-      if (json.tags?.length) setTags(json.tags.join(", "));
-      if (json.objectives?.length) setObjectives(json.objectives);
-      if (json.difficulty) setDifficulty(json.difficulty);
-      if (json.xp) setXp(String(json.xp));
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : "Generation failed.");
-    } finally {
-      setGenerating(false);
-    }
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -702,10 +670,10 @@ function CreateChallengeTab() {
         />
       </div>
 
-      {/* Gist + AI generate */}
+      {/* Gist */}
       <div>
         <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-slate-500">
-          Gist / Description (for AI)
+          Gist / Description
         </label>
         <textarea
           value={gist}
@@ -714,25 +682,6 @@ function CreateChallengeTab() {
           placeholder="Briefly describe what this challenge should teach..."
           className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400/30 resize-none"
         />
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={generating}
-          className="mt-2 flex items-center gap-2 rounded-lg border border-white/15 bg-white/8 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-white/15 transition-all disabled:opacity-50"
-        >
-          {generating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
-          )}
-          {generating ? "Generating…" : "Generate with AI"}
-        </button>
-        {genError && (
-          <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
-            <span className="text-xs text-red-400">{genError}</span>
-          </div>
-        )}
       </div>
 
       {/* Difficulty + XP */}
