@@ -95,13 +95,13 @@ function ProgressTab() {
   const [loading, setLoading] = useState(true);
   const session = typeof window !== "undefined" ? getSession() : null;
 
+  const dbIds = new Set(dbChallenges.map((c) => c.id));
   const allChallenges = [
-    ...staticChallenges.map((c) => ({
-      id: c.id,
-      title: c.title,
-    })),
+    ...staticChallenges
+      .filter((c) => !dbIds.has(c.id))
+      .map((c) => ({ id: c.id, title: c.title })),
     ...dbChallenges.map((c) => ({ id: c.id, title: c.title })),
-  ];
+  ].sort((a, b) => a.id - b.id);
 
   const load = useCallback(async () => {
     if (!session?.id) return;
@@ -128,16 +128,22 @@ function ProgressTab() {
     ];
 
     setData(
-      studentList.map((student) => ({
-        student,
-        records: ((progress ?? []) as ProgressRow[]).filter(
-          (r) => r.student_id === student.id
-        ),
-        totalChallenges: allCh.length,
-        homework: homeworkRows.filter(
+      studentList.map((student) => {
+        const studentHomework = homeworkRows.filter(
           (h) => h.student_id === student.id
-        ),
-      }))
+        );
+        const homeworkIds = new Set(studentHomework.map((h) => h.challenge_id));
+        const studentRecords = ((progress ?? []) as ProgressRow[]).filter(
+          (r) => r.student_id === student.id && !homeworkIds.has(r.challenge_id)
+        );
+
+        return {
+          student,
+          records: studentRecords,
+          totalChallenges: allCh.filter((id) => !homeworkIds.has(id)).length,
+          homework: studentHomework,
+        };
+      })
     );
     setLoading(false);
   }, [session?.id]);
@@ -172,6 +178,10 @@ function ProgressTab() {
       {data.map(({ student, records, totalChallenges, homework }) => {
         const completedCount = records.filter((r) => r.completed).length;
         const homeworkCompleted = homework.filter((h) => h.completed).length;
+        const homeworkIds = new Set(homework.map((h) => h.challenge_id));
+        const availableChallenges = allChallenges.filter(
+          (ch) => !homeworkIds.has(ch.id)
+        );
         const isOpen = expanded.has(student.id);
 
         return (
@@ -280,7 +290,7 @@ function ProgressTab() {
                     All Challenges
                   </p>
                   <div className="space-y-2">
-                {allChallenges.map((ch) => {
+                {availableChallenges.map((ch, index) => {
                   const rec = records.find((r) => r.challenge_id === ch.id);
                   const done = rec?.completed ?? false;
                   return (
@@ -297,7 +307,7 @@ function ProgressTab() {
                         <p
                           className={`text-xs font-medium ${done ? "text-emerald-300" : "text-slate-400"}`}
                         >
-                          {ch.id}. {ch.title}
+                          {index + 1}. {ch.title}
                         </p>
                         {rec?.code_snapshot && (
                           <details className="mt-1">
