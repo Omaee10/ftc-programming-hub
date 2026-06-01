@@ -20,6 +20,9 @@ export const metadata: Metadata = {
   },
   description:
     "FIRST Tech Challenge programming tutorials, documentation, and coding challenges.",
+  verification: {
+    google: "4dQld-gjcfwQ6J8Zm_K68XtbIC36RDx_4f3-j-XPYTw",
+  },
 };
 
 export default function RootLayout({
