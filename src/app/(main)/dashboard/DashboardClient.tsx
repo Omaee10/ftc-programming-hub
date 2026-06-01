@@ -22,8 +22,16 @@ import {
 } from "@/data/challenges";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
+import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
 import { supabase } from "@/lib/supabase";
 import DashboardDocSearch from "@/components/DashboardDocSearch";
+import {
+  filterOutAssigned,
+  computeDisplayNumbers,
+  mergeChallenges,
+  rowToChallenge,
+} from "@/lib/homeworkUtils";
+import type { ChallengeRow } from "@/lib/supabase";
 
 function calcStreak(completedDates: string[]): number {
   if (completedDates.length === 0) return 0;
@@ -321,12 +329,12 @@ function MentorDashboard() {
 export default function DashboardClient({ name }: { name?: string }) {
   const local = useChallengeProgress();
   const db = useSupabaseProgress();
+  const homework = useHomeworkAssignments();
 
-  const hydrated = local.hydrated && db.hydrated;
+  const hydrated = local.hydrated && db.hydrated && homework.hydrated;
   const completedIds = hydrated
     ? Array.from(new Set([...local.completedIds, ...db.completedIds]))
     : [];
-  const completedCount = completedIds.length;
   const progress = local.progress;
 
   const attemptedCount = hydrated
@@ -336,7 +344,7 @@ export default function DashboardClient({ name }: { name?: string }) {
       ]).size
     : 0;
 
-  const [dbChallengeXP, setDbChallengeXP] = useState<Record<number, number>>({});
+  const [dbChallenges, setDbChallenges] = useState<ReturnType<typeof mergeChallenges>>([]);
   useEffect(() => {
     const session = getSession();
     if (!session) return;
@@ -348,13 +356,12 @@ export default function DashboardClient({ name }: { name?: string }) {
 
     supabase
       .from("challenges")
-      .select("id, xp")
+      .select("*")
       .eq("created_by", mentorOwnerId)
+      .order("id", { ascending: true })
       .then(({ data }) => {
         if (data) {
-          const map: Record<number, number> = {};
-          data.forEach((r: { id: number; xp: number }) => { map[r.id] = r.xp; });
-          setDbChallengeXP(map);
+          setDbChallenges((data as ChallengeRow[]).map(rowToChallenge));
         }
       });
   }, []);
@@ -380,16 +387,25 @@ export default function DashboardClient({ name }: { name?: string }) {
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────
-  const totalChallenges = staticChallenges.length;
+  const availableChallenges = filterOutAssigned(
+    mergeChallenges(dbChallenges),
+    homework.assignedIds
+  );
+  const { orderedChallenges } = computeDisplayNumbers(availableChallenges);
+  const availableIds = new Set(availableChallenges.map((c) => c.id));
 
-  const xpEarned = completedIds.reduce((sum, id) => {
-    const staticC = staticChallenges.find((c) => c.id === id);
-    return sum + (staticC?.xp ?? dbChallengeXP[id] ?? 0);
+  const filteredCompletedIds = completedIds.filter((id) => availableIds.has(id));
+  const completedCount = filteredCompletedIds.length;
+  const totalChallenges = availableChallenges.length;
+
+  const xpEarned = filteredCompletedIds.reduce((sum, id) => {
+    const c = availableChallenges.find((ch) => ch.id === id);
+    return sum + (c?.xp ?? 0);
   }, 0);
 
-  const completedSet = new Set(completedIds);
+  const completedSet = new Set(filteredCompletedIds);
 
-  const completedDates = completedIds
+  const completedDates = filteredCompletedIds
     .map((id) => progress[id])
     .filter(Boolean as unknown as (v: string | undefined) => v is string);
 
@@ -400,23 +416,19 @@ export default function DashboardClient({ name }: { name?: string }) {
     : 0;
 
   const recentActivity = hydrated
-    ? completedIds
+    ? filteredCompletedIds
         .map((id) => ({ id, date: progress[id] }))
         .filter((x): x is { id: number; date: string } => !!x.date)
         .sort((a, b) => (a.date > b.date ? -1 : 1))
         .slice(0, 2)
         .map(({ id, date }) => {
-          const challenge = staticChallenges.find((c) => c.id === id);
+          const challenge = availableChallenges.find((c) => c.id === id);
           return {
             label: challenge?.title ?? `Challenge #${id}`,
             time: relativeTime(date),
           };
         })
     : [];
-
-  const orderedChallenges = difficultyOrder.flatMap((diff) =>
-    staticChallenges.filter((c) => c.difficulty === diff)
-  );
 
   const nextChallenge = hydrated
     ? (() => {

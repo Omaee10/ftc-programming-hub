@@ -12,12 +12,23 @@ interface MarkCompleteButtonProps {
   xp: number;
   /** The last grade returned by the grader, or null if code hasn't been submitted yet. */
   lastGrade?: "good" | "needs-improvement" | "wrong" | null;
+  /** When set, overrides default progress-based completion check. */
+  forceCompleted?: boolean;
+  /** Custom complete handler (e.g. homework assignments). */
+  onComplete?: () => Promise<void>;
+  /** Custom reset handler for homework mode. */
+  onReset?: () => Promise<void>;
+  completeLabel?: string;
 }
 
 export default function MarkCompleteButton({
   challengeId,
   xp,
   lastGrade,
+  forceCompleted,
+  onComplete,
+  onReset,
+  completeLabel = "Mark as Complete",
 }: MarkCompleteButtonProps) {
   const local = useChallengeProgress();
   const db = useSupabaseProgress(challengeId);
@@ -53,7 +64,10 @@ export default function MarkCompleteButton({
     );
   }
 
-  const done = local.isCompleted(challengeId) || db.isCompleted(challengeId);
+  const done =
+    forceCompleted !== undefined
+      ? forceCompleted
+      : local.isCompleted(challengeId) || db.isCompleted(challengeId);
 
   if (done) {
     return (
@@ -65,23 +79,43 @@ export default function MarkCompleteButton({
             <span className="text-xs text-emerald-700">+{xp} XP earned</span>
           </div>
         </div>
-        <button
-          onClick={async () => {
-            setBusy(true);
-            local.markIncomplete(challengeId);
-            await db.markIncomplete(challengeId);
-            setBusy(false);
-          }}
-          disabled={busy}
-          className="flex items-center gap-1.5 px-3 py-2 text-xs text-slate-600 hover:text-slate-300 transition-colors disabled:opacity-50"
-        >
-          {busy ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <RotateCcw className="h-3 w-3" />
-          )}
-          Reset
-        </button>
+        {onReset && (
+          <button
+            onClick={async () => {
+              setBusy(true);
+              await onReset();
+              setBusy(false);
+            }}
+            disabled={busy}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs text-slate-600 hover:text-slate-300 transition-colors disabled:opacity-50"
+          >
+            {busy ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3 w-3" />
+            )}
+            Reset
+          </button>
+        )}
+        {!onReset && (
+          <button
+            onClick={async () => {
+              setBusy(true);
+              local.markIncomplete(challengeId);
+              await db.markIncomplete(challengeId);
+              setBusy(false);
+            }}
+            disabled={busy}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs text-slate-600 hover:text-slate-300 transition-colors disabled:opacity-50"
+          >
+            {busy ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3 w-3" />
+            )}
+            Reset
+          </button>
+        )}
       </div>
     );
   }
@@ -93,8 +127,12 @@ export default function MarkCompleteButton({
 
   const completeChallenge = async () => {
     setBusy(true);
-    local.markComplete(challengeId);
-    await db.markComplete(challengeId);
+    if (onComplete) {
+      await onComplete();
+    } else {
+      local.markComplete(challengeId);
+      await db.markComplete(challengeId);
+    }
     setBusy(false);
     setJustCompleted(true);
   };
@@ -129,7 +167,7 @@ export default function MarkCompleteButton({
         ) : (
           <CheckCircle2 className="h-4 w-4" />
         )}
-        <span>{justCompleted ? `+${xp} XP earned!` : "Mark as Complete"}</span>
+        <span>{justCompleted ? `+${xp} XP earned!` : completeLabel}</span>
         {!justCompleted && (
           <span className="ml-0.5 text-xs text-white/70 font-normal">+{xp} XP</span>
         )}

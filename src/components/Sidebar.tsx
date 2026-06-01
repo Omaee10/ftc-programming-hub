@@ -8,6 +8,7 @@ import {
   BookOpen,
   Code2,
   ChevronDown,
+  ClipboardList,
   ChevronRight,
   X,
   Cpu,
@@ -85,6 +86,11 @@ const navigation: NavSection[] = [
         label: "Coding Challenges",
         href: "/challenges",
         icon: Code2,
+      },
+      {
+        label: "Coding Homework",
+        href: "/homework",
+        icon: ClipboardList,
       },
       {
         label: "Team Past Programs",

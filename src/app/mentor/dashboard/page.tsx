@@ -17,20 +17,22 @@ import {
   Eye,
   EyeOff,
   BarChart3,
+  BookOpen,
 } from "lucide-react";
-import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow } from "@/lib/supabase";
+import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow, type HomeworkAssignmentRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { challenges as staticChallenges } from "@/data/challenges";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = "progress" | "mentors" | "students" | "create" | "challenges" | "grade";
+type Tab = "progress" | "mentors" | "students" | "create" | "challenges" | "grade" | "homework";
 
 interface StudentProgress {
   student: StudentRow;
   records: ProgressRow[];
   totalChallenges: number;
+  homework: HomeworkAssignmentRow[];
 }
 
 type EnrichedSubmission = SubmissionRow & {
@@ -105,14 +107,18 @@ function ProgressTab() {
     if (!session?.id) return;
     setLoading(true);
     const ownerId = classOwner(session);
-    const [{ data: students }, { data: challenges }, { data: progress }] =
+    const [{ data: students }, { data: challenges }, { data: progress }, { data: homework }] =
       await Promise.all([
         supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
         supabase.from("challenges").select("id, title").eq("created_by", ownerId).order("id"),
         supabase.from("student_challenge_progress").select("*"),
+        supabase.from("homework_assignments").select("*"),
       ]);
 
     setDbChallenges((challenges ?? []) as ChallengeRow[]);
+
+    const studentList = (students ?? []) as StudentRow[];
+    const homeworkRows = (homework ?? []) as HomeworkAssignmentRow[];
 
     const allCh = [
       ...staticChallenges.map((c) => c.id),
@@ -122,12 +128,15 @@ function ProgressTab() {
     ];
 
     setData(
-      ((students ?? []) as StudentRow[]).map((student) => ({
+      studentList.map((student) => ({
         student,
         records: ((progress ?? []) as ProgressRow[]).filter(
           (r) => r.student_id === student.id
         ),
         totalChallenges: allCh.length,
+        homework: homeworkRows.filter(
+          (h) => h.student_id === student.id
+        ),
       }))
     );
     setLoading(false);
@@ -160,8 +169,9 @@ function ProgressTab() {
 
   return (
     <div className="space-y-3">
-      {data.map(({ student, records, totalChallenges }) => {
+      {data.map(({ student, records, totalChallenges, homework }) => {
         const completedCount = records.filter((r) => r.completed).length;
+        const homeworkCompleted = homework.filter((h) => h.completed).length;
         const isOpen = expanded.has(student.id);
 
         return (
@@ -182,6 +192,12 @@ function ProgressTab() {
                 </p>
                 <p className="text-xs text-slate-500">
                   {completedCount} / {totalChallenges} challenges completed
+                  {homework.length > 0 && (
+                    <span className="text-slate-600">
+                      {" · "}
+                      {homeworkCompleted} / {homework.length} homework
+                    </span>
+                  )}
                 </p>
               </div>
 
@@ -205,7 +221,65 @@ function ProgressTab() {
             </button>
 
             {isOpen && (
-              <div className="border-t border-slate-800 px-5 py-4 space-y-2">
+              <div className="border-t border-slate-800 px-5 py-4 space-y-4">
+                {homework.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-2">
+                      Homework ({homeworkCompleted}/{homework.length})
+                    </p>
+                    <div className="space-y-2">
+                      {homework.map((hw) => {
+                        const ch = allChallenges.find((c) => c.id === hw.challenge_id);
+                        const dueLabel = hw.due_date
+                          ? new Date(hw.due_date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : null;
+                        return (
+                          <div
+                            key={hw.id}
+                            className="flex items-start gap-3 rounded-lg border border-slate-800/60 bg-slate-900/60 px-3 py-2.5"
+                          >
+                            {hw.completed ? (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                            ) : (
+                              <Circle className="h-4 w-4 shrink-0 text-slate-600 mt-0.5" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className={`text-xs font-medium ${hw.completed ? "text-emerald-300" : "text-slate-400"}`}
+                              >
+                                {ch?.title ?? `Challenge #${hw.challenge_id}`}
+                                {dueLabel && (
+                                  <span className="ml-2 text-slate-600 font-normal">
+                                    Due {dueLabel}
+                                  </span>
+                                )}
+                              </p>
+                              {hw.code_snapshot && (
+                                <details className="mt-1">
+                                  <summary className="cursor-pointer text-[10px] text-slate-600 hover:text-slate-400">
+                                    View saved code
+                                  </summary>
+                                  <pre className="mt-1 max-h-32 overflow-auto rounded bg-slate-950 p-2 text-[10px] text-slate-400 font-mono">
+                                    {hw.code_snapshot}
+                                  </pre>
+                                </details>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-2">
+                    All Challenges
+                  </p>
+                  <div className="space-y-2">
                 {allChallenges.map((ch) => {
                   const rec = records.find((r) => r.challenge_id === ch.id);
                   const done = rec?.completed ?? false;
@@ -239,11 +313,335 @@ function ProgressTab() {
                     </div>
                   );
                 })}
+                  </div>
+                </div>
               </div>
             )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── Assign Homework Tab ──────────────────────────────────────────────────────
+
+function AssignHomeworkTab() {
+  const session = typeof window !== "undefined" ? getSession() : null;
+  const [students, setStudents] = useState<StudentRow[]>([]);
+  const [dbChallenges, setDbChallenges] = useState<ChallengeRow[]>([]);
+  const [assignments, setAssignments] = useState<
+    (HomeworkAssignmentRow & { studentName: string; challengeTitle: string })[]
+  >([]);
+  const [selectedChallenge, setSelectedChallenge] = useState<number | "">("");
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [dueDate, setDueDate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const allChallengeOptions = [
+    ...staticChallenges.map((c) => ({ id: c.id, title: c.title })),
+    ...dbChallenges
+      .filter((c) => !staticChallenges.find((s) => s.id === c.id))
+      .map((c) => ({ id: c.id, title: c.title })),
+  ].sort((a, b) => a.id - b.id);
+
+  const load = useCallback(async () => {
+    if (!session?.id) return;
+    setLoading(true);
+    const ownerId = classOwner(session);
+
+    const [{ data: studentRows }, { data: challengeRows }, { data: hwRows }] =
+      await Promise.all([
+        supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
+        supabase.from("challenges").select("*").eq("created_by", ownerId).order("id"),
+        supabase.from("homework_assignments").select("*").order("assigned_at", { ascending: false }),
+      ]);
+
+    const studentList = (studentRows ?? []) as StudentRow[];
+    const studentIds = new Set(studentList.map((s) => s.id));
+    const challengeList = (challengeRows ?? []) as ChallengeRow[];
+
+    setStudents(studentList);
+    setDbChallenges(challengeList);
+
+    const titleMap = new Map<number, string>();
+    staticChallenges.forEach((c) => titleMap.set(c.id, c.title));
+    challengeList.forEach((c) => titleMap.set(c.id, c.title));
+
+    const nameMap = new Map(studentList.map((s) => [s.id, s.name]));
+
+    setAssignments(
+      ((hwRows ?? []) as HomeworkAssignmentRow[])
+        .filter((h) => studentIds.has(h.student_id))
+        .map((h) => ({
+          ...h,
+          studentName: nameMap.get(h.student_id) ?? "Unknown",
+          challengeTitle: titleMap.get(h.challenge_id) ?? `Challenge #${h.challenge_id}`,
+        }))
+    );
+    setLoading(false);
+  }, [session?.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const toggleStudent = (id: string) => {
+    setSelectedStudents((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllStudents = () => {
+    setSelectedStudents(new Set(students.map((s) => s.id)));
+  };
+
+  const clearStudents = () => setSelectedStudents(new Set());
+
+  const handleAssign = async (studentIds: string[]) => {
+    if (!session?.id || selectedChallenge === "") {
+      setError("Select a challenge first.");
+      return;
+    }
+    if (studentIds.length === 0) {
+      setError("Select at least one student.");
+      return;
+    }
+
+    setAssigning(true);
+    setError("");
+    setMessage("");
+
+    const due = dueDate ? new Date(dueDate).toISOString() : null;
+    const rows = studentIds.map((studentId) => ({
+      student_id: studentId,
+      challenge_id: selectedChallenge as number,
+      assigned_by: session.id,
+      due_date: due,
+    }));
+
+    const { error: upsertError } = await supabase
+      .from("homework_assignments")
+      .upsert(rows, { onConflict: "student_id,challenge_id", ignoreDuplicates: true });
+
+    setAssigning(false);
+
+    if (upsertError) {
+      setError(upsertError.message);
+      return;
+    }
+
+    setMessage(`Assigned to ${studentIds.length} student${studentIds.length === 1 ? "" : "s"}.`);
+    setSelectedStudents(new Set());
+    await load();
+  };
+
+  const handleUnassign = async (assignmentId: string) => {
+    const { error: delError } = await supabase
+      .from("homework_assignments")
+      .delete()
+      .eq("id", assignmentId);
+
+    if (delError) {
+      setError(delError.message);
+      return;
+    }
+    await load();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-zinc-100" />
+      </div>
+    );
+  }
+
+  if (students.length === 0) {
+    return (
+      <p className="py-12 text-center text-sm text-slate-500">
+        No students yet. Add students in the &quot;Manage Students&quot; tab.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Assign form */}
+      <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-5 space-y-5">
+        <h3 className="text-sm font-semibold text-slate-200">Assign Homework</h3>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1.5">Challenge</label>
+            <select
+              value={selectedChallenge}
+              onChange={(e) =>
+                setSelectedChallenge(e.target.value ? Number(e.target.value) : "")
+              }
+              className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+            >
+              <option value="">Select a challenge…</option>
+              {allChallengeOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  #{c.id} — {c.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1.5">
+              Due date <span className="text-slate-700">(optional)</span>
+            </label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+            />
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs text-slate-500">Students</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAllStudents}
+                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Select all
+              </button>
+              <span className="text-slate-700">·</span>
+              <button
+                type="button"
+                onClick={clearStudents}
+                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {students.map((s) => (
+              <label
+                key={s.id}
+                className="flex items-center gap-2 rounded-md border border-slate-800/60 bg-slate-950/60 px-3 py-2 cursor-pointer hover:border-slate-700 transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedStudents.has(s.id)}
+                  onChange={() => toggleStudent(s.id)}
+                  className="rounded border-slate-600"
+                />
+                <span className="text-sm text-slate-300">{s.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-400 flex items-center gap-1">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            {error}
+          </p>
+        )}
+        {message && (
+          <p className="text-xs text-emerald-400">{message}</p>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={assigning}
+            onClick={() => void handleAssign(Array.from(selectedStudents))}
+            className="rounded-md bg-zinc-200 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-white transition-colors disabled:opacity-50"
+          >
+            {assigning ? "Assigning…" : "Assign Selected"}
+          </button>
+          <button
+            type="button"
+            disabled={assigning}
+            onClick={() => void handleAssign(students.map((s) => s.id))}
+            className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800/50 transition-colors disabled:opacity-50"
+          >
+            Assign to All
+          </button>
+        </div>
+      </div>
+
+      {/* Current assignments */}
+      <div>
+        <h3 className="text-sm font-semibold text-slate-200 mb-3">
+          Current Assignments ({assignments.length})
+        </h3>
+        {assignments.length === 0 ? (
+          <p className="text-sm text-slate-500 py-6 text-center rounded-lg border border-slate-800/60 bg-slate-900/40">
+            No homework assigned yet.
+          </p>
+        ) : (
+          <div className="rounded-lg border border-slate-800/60 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-900/60 text-left text-[11px] uppercase tracking-wider text-slate-500">
+                    <th className="px-4 py-3 font-medium">Student</th>
+                    <th className="px-4 py-3 font-medium">Challenge</th>
+                    <th className="px-4 py-3 font-medium">Due</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {assignments.map((a) => {
+                    const dueLabel = a.due_date
+                      ? new Date(a.due_date).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "—";
+                    return (
+                      <tr key={a.id} className="bg-slate-900/20 hover:bg-slate-900/40">
+                        <td className="px-4 py-3 text-slate-300">{a.studentName}</td>
+                        <td className="px-4 py-3 text-slate-400">{a.challengeTitle}</td>
+                        <td className="px-4 py-3 text-slate-500 text-xs">{dueLabel}</td>
+                        <td className="px-4 py-3">
+                          {a.completed ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Complete
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-500">Pending</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => void handleUnassign(a.id)}
+                            className="text-xs text-slate-600 hover:text-red-400 transition-colors"
+                          >
+                            Unassign
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1261,6 +1659,12 @@ export default function MentorDashboardPage() {
           label="Create Challenge"
         />
         <TabButton
+          active={tab === "homework"}
+          onClick={() => setTab("homework")}
+          icon={BookOpen}
+          label="Assign Homework"
+        />
+        <TabButton
           active={tab === "grade"}
           onClick={() => setTab("grade")}
           icon={ClipboardCheck}
@@ -1287,6 +1691,7 @@ export default function MentorDashboardPage() {
       )}
       {tab === "challenges" && <ManageChallengesTab />}
       {tab === "create" && <CreateChallengeTab />}
+      {tab === "homework" && <AssignHomeworkTab />}
       {tab === "grade" && (
         <GradeSubmissionsTab onCountChange={setPendingCount} />
       )}

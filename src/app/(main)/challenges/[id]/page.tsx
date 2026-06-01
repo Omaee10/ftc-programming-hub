@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getChallengeById, type Challenge } from "@/data/challenges";
 import { supabase, type ChallengeRow } from "@/lib/supabase";
-import ChallengeWorkspace from "@/components/ChallengeWorkspace";
+import ChallengeRedirectGuard from "@/components/ChallengeRedirectGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -62,5 +62,5 @@ export default async function ChallengePage({
   const { id } = await params;
   const challenge = await getChallenge(Number(id));
   if (!challenge) notFound();
-  return <ChallengeWorkspace challenge={challenge} />;
+  return <ChallengeRedirectGuard challenge={challenge} />;
 }

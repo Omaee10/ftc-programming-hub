@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
+import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
 import { getSession } from "@/lib/auth";
 import { supabase, type ChallengeRow } from "@/lib/supabase";
 import { useState, useEffect } from "react";
@@ -22,23 +23,12 @@ import {
   type Challenge,
   type Difficulty,
 } from "@/data/challenges";
-
-function rowToChallenge(row: ChallengeRow): Challenge {
-  return {
-    id: row.id,
-    title: row.title,
-    difficulty: row.difficulty as Challenge["difficulty"],
-    description: row.description,
-    xp: row.xp,
-    estimatedTime: row.estimated_time,
-    tags: row.tags,
-    objectives: row.objectives,
-    instructions: row.instructions,
-    starterCode: row.starter_code,
-    hints: row.hints,
-    conceptsCovered: row.concepts_covered,
-  };
-}
+import {
+  rowToChallenge,
+  mergeChallenges,
+  filterOutAssigned,
+  computeDisplayNumbers,
+} from "@/lib/homeworkUtils";
 
 // ─── Individual card ──────────────────────────────────────────────────────
 
@@ -153,6 +143,7 @@ export default function ChallengesClient() {
 
   const local = useChallengeProgress();
   const db = useSupabaseProgress();
+  const homework = useHomeworkAssignments();
 
   // Fetch only the challenges scoped to this user's mentor.
   // Students see only their own mentor's challenges.
@@ -196,11 +187,11 @@ export default function ChallengesClient() {
     })();
   }, []);
 
-  const dbIds = new Set(dbChallenges.map((c) => c.id));
-  const challenges = [
-    ...staticChallenges.filter((c) => !dbIds.has(c.id)),
-    ...dbChallenges,
-  ].sort((a, b) => a.id - b.id);
+  const allChallenges = mergeChallenges(dbChallenges);
+  const challenges = filterOutAssigned(
+    allChallenges,
+    isMentor ? [] : homework.assignedIds
+  );
 
   const isCompleted = (id: number) => local.isCompleted(id) || db.isCompleted(id);
   const hydrated = local.hydrated;
@@ -222,15 +213,7 @@ export default function ChallengesClient() {
     Advanced: challenges.filter((c) => c.difficulty === "Advanced"),
   };
 
-  const displayNumbers: Record<number, number> = {};
-  const orderedChallenges: typeof challenges = [];
-  let counter = 1;
-  for (const diff of difficultyOrder) {
-    for (const c of byDifficulty[diff]) {
-      displayNumbers[c.id] = counter++;
-      orderedChallenges.push(c);
-    }
-  }
+  const { displayNumbers, orderedChallenges } = computeDisplayNumbers(challenges);
 
   const totalChallenges = challenges.length;
 

@@ -581,8 +581,18 @@ function GradeBadge({ grade }: { grade: SubmissionRow["grade"] }) {
 
 export default function ChallengeWorkspace({
   challenge,
+  homeworkMode = false,
+  homeworkCompleted = false,
+  onHomeworkComplete,
+  backHref = "/challenges",
+  backLabel = "Challenges",
 }: {
   challenge: Challenge;
+  homeworkMode?: boolean;
+  homeworkCompleted?: boolean;
+  onHomeworkComplete?: (code: string) => Promise<void>;
+  backHref?: string;
+  backLabel?: string;
 }) {
   const { theme } = useTheme();
   const monacoTheme = (theme === "light" || theme === "paper") ? "ftc-light" : "ftc-dark";
@@ -609,7 +619,7 @@ export default function ChallengeWorkspace({
 
   const isCompleted = (id: number) =>
     isCompletedLocal(id) || isCompletedDB(id);
-  const done = isCompleted(challenge.id);
+  const done = homeworkMode ? homeworkCompleted : isCompleted(challenge.id);
 
   // Combined mark-complete: writes to both localStorage and Supabase
   const markComplete = async (id: number) => {
@@ -1001,7 +1011,11 @@ export default function ChallengeWorkspace({
 
     // ── Auto-complete on "Good" ────────────────────────────────────────
     if (grade === "good") {
-      await markComplete(challenge.id);
+      if (homeworkMode && onHomeworkComplete) {
+        await onHomeworkComplete(code);
+      } else if (!homeworkMode) {
+        await markComplete(challenge.id);
+      }
     }
 
     // ── Populate live check statuses for the left panel ────────────────
@@ -1046,7 +1060,7 @@ export default function ChallengeWorkspace({
     setFailedImprovements(improveFails);
     setLastGrade(grade);
     setIsRunning(false);
-  }, [code, challenge, isRunning, appendEntry, markComplete]);
+  }, [code, challenge, isRunning, appendEntry, markComplete, homeworkMode, onHomeworkComplete]);
 
   // ── Left panel section toggles ─────────────────────────────────────────
   const [showObjectives, setShowObjectives] = useState(true);
@@ -1063,11 +1077,11 @@ export default function ChallengeWorkspace({
       {/* ── Workspace top bar ──────────────────────────────────────────── */}
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/95 px-3 backdrop-blur-md min-w-0">
         <Link
-          href="/challenges"
+          href={backHref}
           className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-600 link-accent transition-colors"
         >
           <ArrowLeft className="h-3 w-3" />
-          <span>Challenges</span>
+          <span>{backLabel}</span>
         </Link>
 
         <span className="text-slate-800 text-xs">/</span>
@@ -1322,6 +1336,13 @@ export default function ChallengeWorkspace({
                     challengeId={challenge.id}
                     xp={challenge.xp}
                     lastGrade={lastGrade}
+                    forceCompleted={homeworkMode ? homeworkCompleted : undefined}
+                    onComplete={
+                      homeworkMode && onHomeworkComplete
+                        ? () => onHomeworkComplete(code)
+                        : undefined
+                    }
+                    completeLabel={homeworkMode ? "Mark Homework Complete" : "Mark as Complete"}
                   />
                 </div>
               </>

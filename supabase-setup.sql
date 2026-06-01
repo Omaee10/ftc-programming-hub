@@ -123,12 +123,44 @@ CREATE TABLE IF NOT EXISTS challenge_submissions (
 -- );
 -- ALTER TABLE challenge_submissions DISABLE ROW LEVEL SECURITY;
 
+-- Homework assignments (mentor assigns challenges to individual students)
+-- challenge_id is a plain integer (no FK) so static IDs 1–53 and custom 1000+ work.
+CREATE TABLE IF NOT EXISTS homework_assignments (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id    uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  challenge_id  integer NOT NULL,
+  assigned_by   uuid REFERENCES mentors(id) ON DELETE SET NULL,
+  assigned_at   timestamptz DEFAULT now(),
+  due_date      timestamptz,
+  completed     boolean NOT NULL DEFAULT false,
+  completed_at  timestamptz,
+  code_snapshot text,
+  UNIQUE (student_id, challenge_id)
+);
+
+-- ─── Migration: add homework_assignments to existing databases ────────────────
+-- Run this if the other tables already exist:
+-- CREATE TABLE IF NOT EXISTS homework_assignments (
+--   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+--   challenge_id integer NOT NULL,
+--   assigned_by uuid REFERENCES mentors(id) ON DELETE SET NULL,
+--   assigned_at timestamptz DEFAULT now(),
+--   due_date timestamptz,
+--   completed boolean NOT NULL DEFAULT false,
+--   completed_at timestamptz,
+--   code_snapshot text,
+--   UNIQUE (student_id, challenge_id)
+-- );
+-- ALTER TABLE homework_assignments DISABLE ROW LEVEL SECURITY;
+
 -- ─── Disable RLS (internal tool — enable & add policies before going public) ──
 ALTER TABLE mentors                    DISABLE ROW LEVEL SECURITY;
 ALTER TABLE students                   DISABLE ROW LEVEL SECURITY;
 ALTER TABLE challenges                 DISABLE ROW LEVEL SECURITY;
 ALTER TABLE student_challenge_progress DISABLE ROW LEVEL SECURITY;
 ALTER TABLE challenge_submissions      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE homework_assignments       DISABLE ROW LEVEL SECURITY;
 
 -- ─── Migration: drop FK on challenge_id so static challenges (IDs 1–999) ────
 -- can be stored alongside DB-created challenges (IDs 1000+).

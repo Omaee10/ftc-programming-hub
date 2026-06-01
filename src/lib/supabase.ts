@@ -93,3 +93,15 @@ export interface SubmissionRow {
   graded_at: string | null;
   graded_by: string | null;
 }
+
+export interface HomeworkAssignmentRow {
+  id: string;
+  student_id: string;
+  challenge_id: number;
+  assigned_by: string | null;
+  assigned_at: string;
+  due_date: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  code_snapshot: string | null;
+}
