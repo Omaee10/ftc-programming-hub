@@ -25,6 +25,7 @@ import {
   MoveRight,
   ActivitySquare,
 } from "lucide-react";
+import { getSession } from "@/lib/auth";
 interface NavChild {
   label: string;
   href: string;
@@ -209,11 +210,26 @@ function DocsGroup({ onLinkClick }: { onLinkClick?: () => void }) {
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [isStudent, setIsStudent] = useState(false);
+
+  useEffect(() => {
+    const syncRole = () => setIsStudent(getSession()?.role === "student");
+    syncRole();
+    window.addEventListener("ftc-session-updated", syncRole);
+    return () => window.removeEventListener("ftc-session-updated", syncRole);
+  }, []);
 
   useEffect(() => {
     onClose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
+  const visibleNavigation = navigation.map((section) => ({
+    ...section,
+    items: section.items.filter(
+      (item) => item.href !== "/homework" || isStudent
+    ),
+  }));
 
   return (
     <>
@@ -258,7 +274,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto sidebar-scroll py-4 px-3 space-y-5">
-          {navigation.map((section) => (
+          {visibleNavigation.map((section) => (
             <div key={section.section}>
               <p className="mb-1.5 px-3 text-[10px] font-medium uppercase tracking-widest text-slate-700">
                 {section.section}

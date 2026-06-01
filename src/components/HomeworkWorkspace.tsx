@@ -7,6 +7,7 @@ import type { Challenge } from "@/data/challenges";
 import ChallengeWorkspace from "@/components/ChallengeWorkspace";
 import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
 import { supabase, type ChallengeRow } from "@/lib/supabase";
+import { getSession } from "@/lib/auth";
 import { rowToChallenge } from "@/lib/homeworkUtils";
 
 export default function HomeworkWorkspace({
@@ -26,6 +27,11 @@ export default function HomeworkWorkspace({
   const [challenge, setChallenge] = useState<Challenge | null>(initialChallenge);
 
   useEffect(() => {
+    const session = getSession();
+    if (session?.role === "mentor") {
+      router.replace("/mentor/dashboard");
+      return;
+    }
     if (!hydrated) return;
     if (!isAssigned(challengeId)) {
       router.replace("/homework");

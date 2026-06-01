@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   Clock,
@@ -113,8 +114,16 @@ function HomeworkCard({
 }
 
 export default function HomeworkClient() {
+  const router = useRouter();
   const { assignments, hydrated } = useHomeworkAssignments();
   const [dbChallenges, setDbChallenges] = useState<Challenge[]>([]);
+
+  useEffect(() => {
+    const session = getSession();
+    if (session?.role === "mentor") {
+      router.replace("/mentor/dashboard");
+    }
+  }, [router]);
 
   useEffect(() => {
     const session = getSession();
