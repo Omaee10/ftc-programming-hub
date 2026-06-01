@@ -334,6 +334,81 @@ function ProgressTab() {
   );
 }
 
+// ─── Challenge picker (custom dropdown — avoids native select page scroll) ───
+
+function ChallengePicker({
+  options,
+  value,
+  onChange,
+}: {
+  options: { id: number; title: string }[];
+  value: number | "";
+  onChange: (id: number | "") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const selected = options.find((c) => c.id === value);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
+      >
+        <span className={`truncate text-left ${selected ? "text-slate-200" : "text-slate-500"}`}>
+          {selected ? `#${selected.id} — ${selected.title}` : "Select a challenge…"}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute left-0 right-0 z-50 mt-1 max-h-56 overscroll-contain overflow-y-auto rounded-md border border-slate-700 bg-slate-950 py-1 shadow-lg shadow-black/40 sidebar-scroll"
+        >
+          {options.map((c) => (
+            <li key={c.id} role="presentation">
+              <button
+                type="button"
+                role="option"
+                aria-selected={value === c.id}
+                onClick={() => {
+                  onChange(c.id);
+                  setOpen(false);
+                }}
+                className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                  value === c.id
+                    ? "bg-slate-800 text-slate-100"
+                    : "text-slate-300 hover:bg-slate-800/80"
+                }`}
+              >
+                #{c.id} — {c.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ─── Assign Homework Tab ──────────────────────────────────────────────────────
 
 function AssignHomeworkTab() {
@@ -490,20 +565,11 @@ function AssignHomeworkTab() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-xs text-slate-500 mb-1.5">Challenge</label>
-            <select
+            <ChallengePicker
+              options={allChallengeOptions}
               value={selectedChallenge}
-              onChange={(e) =>
-                setSelectedChallenge(e.target.value ? Number(e.target.value) : "")
-              }
-              className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-zinc-400"
-            >
-              <option value="">Select a challenge…</option>
-              {allChallengeOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  #{c.id} — {c.title}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedChallenge}
+            />
           </div>
 
           <div>
