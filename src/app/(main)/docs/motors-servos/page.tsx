@@ -389,20 +389,8 @@ while (liftMotor.isBusy() && timer.seconds() < 3.0 && opModeIsActive()) {
     telemetry.addData("Current", liftMotor.getCurrentPosition());
     telemetry.addData("Target",  TARGET_TICKS);
     telemetry.update();
-}
-
-// Step 6 — release the position PID and stop power
-liftMotor.setPower(0.0);
-liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER); // required even on timeout`}
+}`}
               />
-              <NoteBox type="warning">
-                After a <code>RUN_TO_POSITION</code> move — especially if the
-                timeout fires before <code>isBusy()</code> goes false — you must
-                switch out of <code>RUN_TO_POSITION</code> (e.g. to{" "}
-                <code>RUN_WITHOUT_ENCODER</code>). Leaving the mode active while
-                power is zero keeps the internal PID armed and can lock up later
-                motor commands.
-              </NoteBox>
               <NoteBox type="info">
                 Ticks-per-revolution varies by motor model — always confirm it
                 from the motor&apos;s datasheet before calculating targets.
