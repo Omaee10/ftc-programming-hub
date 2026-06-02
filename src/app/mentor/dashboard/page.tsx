@@ -268,11 +268,11 @@ function ProgressTab() {
                                 )}
                               </p>
                               {hw.code_snapshot && (
-                                <details className="mt-1">
-                                  <summary className="cursor-pointer text-[10px] text-slate-600 hover:text-slate-400">
+                                <details className="mt-1.5 group">
+                                  <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300 select-none">
                                     View saved code
                                   </summary>
-                                  <pre className="mt-1 max-h-32 overflow-auto rounded bg-slate-950 p-2 text-[10px] text-slate-400 font-mono">
+                                  <pre className="mt-2 max-h-80 overflow-auto rounded-md border border-slate-800/80 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400 sidebar-scroll">
                                     {hw.code_snapshot}
                                   </pre>
                                 </details>
