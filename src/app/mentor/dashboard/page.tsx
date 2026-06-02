@@ -848,9 +848,6 @@ function CodeManager({
               <p className="font-mono text-2xl font-bold tracking-[0.2em] text-zinc-100">
                 {myRow.code}
               </p>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Share this code with co-mentors only
-              </p>
             </div>
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-amber-500/20 bg-amber-500/10 text-sm font-bold text-zinc-100">
               {myDisplayName[0]?.toUpperCase()}
