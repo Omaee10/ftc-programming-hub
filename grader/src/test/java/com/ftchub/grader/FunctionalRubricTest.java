@@ -131,6 +131,39 @@ class FunctionalRubricTest {
     }
 
     @Test
+    void encoderAuto_withoutSetPowerZero_gradesNeedsImprovementNotWrong() {
+        String code = """
+                package org.firstinspires.ftc.teamcode;
+
+                import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+                import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+                import com.qualcomm.robotcore.hardware.DcMotor;
+
+                @Autonomous(name = "Encoder Auto", group = "Autonomous")
+                public class EncoderAuto extends LinearOpMode {
+
+                    private DcMotor driveMotor;
+
+                    @Override
+                    public void runOpMode() {
+                        driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
+                        waitForStart();
+                        driveMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                        driveMotor.setTargetPosition(500);
+                        driveMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                        driveMotor.setPower(0.6);
+                        while (opModeIsActive() && driveMotor.isBusy()) {
+                            idle();
+                        }
+                    }
+                }
+                """;
+        GradedResultJson result = grader.grade(new CompileRequest(code, 2, List.of()));
+        assertEquals("needs-improvement", result.grade(),
+                "Missing setPower(0) should be a suggestion, not an error: " + allFailed(result));
+    }
+
+    @Test
     void encoderAuto_setPower06_passesNonZeroPowerCheck() {
         String code = """
                 package org.firstinspires.ftc.teamcode;
