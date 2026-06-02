@@ -289,6 +289,11 @@ public final class TreeHelpers {
         return p.matcher(ctx.sourceNoComments).find();
     }
 
+    /** True when the source contains the exact quoted hardware config name. */
+    public static boolean usesHardwareLiteral(RubricContext ctx, String literal) {
+        return sourceContains(ctx, Pattern.compile(Pattern.quote("\"" + literal + "\"")));
+    }
+
     public static List<Integer> lineNumbersMatching(RubricContext ctx, Pattern p) {
         List<Integer> out = new ArrayList<>();
         for (int i = 0; i < ctx.sourceLines.size(); i++) {

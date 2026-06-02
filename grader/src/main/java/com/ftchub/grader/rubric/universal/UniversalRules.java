@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 import static com.ftchub.grader.rubric.TreeHelpers.callsMethod;
-import static com.ftchub.grader.rubric.TreeHelpers.callsMethodInsideWhileLoop;
 import static com.ftchub.grader.rubric.TreeHelpers.countMethodCalls;
 import static com.ftchub.grader.rubric.TreeHelpers.extendsClass;
 import static com.ftchub.grader.rubric.TreeHelpers.firstCallLine;
@@ -155,9 +154,6 @@ public final class UniversalRules {
             "Move hardwareMap.get(...) calls inside runOpMode() — they crash if used at field-init time.",
             ctx -> {
                 if (!callsMethod(ctx, "get")) return true; // nothing to check
-                // If there's a runOpMode body, the call must be inside it. We check
-                // by line ordering: any hardwareMap.get call should appear AFTER
-                // the runOpMode declaration line.
                 long runOpModeLine = TreeHelpers.firstIdentifierLine(ctx, "runOpMode");
                 if (runOpModeLine < 0) return true;
                 long firstGet = firstCallLine(ctx, "get");

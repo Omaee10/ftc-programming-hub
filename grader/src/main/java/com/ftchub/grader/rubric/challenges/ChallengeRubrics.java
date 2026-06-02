@@ -4,6 +4,7 @@ import com.ftchub.grader.rubric.RubricRule;
 import com.ftchub.grader.rubric.Rules;
 import com.ftchub.grader.rubric.TreeHelpers;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -20,7 +21,7 @@ import static com.ftchub.grader.rubric.TreeHelpers.sourceContains;
 /**
  * Per-challenge rubric definitions.
  *
- * The legacy validator only had detailed rules for 19 of the 57 built-in
+ * The legacy validator only had detailed rules for 19 of the 56 built-in
  * challenges. Every challenge now has at least a handful of structural rules
  * derived from its objectives — challenges that are fully covered get rich
  * type-aware checks, while the rest get sensible defaults the compiler can
@@ -41,14 +42,66 @@ public final class ChallengeRubrics {
     private static final Pattern TIMER_SECONDS_CMP    = Pattern.compile("\\w+\\.seconds\\(\\)\\s*[<>]");
     private static final Pattern BRAKE_BEHAVIOR       = Pattern.compile("ZeroPowerBehavior\\.BRAKE");
     private static final Pattern RUN_USING_ENCODER    = Pattern.compile("RUN_USING_ENCODER");
-    private static final Pattern STICK_DEADZONE       =
-            Pattern.compile("(?i)deadband|deadzone|stickdeadzone|Math\\.abs\\s*\\([^)]+\\)\\s*<\\s*0\\.|Range\\.clip");
-    private static final Pattern UPPERCASE_HW_NAME    =
-            Pattern.compile("hardwareMap\\.get\\(\\s*\\w+\\.class\\s*,\\s*\"[^\"]*[A-Z][^\"]*\"");
+
+    /** Documented robot-config names from challenges.ts, keyed by challenge id. */
+    private static final Map<Integer, List<String>> HARDWARE_NAMES = Map.ofEntries(
+        Map.entry(1,  List.of("left_motor")),
+        Map.entry(2,  List.of("drive_motor")),
+        Map.entry(3,  List.of("left_motor", "right_motor")),
+        Map.entry(6,  List.of("left_drive", "right_drive")),
+        Map.entry(7,  List.of("blocker_servo")),
+        Map.entry(8,  List.of("intake_servo")),
+        Map.entry(9,  List.of("drive_motor")),
+        Map.entry(10, List.of("intake_servo")),
+        Map.entry(11, List.of("drive_motor")),
+        Map.entry(12, List.of("drive_motor")),
+        Map.entry(14, List.of("drive_motor")),
+        Map.entry(15, List.of("drive_motor")),
+        Map.entry(16, List.of("turret_motor", "touch_sensor")),
+        Map.entry(17, List.of("front_left", "front_right", "back_left", "back_right")),
+        Map.entry(18, List.of("front_left", "front_right", "back_left", "back_right")),
+        Map.entry(19, List.of("front_left", "front_right", "back_left", "back_right")),
+        Map.entry(21, List.of("front_left", "front_right", "back_left", "back_right")),
+        Map.entry(22, List.of("shooter_motor")),
+        Map.entry(23, List.of("turret_motor")),
+        Map.entry(24, List.of("turret_motor")),
+        Map.entry(26, List.of("shooter_motor")),
+        Map.entry(27, List.of("drive_motor")),
+        Map.entry(28, List.of("transfer_motor")),
+        Map.entry(29, List.of("turret_motor", "touch_sensor")),
+        Map.entry(30, List.of("left_drive", "right_drive", "shooter_motor")),
+        Map.entry(31, List.of("left_drive", "right_drive", "shooter_motor")),
+        Map.entry(32, List.of("left_drive", "right_drive")),
+        Map.entry(37, List.of("odo")),
+        Map.entry(38, List.of("odo")),
+        Map.entry(39, List.of("limelight")),
+        Map.entry(40, List.of("limelight")),
+        Map.entry(41, List.of("limelight")),
+        Map.entry(42, List.of("limelight", "turret_motor")),
+        Map.entry(43, List.of("limelight")),
+        Map.entry(51, List.of("drive_motor")),
+        Map.entry(54, List.of("drive_motor")),
+        Map.entry(55, List.of("drive_motor")),
+        Map.entry(56, List.of("drive_motor"))
+    );
 
     /** Resolve the rubric for a given challenge id (empty list if unknown). */
     public static List<RubricRule> forChallenge(int id) {
-        return REGISTRY.getOrDefault(id, List.of());
+        List<RubricRule> base = REGISTRY.getOrDefault(id, List.of());
+        List<String> hw = HARDWARE_NAMES.get(id);
+        if (hw == null || hw.isEmpty()) return base;
+        List<RubricRule> out = new ArrayList<>(hw.size() + base.size());
+        for (String literal : hw) out.add(hwLiteral(literal));
+        out.addAll(base);
+        return out;
+    }
+
+    private static RubricRule hwLiteral(String literal) {
+        return Rules.required(
+            "Hardware name \"" + literal + "\"",
+            "Robot config name must match exactly: \"" + literal + "\".",
+            "Use hardwareMap.get(..., \"" + literal + "\"); — names are case-sensitive.",
+            ctx -> TreeHelpers.usesHardwareLiteral(ctx, literal));
     }
 
     public static boolean isKnown(int id) {
@@ -115,8 +168,7 @@ public final class ChallengeRubrics {
         Map.entry(53, challenge53()),
         Map.entry(54, challenge54()),
         Map.entry(55, challenge55()),
-        Map.entry(56, challenge56()),
-        Map.entry(57, challenge57())
+        Map.entry(56, challenge56())
     );
 
     // ──────────────────────────────────────────────────────────────────────
@@ -130,11 +182,6 @@ public final class ChallengeRubrics {
                 "A DcMotor or DcMotorEx field is declared.",
                 "Declare the motor as a class field: `private DcMotor leftMotor;`",
                 ctx -> declaresField(ctx, "DcMotor") || declaresField(ctx, "DcMotorEx")),
-            Rules.required("hardwareMap.get(DcMotor.class) called",
-                "Motor retrieved from hardwareMap inside runOpMode().",
-                "Use: leftMotor = hardwareMap.get(DcMotor.class, \"left_motor\");",
-                ctx -> callsMethod(ctx, "get")
-                       && sourceContains(ctx, Pattern.compile("hardwareMap\\.get\\(\\s*DcMotor"))),
             Rules.required("gamepad1.left_stick_y read",
                 "The left joystick Y-axis value is read from gamepad1.",
                 "Read the stick: `double power = -gamepad1.left_stick_y;`",
@@ -147,14 +194,14 @@ public final class ChallengeRubrics {
                 "Motor power applied via motor.setPower(value).",
                 "Call leftMotor.setPower(power) to drive the motor.",
                 ctx -> callsMethod(ctx, "setPower")),
+            Rules.required("setPower() inside the loop",
+                "Motor power is updated every iteration (not set-and-forget).",
+                "Move setPower() inside the while-loop body so the stick value updates each frame.",
+                ctx -> callsMethodInsideWhileLoop(ctx, "setPower")),
             Rules.required("opModeIsActive() loop present",
                 "Main TeleOp loop runs while the OpMode is active.",
                 "Wrap your driving code in `while (opModeIsActive()) { ... }`.",
                 TreeHelpers::hasOpModeIsActiveWhile),
-            Rules.improvement("setPower() inside the loop",
-                "Motor power is updated every iteration (not set-and-forget).",
-                "Move setPower() inside the while-loop body so the stick value updates each frame.",
-                ctx -> callsMethodInsideWhileLoop(ctx, "setPower")),
             Rules.improvement("Motor direction set",
                 "setDirection() explicitly sets motor polarity (prevents wrong-way driving).",
                 "Add motor.setDirection(DcMotorSimple.Direction.FORWARD) or REVERSE in init.",
@@ -342,7 +389,7 @@ public final class ChallengeRubrics {
                 ctx -> declaresField(ctx, "Servo") && !declaresField(ctx, "CRServo")),
             Rules.required("hardwareMap.get(Servo.class) used",
                 "Servo retrieved from hardwareMap.",
-                "armServo = hardwareMap.get(Servo.class, \"arm_servo\");",
+                "blockerServo = hardwareMap.get(Servo.class, \"blocker_servo\");",
                 ctx -> sourceContains(ctx, Pattern.compile("hardwareMap\\.get\\(\\s*Servo"))),
             Rules.required("setPosition() called",
                 "Servo moved with setPosition() in the range 0.0–1.0.",
@@ -1455,37 +1502,6 @@ public final class ChallengeRubrics {
                 "Display the active boost multiplier for debugging.",
                 "telemetry.addData(\"Boost\", boostMultiplier);",
                 ctx -> callsMethod(ctx, "addData") && sourceContains(ctx, boostVar))
-        );
-    }
-
-    /** Challenge 57 — Broken Motor TeleOp. */
-    private static List<RubricRule> challenge57() {
-        return Rules.of(
-            Rules.requiredAbsent("Wrong motor config casing",
-                "Left_Motor does not match the robot configuration name left_motor.",
-                "Use exactly \"left_motor\" in hardwareMap.get() — names are case-sensitive.",
-                Pattern.compile("Left_Motor")),
-            Rules.required("Correct motor config name",
-                "Motor retrieved with the lowercase configuration name.",
-                "leftMotor = hardwareMap.get(DcMotor.class, \"left_motor\");",
-                ctx -> sourceContains(ctx, Pattern.compile("\"left_motor\""))),
-            Rules.required("telemetry.update() each loop",
-                "Loop telemetry must call update() every iteration.",
-                "Add telemetry.update() after addData() inside while (opModeIsActive()).",
-                ctx -> TreeHelpers.countTelemetryOutputsInsideWhileLoop(ctx) == 0
-                       || TreeHelpers.countMethodCallsInsideWhileLoop(ctx, "update") > 0),
-            Rules.required("Joystick deadzone",
-                "Small stick drift must not spin the motor at rest.",
-                "if (Math.abs(gamepad1.left_stick_y) < 0.05) { motorPower = 0; } or use a DEADBAND constant.",
-                ctx -> sourceContains(ctx, STICK_DEADZONE)),
-            Rules.required("Y-axis negated",
-                "Forward stick push must produce positive motor power.",
-                "double motorPower = -gamepad1.left_stick_y;",
-                ctx -> sourceContains(ctx, NEGATED_LEFT_STICK_Y)),
-            Rules.required("opModeIsActive() loop present",
-                "TeleOp driving code must run inside while (opModeIsActive()).",
-                "Wrap stick reads and setPower() in while (opModeIsActive()) { ... }.",
-                TreeHelpers::hasOpModeIsActiveWhile)
         );
     }
 }

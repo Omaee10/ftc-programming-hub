@@ -31,6 +31,13 @@ jobs:
         working-directory: grader
         run: gradle --no-daemon shadowJar
 
+      - name: Run grader unit tests
+        working-directory: grader
+        run: gradle --no-daemon test
+
+      - name: Audit hardware rubric alignment
+        run: node scripts/audit-hardware-rubrics.mjs
+
       - name: Smoke test (start, hit /healthz, stop)
         working-directory: grader
         run: |
