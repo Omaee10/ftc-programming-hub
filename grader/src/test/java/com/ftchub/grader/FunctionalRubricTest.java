@@ -13,7 +13,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -129,6 +128,42 @@ class FunctionalRubricTest {
     void goodChallenge1Solution_gradesGood() {
         GradedResultJson result = grader.grade(new CompileRequest(GOOD_CHALLENGE_1, 1, List.of()));
         assertEquals("good", result.grade(), "Unexpected failures: " + allFailed(result));
+    }
+
+    @Test
+    void encoderAuto_setPower06_passesNonZeroPowerCheck() {
+        String code = """
+                package org.firstinspires.ftc.teamcode;
+
+                import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+                import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+                import com.qualcomm.robotcore.hardware.DcMotor;
+
+                @Autonomous(name = "Encoder Auto", group = "Autonomous")
+                public class EncoderAuto extends LinearOpMode {
+
+                    private DcMotor driveMotor;
+
+                    @Override
+                    public void runOpMode() {
+                        driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
+                        waitForStart();
+                        driveMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                        driveMotor.setTargetPosition(500);
+                        driveMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                        driveMotor.setPower(0.6);
+                        while (opModeIsActive() && driveMotor.isBusy()) {
+                            idle();
+                        }
+                        driveMotor.setPower(0);
+                    }
+                }
+                """;
+        GradedResultJson result = grader.grade(new CompileRequest(code, 2, List.of()));
+        assertTrue(
+                result.requiredResults().stream()
+                        .anyMatch(r -> "Non-zero power applied".equals(r.label()) && r.pass()),
+                "setPower(0.6) should pass Non-zero power check, failures: " + allFailed(result));
     }
 
     private static Set<String> failedLabels(GradedResultJson result, String tier) {

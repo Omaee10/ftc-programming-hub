@@ -35,7 +35,7 @@ public final class ChallengeRubrics {
     private ChallengeRubrics() {}
 
     private static final Pattern NEGATED_LEFT_STICK_Y = Pattern.compile("-\\s*gamepad1\\.left_stick_y");
-    private static final Pattern NON_ZERO_POWER       = Pattern.compile("\\.setPower\\(\\s*(?!0[\\s.)])[^)]+\\)");
+    private static final Pattern NON_ZERO_POWER       = Pattern.compile("\\.setPower\\(\\s*(?!0(?:\\.0*)?\\s*\\))[^)]+\\)");
     private static final Pattern ZERO_POWER           = Pattern.compile("\\.setPower\\(\\s*0(?:\\.0*)?\\s*\\)");
     private static final Pattern IS_BUSY_WHILE        = Pattern.compile("while\\s*\\([^{]*\\.isBusy\\s*\\(\\s*\\)[^{]*opModeIsActive|while\\s*\\([^{]*opModeIsActive[^{]*\\.isBusy\\s*\\(\\s*\\)");
     private static final Pattern REVERSE_DIRECTION    = Pattern.compile("setDirection\\s*\\(\\s*(?:DcMotor(?:Simple)?\\.)?Direction\\.REVERSE\\s*\\)");
