@@ -131,7 +131,7 @@ class FunctionalRubricTest {
     }
 
     @Test
-    void encoderAuto_withoutSetPowerZero_gradesNeedsImprovementNotWrong() {
+    void encoderAuto_withoutSetPowerZero_passesRequiredChecks() {
         String code = """
                 package org.firstinspires.ftc.teamcode;
 
@@ -159,8 +159,14 @@ class FunctionalRubricTest {
                 }
                 """;
         GradedResultJson result = grader.grade(new CompileRequest(code, 2, List.of()));
-        assertEquals("needs-improvement", result.grade(),
-                "Missing setPower(0) should be a suggestion, not an error: " + allFailed(result));
+        assertTrue(
+                result.requiredResults().stream().allMatch(GradedResultJson.CheckResultJson::pass),
+                "Encoder auto should pass all required checks without setPower(0): " + allFailed(result));
+        assertTrue(
+                result.requiredResults().stream().noneMatch(r -> r.label().contains("Motor stopped"))
+                        && result.improvementResults().stream()
+                                .noneMatch(r -> r.label().contains("Motor stopped after arriving")),
+                "setPower(0) after encoder move should not be graded");
     }
 
     @Test
@@ -188,7 +194,6 @@ class FunctionalRubricTest {
                         while (opModeIsActive() && driveMotor.isBusy()) {
                             idle();
                         }
-                        driveMotor.setPower(0);
                     }
                 }
                 """;
