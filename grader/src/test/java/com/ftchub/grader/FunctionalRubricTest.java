@@ -65,6 +65,7 @@ class FunctionalRubricTest {
             import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
             import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
             import com.qualcomm.robotcore.hardware.DcMotor;
+            import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
             @TeleOp(name = "Basic TeleOp", group = "Challenge 1")
             public class BasicTeleOp extends LinearOpMode {
@@ -74,6 +75,7 @@ class FunctionalRubricTest {
                 @Override
                 public void runOpMode() {
                     leftMotor = hardwareMap.get(DcMotor.class, "left_motor");
+                    leftMotor.setDirection(DcMotorSimple.Direction.FORWARD);
 
                     telemetry.addData("Status", "Ready");
                     telemetry.update();
