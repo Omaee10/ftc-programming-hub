@@ -20,7 +20,7 @@ import static com.ftchub.grader.rubric.TreeHelpers.sourceContains;
 /**
  * Per-challenge rubric definitions.
  *
- * The legacy validator only had detailed rules for 19 of the 56 built-in
+ * The legacy validator only had detailed rules for 19 of the 57 built-in
  * challenges. Every challenge now has at least a handful of structural rules
  * derived from its objectives — challenges that are fully covered get rich
  * type-aware checks, while the rest get sensible defaults the compiler can
@@ -41,6 +41,10 @@ public final class ChallengeRubrics {
     private static final Pattern TIMER_SECONDS_CMP    = Pattern.compile("\\w+\\.seconds\\(\\)\\s*[<>]");
     private static final Pattern BRAKE_BEHAVIOR       = Pattern.compile("ZeroPowerBehavior\\.BRAKE");
     private static final Pattern RUN_USING_ENCODER    = Pattern.compile("RUN_USING_ENCODER");
+    private static final Pattern STICK_DEADZONE       =
+            Pattern.compile("(?i)deadband|deadzone|stickdeadzone|Math\\.abs\\s*\\([^)]+\\)\\s*<\\s*0\\.|Range\\.clip");
+    private static final Pattern UPPERCASE_HW_NAME    =
+            Pattern.compile("hardwareMap\\.get\\(\\s*\\w+\\.class\\s*,\\s*\"[^\"]*[A-Z][^\"]*\"");
 
     /** Resolve the rubric for a given challenge id (empty list if unknown). */
     public static List<RubricRule> forChallenge(int id) {
@@ -111,7 +115,8 @@ public final class ChallengeRubrics {
         Map.entry(53, challenge53()),
         Map.entry(54, challenge54()),
         Map.entry(55, challenge55()),
-        Map.entry(56, challenge56())
+        Map.entry(56, challenge56()),
+        Map.entry(57, challenge57())
     );
 
     // ──────────────────────────────────────────────────────────────────────
@@ -1450,6 +1455,37 @@ public final class ChallengeRubrics {
                 "Display the active boost multiplier for debugging.",
                 "telemetry.addData(\"Boost\", boostMultiplier);",
                 ctx -> callsMethod(ctx, "addData") && sourceContains(ctx, boostVar))
+        );
+    }
+
+    /** Challenge 57 — Broken Motor TeleOp. */
+    private static List<RubricRule> challenge57() {
+        return Rules.of(
+            Rules.requiredAbsent("Wrong motor config casing",
+                "Left_Motor does not match the robot configuration name left_motor.",
+                "Use exactly \"left_motor\" in hardwareMap.get() — names are case-sensitive.",
+                Pattern.compile("Left_Motor")),
+            Rules.required("Correct motor config name",
+                "Motor retrieved with the lowercase configuration name.",
+                "leftMotor = hardwareMap.get(DcMotor.class, \"left_motor\");",
+                ctx -> sourceContains(ctx, Pattern.compile("\"left_motor\""))),
+            Rules.required("telemetry.update() each loop",
+                "Loop telemetry must call update() every iteration.",
+                "Add telemetry.update() after addData() inside while (opModeIsActive()).",
+                ctx -> TreeHelpers.countTelemetryOutputsInsideWhileLoop(ctx) == 0
+                       || TreeHelpers.countMethodCallsInsideWhileLoop(ctx, "update") > 0),
+            Rules.required("Joystick deadzone",
+                "Small stick drift must not spin the motor at rest.",
+                "if (Math.abs(gamepad1.left_stick_y) < 0.05) { motorPower = 0; } or use a DEADBAND constant.",
+                ctx -> sourceContains(ctx, STICK_DEADZONE)),
+            Rules.required("Y-axis negated",
+                "Forward stick push must produce positive motor power.",
+                "double motorPower = -gamepad1.left_stick_y;",
+                ctx -> sourceContains(ctx, NEGATED_LEFT_STICK_Y)),
+            Rules.required("opModeIsActive() loop present",
+                "TeleOp driving code must run inside while (opModeIsActive()).",
+                "Wrap stick reads and setPower() in while (opModeIsActive()) { ... }.",
+                TreeHelpers::hasOpModeIsActiveWhile)
         );
     }
 }

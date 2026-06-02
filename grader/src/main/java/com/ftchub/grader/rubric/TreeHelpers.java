@@ -151,18 +151,29 @@ public final class TreeHelpers {
 
     /** Returns true if any {@code while (...)} loop body contains a call to {@code methodName}. */
     public static boolean callsMethodInsideWhileLoop(RubricContext ctx, String methodName) {
-        if (!ctx.astAvailable()) return false;
-        var hit = new boolean[1];
+        return countMethodCallsInsideWhileLoop(ctx, methodName) > 0;
+    }
+
+    /** Count calls to {@code methodName} inside any {@code while} loop body. */
+    public static int countMethodCallsInsideWhileLoop(RubricContext ctx, String methodName) {
+        if (!ctx.astAvailable()) return 0;
+        var count = new int[1];
         new TreeScanner<Void, Boolean>() {
             @Override public Void visitWhileLoop(WhileLoopTree node, Boolean inside) {
                 return super.visitWhileLoop(node, true);
             }
             @Override public Void visitMethodInvocation(MethodInvocationTree node, Boolean inside) {
-                if (Boolean.TRUE.equals(inside) && methodName.equals(simpleMethodName(node))) hit[0] = true;
+                if (Boolean.TRUE.equals(inside) && methodName.equals(simpleMethodName(node))) count[0]++;
                 return super.visitMethodInvocation(node, inside);
             }
         }.scan(ctx.tree(), null);
-        return hit[0];
+        return count[0];
+    }
+
+    /** Telemetry output calls that require a matching update() in the same loop. */
+    public static int countTelemetryOutputsInsideWhileLoop(RubricContext ctx) {
+        return countMethodCallsInsideWhileLoop(ctx, "addData")
+             + countMethodCallsInsideWhileLoop(ctx, "addLine");
     }
 
     /** Returns true if any while loop's condition contains a call to {@code opModeIsActive()}. */

@@ -27,6 +27,14 @@ public final class UniversalRules {
     private static final Pattern THREAD_SLEEP = Pattern.compile("Thread\\s*\\.\\s*sleep\\s*\\(");
     private static final Pattern WHILE_TRUE   = Pattern.compile("while\\s*\\(\\s*true\\s*\\)");
     private static final Pattern TODO_RX      = Pattern.compile("//\\s*TODO", Pattern.CASE_INSENSITIVE);
+    private static final Pattern UPPERCASE_HW_NAME =
+            Pattern.compile("hardwareMap\\.get\\(\\s*\\w+\\.class\\s*,\\s*\"[^\"]*[A-Z][^\"]*\"");
+    private static final Pattern NEGATED_LEFT_STICK_Y =
+            Pattern.compile("-\\s*gamepad1\\.left_stick_y");
+    private static final Pattern STICK_INPUT =
+            Pattern.compile("gamepad1\\.(?:left|right)_stick_[xy]");
+    private static final Pattern STICK_DEADZONE =
+            Pattern.compile("(?i)deadband|deadzone|stickdeadzone|Math\\.abs\\s*\\([^)]+\\)\\s*<\\s*0\\.|Range\\.clip");
 
     public static final List<RubricRule> ALL = List.of(
 
@@ -76,6 +84,23 @@ public final class UniversalRules {
             THREAD_SLEEP
         ),
 
+        Rules.required(
+            "telemetry.update() in main loop",
+            "telemetry.addData() inside while(opModeIsActive()) must call telemetry.update() in the same loop.",
+            "Add telemetry.update() at the end of each loop iteration — an update before waitForStart() does not refresh loop data.",
+            ctx -> {
+                if (TreeHelpers.countTelemetryOutputsInsideWhileLoop(ctx) == 0) return true;
+                return TreeHelpers.countMethodCallsInsideWhileLoop(ctx, "update") > 0;
+            }
+        ),
+
+        Rules.requiredAbsent(
+            "Lowercase hardware config names",
+            "Robot configuration names in hardwareMap.get() are case-sensitive.",
+            "Use lowercase snake_case like \"left_motor\" — \"Left_Motor\" will not match the config and returns null.",
+            UPPERCASE_HW_NAME
+        ),
+
         // ── Improvement ───────────────────────────────────────────────────
         Rules.improvement(
             "@TeleOp or @Autonomous annotation",
@@ -96,8 +121,31 @@ public final class UniversalRules {
             "telemetry.update() flushes buffered lines to the Driver Station.",
             "Call telemetry.update() after addData() — without it the screen never refreshes.",
             ctx -> {
-                if (countMethodCalls(ctx, "addData") == 0) return true;
+                if (countMethodCalls(ctx, "addData") == 0
+                    && countMethodCalls(ctx, "addLine") == 0) return true;
                 return countMethodCalls(ctx, "update") > 0;
+            }
+        ),
+
+        Rules.improvement(
+            "Y-axis negated for drive",
+            "FTC gamepad Y-axes are inverted — forward stick input must be negated.",
+            "Use `-gamepad1.left_stick_y` so pushing forward gives positive motor power.",
+            ctx -> {
+                if (!TreeHelpers.sourceContains(ctx, Pattern.compile("gamepad1\\.left_stick_y"))) return true;
+                if (!callsMethod(ctx, "setPower")) return true;
+                return TreeHelpers.sourceContains(ctx, NEGATED_LEFT_STICK_Y);
+            }
+        ),
+
+        Rules.improvement(
+            "Joystick deadzone applied",
+            "Worn sticks can rest at 0.02 instead of 0.0 and creep the robot forward.",
+            "Zero motor power when Math.abs(stick) is below a threshold (e.g. 0.05), or use a DEADBAND constant.",
+            ctx -> {
+                if (!TreeHelpers.sourceContains(ctx, STICK_INPUT)) return true;
+                if (!callsMethod(ctx, "setPower")) return true;
+                return TreeHelpers.sourceContains(ctx, STICK_DEADZONE);
             }
         ),
 
