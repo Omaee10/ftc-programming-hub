@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS mentors (
   class_name  text,
   mentor_name text,
   code        char(6) UNIQUE NOT NULL,
+  class_code  char(6) UNIQUE,
   created_by  uuid REFERENCES mentors(id) ON DELETE SET NULL,
   created_at  timestamptz DEFAULT now()
 );
@@ -31,6 +32,12 @@ CREATE TABLE IF NOT EXISTS mentors (
 -- The `class_name` column stores the class label (e.g. "Period 3 Robotics").
 -- Run this in the Supabase SQL Editor if the table already exists:
 -- ALTER TABLE mentors ADD COLUMN IF NOT EXISTS class_name text;
+
+-- ─── Migration: add class_code to existing mentors table ─────────────────────
+-- Separate 6-digit code for students to join a class (class owners only).
+-- Run this in the Supabase SQL Editor if the table already exists:
+-- ALTER TABLE mentors ADD COLUMN IF NOT EXISTS class_code char(6) UNIQUE;
+-- Backfill owner rows (created_by IS NULL) with unique codes as needed.
 
 -- Students
 CREATE TABLE IF NOT EXISTS students (

@@ -19,7 +19,8 @@ export function proxy(request: NextRequest) {
   if (
     pathname.startsWith("/signin") ||
     pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/create-class")
+    pathname.startsWith("/create-class") ||
+    pathname.startsWith("/join-class")
   ) {
     if (role === "mentor") {
       return NextResponse.redirect(new URL("/mentor/dashboard", request.url));

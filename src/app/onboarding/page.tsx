@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Trophy, ArrowRight } from "lucide-react";
+import { Trophy, ArrowRight, LogIn, UserPlus } from "lucide-react";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -32,22 +32,44 @@ export default function OnboardingPage() {
           </p>
         </div>
 
-        {/* Primary action — student */}
+        {/* Sign in — returning users */}
         <button
           onClick={() => router.push("/signin")}
           className="group w-full flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/80 px-6 py-5 text-left hover:border-slate-600/60 hover:bg-slate-800/60 transition-all duration-200 focus:outline-none accent-ring mb-4"
         >
-          <div>
-            <p className="text-base font-medium text-slate-200 group-hover:text-white transition-colors">
-              Join a class
-            </p>
-            <p className="text-sm text-slate-600 mt-0.5">
-              Enter your 6-digit access code
-            </p>
+          <div className="flex items-center gap-3">
+            <LogIn className="h-5 w-5 text-slate-500 group-hover:text-slate-300 transition-colors shrink-0" />
+            <div>
+              <p className="text-base font-medium text-slate-200 group-hover:text-white transition-colors">
+                Sign in
+              </p>
+              <p className="text-sm text-slate-600 mt-0.5">
+                Already have a student or mentor code
+              </p>
+            </div>
           </div>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg btn-primary shrink-0">
             <ArrowRight className="h-4 w-4" />
           </div>
+        </button>
+
+        {/* Join new class — new students */}
+        <button
+          onClick={() => router.push("/join-class")}
+          className="group w-full flex items-center justify-between rounded-xl border border-slate-800/60 px-6 py-4.5 text-left hover:border-slate-700/60 hover:bg-slate-900/40 transition-all duration-200 focus:outline-none accent-ring mb-4"
+        >
+          <div className="flex items-center gap-3">
+            <UserPlus className="h-5 w-5 text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-slate-400 group-hover:text-slate-200 transition-colors">
+                Join new class
+              </p>
+              <p className="text-xs text-slate-700 mt-0.5">
+                New student — enter your class code and name
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
         </button>
 
         {/* Divider */}
@@ -57,7 +79,7 @@ export default function OnboardingPage() {
           <div className="flex-1 h-px bg-slate-800/80" />
         </div>
 
-        {/* Secondary action — mentor */}
+        {/* Create a class — mentors */}
         <button
           onClick={() => router.push("/create-class")}
           className="group w-full flex items-center justify-between rounded-xl border border-slate-800/60 px-6 py-4.5 text-left hover:border-slate-700/60 hover:bg-slate-900/40 transition-all duration-200 focus:outline-none accent-ring"

@@ -26,6 +26,8 @@ export interface MentorRow {
   class_name?: string | null;
   mentor_name?: string | null;
   code: string;
+  class_code?: string | null;
+  created_by?: string | null;
   created_at: string;
 }
 

@@ -14,10 +14,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { setSession } from "@/lib/auth";
-
-function generateCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
+import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
 
 export default function CreateClassPage() {
   const router = useRouter();
@@ -27,9 +24,11 @@ export default function CreateClassPage() {
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  const [createdCode, setCreatedCode] = useState<string | null>(null);
+  const [createdMentorCode, setCreatedMentorCode] = useState<string | null>(null);
+  const [createdClassCode, setCreatedClassCode] = useState<string | null>(null);
   const [createdName, setCreatedName] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedMentor, setCopiedMentor] = useState(false);
+  const [copiedClass, setCopiedClass] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,27 +38,36 @@ export default function CreateClassPage() {
     setError("");
 
     startTransition(async () => {
-      let code = generateCode();
+      let mentorCode = generateAccessCode();
+      let classCodeValue = generateAccessCode();
 
-      const tryInsert = async (c: string) => {
-        const { data, error: dbErr } = await supabase
+      let data: Record<string, unknown> | null = null;
+      let dbErr: { message?: string; code?: string } | null = null;
+
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const result = await supabase
           .from("mentors")
           .insert({
             name: teamName.trim(),
             class_name: className.trim(),
             mentor_name: mentorName.trim(),
-            code: c,
+            code: mentorCode,
+            class_code: classCodeValue,
           })
-          .select("id, name, class_name, mentor_name, code")
+          .select("id, name, class_name, mentor_name, code, class_code")
           .single();
-        return { data, dbErr };
-      };
 
-      let { data, dbErr } = await tryInsert(code);
+        data = result.data as Record<string, unknown> | null;
+        dbErr = result.error;
 
-      if (dbErr?.message?.includes("unique") || dbErr?.code === "23505") {
-        code = generateCode();
-        ({ data, dbErr } = await tryInsert(code));
+        if (!dbErr && data) break;
+
+        if (isUniqueViolation(dbErr)) {
+          mentorCode = generateAccessCode();
+          classCodeValue = generateAccessCode();
+          continue;
+        }
+        break;
       }
 
       if (dbErr || !data) {
@@ -67,8 +75,8 @@ export default function CreateClassPage() {
         return;
       }
 
-      const personalName = (data as { mentor_name?: string | null }).mentor_name ?? (data.name as string);
-      const savedClassName = (data as { class_name?: string | null }).class_name ?? className.trim();
+      const personalName = (data.mentor_name as string | null) ?? (data.name as string);
+      const savedClassName = (data.class_name as string | null) ?? className.trim();
       setSession({
         role: "mentor",
         id: data.id as string,
@@ -76,20 +84,25 @@ export default function CreateClassPage() {
         teamName: data.name as string,
         className: savedClassName,
       });
-      setCreatedCode(data.code as string);
+      setCreatedMentorCode(data.code as string);
+      setCreatedClassCode((data.class_code as string | null) ?? classCodeValue);
       setCreatedName(savedClassName);
     });
   };
 
-  const handleCopy = async () => {
-    if (!createdCode) return;
-    await navigator.clipboard.writeText(createdCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyText = async (text: string, which: "mentor" | "class") => {
+    await navigator.clipboard.writeText(text);
+    if (which === "mentor") {
+      setCopiedMentor(true);
+      setTimeout(() => setCopiedMentor(false), 2000);
+    } else {
+      setCopiedClass(true);
+      setTimeout(() => setCopiedClass(false), 2000);
+    }
   };
 
   // ─── Success screen ────────────────────────────────────────────────────────
-  if (createdCode) {
+  if (createdMentorCode && createdClassCode) {
     return (
       <div className="flex min-h-screen bg-slate-950 px-4">
         <div className="m-auto w-full max-w-sm py-16">
@@ -112,7 +125,33 @@ export default function CreateClassPage() {
               {createdName} is ready
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Save your mentor code — you&apos;ll need it to sign in.
+              Save both codes below — mentor code for you, class code for students.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-5 mb-4">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-3">
+              Class Code
+            </p>
+            <div className="flex items-center gap-3">
+              <span className="flex-1 font-mono text-3xl font-bold tracking-[0.18em] text-slate-100 stat-number">
+                {createdClassCode}
+              </span>
+              <button
+                type="button"
+                onClick={() => void copyText(createdClassCode, "class")}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-700/60 bg-slate-800/60 text-slate-500 hover:text-slate-200 hover:bg-slate-700/60 transition-all"
+                title="Copy class code"
+              >
+                {copiedClass ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-slate-600">
+              Share this code with students so they can join your class.
             </p>
           </div>
 
@@ -122,14 +161,15 @@ export default function CreateClassPage() {
             </p>
             <div className="flex items-center gap-3">
               <span className="flex-1 font-mono text-3xl font-bold tracking-[0.18em] text-slate-100 stat-number">
-                {createdCode}
+                {createdMentorCode}
               </span>
               <button
-                onClick={handleCopy}
+                type="button"
+                onClick={() => void copyText(createdMentorCode, "mentor")}
                 className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-700/60 bg-slate-800/60 text-slate-500 hover:text-slate-200 hover:bg-slate-700/60 transition-all"
-                title="Copy code"
+                title="Copy mentor code"
               >
-                {copied ? (
+                {copiedMentor ? (
                   <Check className="h-3.5 w-3.5 text-emerald-400" />
                 ) : (
                   <Copy className="h-3.5 w-3.5" />
@@ -137,7 +177,7 @@ export default function CreateClassPage() {
               </button>
             </div>
             <p className="mt-3 text-xs text-slate-600">
-              Share this code with co-mentors to give them access.
+              Use this code to sign in as a mentor. Share with co-mentors only.
             </p>
           </div>
 
@@ -181,7 +221,7 @@ export default function CreateClassPage() {
             Create a class
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            We&apos;ll generate a unique 6-digit mentor access code.
+            We&apos;ll generate mentor and class codes for your workspace.
           </p>
         </div>
 

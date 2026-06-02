@@ -22,6 +22,7 @@ import {
 import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow, type HomeworkAssignmentRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { challenges as staticChallenges } from "@/data/challenges";
+import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -785,13 +786,12 @@ function CodeManager({
         return supabase.from(table).insert(payload);
       };
 
-      let code = Math.floor(100000 + Math.random() * 900000).toString();
+      let code = generateAccessCode();
 
       let { error: dbErr } = await tryInsert(code);
 
-      // Retry once on unique conflict
-      if (dbErr?.message?.includes("unique") || dbErr?.code === "23505") {
-        code = Math.floor(100000 + Math.random() * 900000).toString();
+      if (isUniqueViolation(dbErr)) {
+        code = generateAccessCode();
         ({ error: dbErr } = await tryInsert(code));
       }
 
@@ -940,9 +940,15 @@ function CodeManager({
 
       {/* Add form */}
       <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-        <p className="mb-4 text-sm font-semibold text-slate-300">
-          Add New {label}
+        <p className="mb-1 text-sm font-semibold text-slate-300">
+          {table === "students" ? "Add student manually" : `Add New ${label}`}
         </p>
+        {table === "students" && (
+          <p className="mb-4 text-xs text-slate-500">
+            Students can also self-enroll with your class code from the onboarding page.
+          </p>
+        )}
+        {table !== "students" && <div className="mb-3" />}
         <form onSubmit={handleAdd} className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label className="mb-1 block text-xs font-medium text-slate-500">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, LogOut, Palette, Shield } from "lucide-react";
+import { Menu, LogOut, Palette, Shield, Copy, Check } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "./Sidebar";
 import ThemePanel from "./ThemePanel";
@@ -23,6 +23,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [mounted, setMounted] = useState(false);
   const [themePanelOpen, setThemePanelOpen] = useState(false);
+  const [classCode, setClassCode] = useState<string | null>(null);
+  const [classCodeCopied, setClassCodeCopied] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const lockScroll = pathname === "/dashboard";
@@ -51,19 +53,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         let personalName: string = row.mentor_name ?? row.name;
         let teamName: string = row.name;
         let resolvedClassName: string | undefined = row.class_name?.trim() || undefined;
-        let parentMentorId: string | undefined = row.created_by ?? undefined;
+        const parentMentorId: string | undefined = row.created_by ?? undefined;
+        const ownerId = parentMentorId ?? stored.id;
 
-        if (parentMentorId) {
-          const { data: parentRow } = await supabase
-            .from("mentors")
-            .select("name, class_name")
-            .eq("id", parentMentorId)
-            .single();
-          if (parentRow) {
-            const parent = parentRow as { name: string; class_name?: string | null };
-            teamName = parent.name;
-            resolvedClassName = parent.class_name?.trim() || undefined;
+        const { data: ownerRow } = await supabase
+          .from("mentors")
+          .select("name, class_name, class_code")
+          .eq("id", ownerId)
+          .single();
+
+        if (ownerRow) {
+          const owner = ownerRow as {
+            name: string;
+            class_name?: string | null;
+            class_code?: string | null;
+          };
+          if (parentMentorId) {
+            teamName = owner.name;
+            resolvedClassName = owner.class_name?.trim() || undefined;
           }
+          setClassCode(owner.class_code ?? null);
         }
 
         const updated: Session = {
@@ -93,6 +102,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const initials = displayName ? getInitials(displayName) : "?";
 
+  const handleCopyClassCode = async () => {
+    if (!classCode) return;
+    await navigator.clipboard.writeText(classCode);
+    setClassCodeCopied(true);
+    setTimeout(() => setClassCodeCopied(false), 2000);
+  };
+
   return (
     <div className="flex h-full min-w-0 overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -108,6 +124,32 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Menu className="h-4 w-4" />
           </button>
 
+          {/* Mentor class code — top-left branding area */}
+          {session?.role === "mentor" && classCode && (
+            <div className="hidden sm:flex shrink-0 items-center gap-2 rounded-md border border-slate-800/80 bg-slate-900/60 px-2.5 py-1">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-600">
+                  Class Code
+                </span>
+                <span className="font-mono text-sm font-semibold tracking-wider text-slate-200">
+                  {classCode}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleCopyClassCode()}
+                title="Copy class code"
+                className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800/60 transition-colors"
+              >
+                {classCodeCopied ? (
+                  <Check className="h-3 w-3 text-emerald-400" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+          )}
+
           {showHeaderSearch && (
             <div className="flex min-w-0 flex-1 items-center gap-2 lg:gap-3">
               <div className="flex shrink-0 items-baseline gap-1 lg:hidden">
@@ -116,11 +158,59 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 </span>
                 <span className="text-[10px] font-normal text-slate-600">Programming</span>
               </div>
+              {session?.role === "mentor" && classCode && (
+                <div className="flex sm:hidden shrink-0 items-center gap-1.5 rounded-md border border-slate-800/80 bg-slate-900/60 px-2 py-0.5">
+                  <span className="text-[9px] font-medium uppercase tracking-wider text-slate-600">
+                    Class
+                  </span>
+                  <span className="font-mono text-xs font-semibold text-slate-200">
+                    {classCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyClassCode()}
+                    className="text-slate-500"
+                    aria-label="Copy class code"
+                  >
+                    {classCodeCopied ? (
+                      <Check className="h-3 w-3 text-emerald-400" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </button>
+                </div>
+              )}
               <DashboardDocSearch variant="header" />
             </div>
           )}
 
-          {!showHeaderSearch && <div className="flex-1" />}
+          {!showHeaderSearch && (
+            <div className="flex flex-1 items-center gap-2 min-w-0">
+              {session?.role === "mentor" && classCode && (
+                <div className="flex sm:hidden shrink-0 items-center gap-1.5 rounded-md border border-slate-800/80 bg-slate-900/60 px-2 py-0.5">
+                  <span className="text-[9px] font-medium uppercase tracking-wider text-slate-600">
+                    Class
+                  </span>
+                  <span className="font-mono text-xs font-semibold text-slate-200">
+                    {classCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyClassCode()}
+                    className="text-slate-500"
+                    aria-label="Copy class code"
+                  >
+                    {classCodeCopied ? (
+                      <Check className="h-3 w-3 text-emerald-400" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </button>
+                </div>
+              )}
+              <div className="flex-1" />
+            </div>
+          )}
 
           {/* Mentor dashboard shortcut */}
           {session?.role === "mentor" && (
