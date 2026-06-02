@@ -4,9 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase, type HomeworkAssignmentRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 
-function classOwner(session: { id: string; parentMentorId?: string } | null): string {
-  return session?.parentMentorId ?? session?.id ?? "";
-}
+import { classOwner } from "@/lib/classChallenges";
 
 export function useHomeworkAssignments() {
   const [assignments, setAssignments] = useState<HomeworkAssignmentRow[]>([]);

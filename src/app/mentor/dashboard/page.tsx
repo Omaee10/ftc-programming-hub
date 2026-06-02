@@ -21,6 +21,11 @@ import {
 } from "lucide-react";
 import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow, type HomeworkAssignmentRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import {
+  classOwner,
+  challengeCreatedBy,
+  fetchClassChallenges,
+} from "@/lib/classChallenges";
 import { challenges as staticChallenges } from "@/data/challenges";
 import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -45,11 +50,6 @@ type EnrichedSubmission = SubmissionRow & {
 
 function maskCode(code: string) {
   return `${code.slice(0, 2)}••••`;
-}
-
-/** Returns the ID that owns the class (parent ID for co-mentors, own ID otherwise) */
-function classOwner(session: { id: string; parentMentorId?: string } | null): string {
-  return session?.parentMentorId ?? session?.id ?? "";
 }
 
 // ─── Tab button ───────────────────────────────────────────────────────────────
@@ -108,15 +108,16 @@ function ProgressTab() {
     if (!session?.id) return;
     setLoading(true);
     const ownerId = classOwner(session);
-    const [{ data: students }, { data: challenges }, { data: progress }, { data: homework }] =
+    const [{ data: students }, { data: progress }, { data: homework }, classChallengeRows] =
       await Promise.all([
         supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-        supabase.from("challenges").select("id, title").eq("created_by", ownerId).order("id"),
         supabase.from("student_challenge_progress").select("*"),
         supabase.from("homework_assignments").select("*"),
+        session ? fetchClassChallenges(session) : Promise.resolve([]),
       ]);
 
-    setDbChallenges((challenges ?? []) as ChallengeRow[]);
+    const challenges = classChallengeRows;
+    setDbChallenges(challenges as ChallengeRow[]);
 
     const studentList = (students ?? []) as StudentRow[];
     const homeworkRows = (homework ?? []) as HomeworkAssignmentRow[];
@@ -439,16 +440,15 @@ function AssignHomeworkTab() {
     setLoading(true);
     const ownerId = classOwner(session);
 
-    const [{ data: studentRows }, { data: challengeRows }, { data: hwRows }] =
+    const [{ data: studentRows }, challengeList, { data: hwRows }] =
       await Promise.all([
         supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-        supabase.from("challenges").select("*").eq("created_by", ownerId).order("id"),
+        fetchClassChallenges(session),
         supabase.from("homework_assignments").select("*").order("assigned_at", { ascending: false }),
       ]);
 
     const studentList = (studentRows ?? []) as StudentRow[];
     const studentIds = new Set(studentList.map((s) => s.id));
-    const challengeList = (challengeRows ?? []) as ChallengeRow[];
 
     setStudents(studentList);
     setDbChallenges(challengeList);
@@ -998,13 +998,8 @@ function ManageChallengesTab() {
     const s = getSession();
     if (!s?.id) { setLoading(false); return; }
     setLoading(true);
-    const ownerId = classOwner(s);
-    const { data } = await supabase
-      .from("challenges")
-      .select("id, title, difficulty, xp, created_by")
-      .eq("created_by", ownerId)
-      .order("id");
-    setRows((data ?? []) as ChallengeRow[]);
+    const rows = await fetchClassChallenges(s);
+    setRows(rows);
     setLoading(false);
   }, []);
 
@@ -1043,7 +1038,12 @@ function ManageChallengesTab() {
               {row.id}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-200 truncate">{row.title}</p>
+              <a
+                href={`/challenges/${row.id}`}
+                className="text-sm font-medium text-slate-200 truncate hover:text-white transition-colors block"
+              >
+                {row.title}
+              </a>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xs text-slate-500">{row.difficulty}</span>
                 <span className="text-slate-700">·</span>
@@ -1085,6 +1085,7 @@ function CreateChallengeTab() {
 
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const session = typeof window !== "undefined" ? getSession() : null;
 
@@ -1093,6 +1094,7 @@ function CreateChallengeTab() {
     if (!title.trim() || !instructions.trim()) return;
     setSaving(true);
     setSaveSuccess(false);
+    setSaveError("");
 
     const { error } = await supabase.from("challenges").insert({
       title: title.trim(),
@@ -1106,20 +1108,22 @@ function CreateChallengeTab() {
       starter_code: starterCode,
       hints: hints.filter(Boolean),
       concepts_covered: [],
-      created_by: session?.id ?? null,
+      created_by: challengeCreatedBy(session),
     });
 
     setSaving(false);
-    if (!error) {
-      setSaveSuccess(true);
-      setTitle("");
-      setGist("");
-      setInstructions("");
-      setHints([""]);
-      setStarterCode("");
-      setTags("");
-      setObjectives([""]);
+    if (error) {
+      setSaveError(error.message);
+      return;
     }
+    setSaveSuccess(true);
+    setTitle("");
+    setGist("");
+    setInstructions("");
+    setHints([""]);
+    setStarterCode("");
+    setTags("");
+    setObjectives([""]);
   };
 
   const updateHint = (i: number, val: string) =>
@@ -1317,8 +1321,19 @@ function CreateChallengeTab() {
         <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-400" />
           <span className="text-sm text-emerald-300">
-            Challenge saved! Students can see it now.
+            Challenge saved! It appears under <strong>Class Challenges</strong> on the{" "}
+            <a href="/challenges" className="underline hover:text-emerald-200">
+              Coding Challenges
+            </a>{" "}
+            page and in the Manage Challenges tab.
           </span>
+        </div>
+      )}
+
+      {saveError && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+          <AlertCircle className="h-4 w-4 text-red-400" />
+          <span className="text-sm text-red-300">{saveError}</span>
         </div>
       )}
 

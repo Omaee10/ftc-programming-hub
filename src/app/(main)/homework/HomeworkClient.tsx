@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
 import { getSession } from "@/lib/auth";
-import { supabase, type ChallengeRow } from "@/lib/supabase";
+import { fetchClassChallenges } from "@/lib/classChallenges";
 import {
   rowToChallenge,
   resolveChallenge,
@@ -127,17 +127,11 @@ export default function HomeworkClient() {
 
   useEffect(() => {
     const session = getSession();
-    if (!session?.mentorId) return;
+    if (!session || session.role !== "student") return;
 
-    (async () => {
-      const { data } = await supabase
-        .from("challenges")
-        .select("*")
-        .eq("created_by", session.mentorId!)
-        .order("id", { ascending: true });
-
-      setDbChallenges((data ?? []).map((row) => rowToChallenge(row as ChallengeRow)));
-    })();
+    fetchClassChallenges(session).then((rows) => {
+      setDbChallenges(rows.map((row) => rowToChallenge(row)));
+    });
   }, []);
 
   const pending = assignments.filter((a) => !a.completed);

@@ -14,7 +14,6 @@ import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
 import { getSession } from "@/lib/auth";
-import { supabase, type ChallengeRow } from "@/lib/supabase";
 import { useState, useEffect } from "react";
 import {
   challenges as staticChallenges,
@@ -29,6 +28,7 @@ import {
   filterOutAssigned,
   computeDisplayNumbers,
 } from "@/lib/homeworkUtils";
+import { fetchClassChallenges, isCustomChallengeId } from "@/lib/classChallenges";
 
 // ─── Individual card ──────────────────────────────────────────────────────
 
@@ -37,11 +37,13 @@ function ChallengeCard({
   displayNumber,
   isCompleted,
   hydrated,
+  isCustom = false,
 }: {
   challenge: Challenge;
   displayNumber: number;
   isCompleted: (id: number) => boolean;
   hydrated: boolean;
+  isCustom?: boolean;
 }) {
   const diff = difficultyConfig[challenge.difficulty];
   const done = isCompleted(challenge.id);
@@ -68,6 +70,8 @@ function ChallengeCard({
           >
             {done ? (
               <CheckCircle2 className="h-3.5 w-3.5" />
+            ) : isCustom ? (
+              <span className="text-[9px] font-semibold uppercase tracking-wide">C</span>
             ) : (
               <span>{displayNumber}</span>
             )}
@@ -98,7 +102,7 @@ function ChallengeCard({
         <span
           className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${diff.badgeClass}`}
         >
-          {diff.label}
+          {isCustom ? "Class challenge" : diff.label}
         </span>
 
         <div className="flex items-center gap-2">
@@ -155,36 +159,9 @@ export default function ChallengesClient() {
 
     setIsMentor(session.role === "mentor");
 
-    (async () => {
-      let mentorOwnerId: string | null = null;
-
-      if (session.role === "student") {
-        // Use the stored mentorId if available (set at sign-in).
-        // Fall back to a DB lookup for sessions that pre-date this fix.
-        if (session.mentorId) {
-          mentorOwnerId = session.mentorId;
-        } else {
-          const { data } = await supabase
-            .from("students")
-            .select("mentor_id")
-            .eq("id", session.id)
-            .single();
-          mentorOwnerId = (data as { mentor_id?: string | null } | null)?.mentor_id ?? null;
-        }
-      } else if (session.role === "mentor") {
-        mentorOwnerId = session.parentMentorId ?? session.id;
-      }
-
-      if (!mentorOwnerId) return;
-
-      const { data } = await supabase
-        .from("challenges")
-        .select("*")
-        .eq("created_by", mentorOwnerId)
-        .order("id", { ascending: true });
-
-      setDbChallenges((data ?? []).map(rowToChallenge));
-    })();
+    fetchClassChallenges(session).then((rows) => {
+      setDbChallenges(rows.map(rowToChallenge));
+    });
   }, []);
 
   const allChallenges = mergeChallenges(dbChallenges);
@@ -207,13 +184,18 @@ export default function ChallengesClient() {
     return sum + (c?.xp ?? 0);
   }, 0);
 
+  const customChallenges = challenges.filter((c) => isCustomChallengeId(c.id));
+  const catalogChallenges = challenges.filter((c) => !isCustomChallengeId(c.id));
+
   const byDifficulty: Record<Difficulty, Challenge[]> = {
-    Beginner: challenges.filter((c) => c.difficulty === "Beginner"),
-    Intermediate: challenges.filter((c) => c.difficulty === "Intermediate"),
-    Advanced: challenges.filter((c) => c.difficulty === "Advanced"),
+    Beginner: catalogChallenges.filter((c) => c.difficulty === "Beginner"),
+    Intermediate: catalogChallenges.filter((c) => c.difficulty === "Intermediate"),
+    Advanced: catalogChallenges.filter((c) => c.difficulty === "Advanced"),
   };
 
-  const { displayNumbers, orderedChallenges } = computeDisplayNumbers(challenges);
+  const { displayNumbers, orderedChallenges: orderedCatalog } =
+    computeDisplayNumbers(catalogChallenges);
+  const orderedChallenges = [...customChallenges, ...orderedCatalog];
 
   const totalChallenges = challenges.length;
 
@@ -323,6 +305,33 @@ export default function ChallengesClient() {
             <ArrowRight className="h-3.5 w-3.5 ml-1" />
           </div>
         </Link>
+      )}
+
+      {/* ── Class challenges (mentor-created) ─────────────────────────────── */}
+      {customChallenges.length > 0 && (
+        <div className="mb-10">
+          <div className="mb-4 flex items-center gap-3">
+            <h2 className="text-[11px] font-medium uppercase tracking-widest text-slate-600">
+              Class Challenges
+            </h2>
+            <div className="h-px flex-1 bg-slate-800/80" />
+            <span className="text-[11px] text-slate-700">
+              {customChallenges.length} from your mentor
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {customChallenges.map((challenge) => (
+              <ChallengeCard
+                key={challenge.id}
+                challenge={challenge}
+                displayNumber={challenge.id}
+                isCompleted={isCompleted}
+                hydrated={hydrated}
+                isCustom
+              />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* ── Challenge grid by difficulty ──────────────────────────────────── */}
