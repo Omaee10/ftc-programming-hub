@@ -4664,6 +4664,260 @@ public class VelocityMagnitude extends LinearOpMode {
       "Math.hypot() application",
     ],
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Challenge 54 — Field vs Loop Scope
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 54,
+    title: "Field vs Loop Scope",
+    difficulty: "Beginner",
+    description:
+      "Fix a loop counter that resets every frame by moving it from loop-local scope to a class field so telemetry shows the true iteration count.",
+    xp: 50,
+    estimatedTime: "15 min",
+    tags: ["Scope", "Java Basics", "Telemetry", "TeleOp"],
+    objectives: [
+      "Declare loopCount as a private class field (not inside the while loop).",
+      "Increment loopCount once per loop iteration.",
+      "Display loopCount with telemetry.addData() each frame.",
+      "Call telemetry.update() inside the loop.",
+    ],
+    instructions: `A loop counter declared **inside** \`while (opModeIsActive())\` is re-created every frame (~50 times per second). It never accumulates — telemetry always shows 0 or 1.
+
+**Fix:** move \`loopCount\` to **class (field) scope** so it persists across iterations:
+
+\`\`\`java
+private int loopCount = 0;  // class field — survives every loop tick
+
+while (opModeIsActive()) {
+    loopCount++;
+    telemetry.addData("Loop Count", loopCount);
+    telemetry.update();
+}
+\`\`\`
+
+**Requirements:**
+- Hardware name: \`"drive_motor"\` (DcMotor)
+- Read stick with \`-gamepad1.left_stick_y\` and call \`setPower()\` each iteration
+- Show **Loop Count** in telemetry`,
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@TeleOp(name = "Field vs Loop Scope", group = "Challenge 54")
+public class FieldVsLoopScope extends LinearOpMode {
+
+    private DcMotor driveMotor;
+
+    @Override
+    public void runOpMode() {
+
+        driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
+
+        telemetry.addData("Status", "Ready");
+        telemetry.update();
+
+        waitForStart();
+
+        while (opModeIsActive()) {
+
+            // NOT QUITE — re-declared every frame; counter never accumulates
+            int loopCount = 0;
+            loopCount++;
+
+            double power = -gamepad1.left_stick_y;
+            driveMotor.setPower(power);
+
+        }
+    }
+}`,
+    hints: [
+      "Delete the `int loopCount = 0;` line inside the loop and declare `private int loopCount = 0;` next to `driveMotor` at the top of the class.",
+      "Keep `loopCount++` inside the loop — only the declaration moves to field scope.",
+      "Add `telemetry.addData(\"Loop Count\", loopCount);` and `telemetry.update();` at the end of each loop iteration.",
+    ],
+    conceptsCovered: [
+      "Class field scope",
+      "Loop-local variables",
+      "Accumulator pattern",
+      "Telemetry loop counter",
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Challenge 55 — Method Scope & Parameters
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 55,
+    title: "Method Scope & Parameters",
+    difficulty: "Beginner",
+    description:
+      "Extract gamepad stick reading into a private helper method so stick logic lives in method scope and runOpMode() stays clean.",
+    xp: 50,
+    estimatedTime: "15 min",
+    tags: ["Scope", "Java Basics", "Methods", "TeleOp", "Motors"],
+    objectives: [
+      "Create a private helper method (e.g. getForwardPower()) that returns drive power.",
+      "Negate gamepad1.left_stick_y inside the helper method.",
+      "Call the helper from the OpMode loop and pass the result to setPower().",
+    ],
+    instructions: `Method scope keeps parameters and local variables inside the method body. Extracting stick reading into a helper makes \`runOpMode()\` easier to read and reuse.
+
+**Create a helper method:**
+\`\`\`java
+private double getForwardPower() {
+    return -gamepad1.left_stick_y;
+}
+\`\`\`
+
+**Call it from the loop:**
+\`\`\`java
+while (opModeIsActive()) {
+    driveMotor.setPower(getForwardPower());
+    telemetry.update();
+}
+\`\`\`
+
+**Requirements:**
+- Hardware name: \`"drive_motor"\` (DcMotor)
+- Helper must return the negated left stick Y value
+- Motor power must be set by calling your helper each iteration`,
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@TeleOp(name = "Method Scope", group = "Challenge 55")
+public class MethodScope extends LinearOpMode {
+
+    private DcMotor driveMotor;
+
+    @Override
+    public void runOpMode() {
+
+        driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
+
+        telemetry.addData("Status", "Ready");
+        telemetry.update();
+
+        waitForStart();
+
+        while (opModeIsActive()) {
+
+            // NOT QUITE — stick logic inline; extract to a helper method
+            driveMotor.setPower(gamepad1.left_stick_y);
+
+            telemetry.update();
+        }
+    }
+}`,
+    hints: [
+      "Add a method below runOpMode(): `private double getForwardPower() { return -gamepad1.left_stick_y; }`",
+      "Replace `gamepad1.left_stick_y` in setPower with a call to your helper: `driveMotor.setPower(getForwardPower());`",
+      "The helper's local variables stay inside method scope — runOpMode() only calls the method.",
+    ],
+    conceptsCovered: [
+      "Method scope",
+      "Private helper methods",
+      "Return values",
+      "Negated gamepad Y-axis",
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Challenge 56 — Block Scope & Visibility
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 56,
+    title: "Block Scope & Visibility",
+    difficulty: "Beginner",
+    description:
+      "Fix a compile error caused by using a variable declared inside an if block outside its scope — declare boostMultiplier before the block instead.",
+    xp: 50,
+    estimatedTime: "15 min",
+    tags: ["Scope", "Java Basics", "Control Flow", "TeleOp", "Motors"],
+    objectives: [
+      "Declare boostMultiplier at loop scope (before the if statement).",
+      "Assign boostMultiplier inside if/else based on gamepad1.right_bumper.",
+      "Multiply negated stick input by boostMultiplier and call setPower().",
+    ],
+    instructions: `Variables declared inside an \`if\` block exist only inside that block. Using them after the closing \`}\` causes a compile error.
+
+**Broken pattern:**
+\`\`\`java
+if (gamepad1.right_bumper) {
+    double boostMultiplier = 1.0;
+}
+motor.setPower(power * boostMultiplier);  // error — out of scope
+\`\`\`
+
+**Fixed pattern:**
+\`\`\`java
+double boostMultiplier = 1.0;
+if (gamepad1.right_bumper) {
+    boostMultiplier = 1.0;
+} else {
+    boostMultiplier = 0.5;
+}
+double power = -gamepad1.left_stick_y * boostMultiplier;
+motor.setPower(power);
+\`\`\`
+
+**Requirements:**
+- Hardware name: \`"drive_motor"\` (DcMotor)
+- Full speed (\`1.0\`) when right bumper pressed, half speed (\`0.5\`) otherwise
+- Optionally show boost multiplier in telemetry`,
+    starterCode: `package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
+@TeleOp(name = "Block Scope", group = "Challenge 56")
+public class BlockScope extends LinearOpMode {
+
+    private DcMotor driveMotor;
+
+    @Override
+    public void runOpMode() {
+
+        driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
+
+        telemetry.addData("Status", "Ready");
+        telemetry.update();
+
+        waitForStart();
+
+        while (opModeIsActive()) {
+
+            // NOT QUITE — boostMultiplier only exists inside the if block
+            if (gamepad1.right_bumper) {
+                double boostMultiplier = 1.0;
+            }
+
+            double power = -gamepad1.left_stick_y * boostMultiplier;
+            driveMotor.setPower(power);
+
+            telemetry.update();
+        }
+    }
+}`,
+    hints: [
+      "Move the declaration before the if: `double boostMultiplier = 1.0;`",
+      "Inside the if/else, assign values — do not re-declare with `double`: `boostMultiplier = 1.0;` and `boostMultiplier = 0.5;`",
+      "Add `telemetry.addData(\"Boost\", boostMultiplier);` before `telemetry.update()` if you want extra credit feedback.",
+    ],
+    conceptsCovered: [
+      "Block scope",
+      "if/else variable visibility",
+      "Compile-time scope errors",
+      "Boost multiplier pattern",
+    ],
+  },
 ];
 
 /** Lookup helpers */

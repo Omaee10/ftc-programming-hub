@@ -20,7 +20,7 @@ import static com.ftchub.grader.rubric.TreeHelpers.sourceContains;
 /**
  * Per-challenge rubric definitions.
  *
- * The legacy validator only had detailed rules for 19 of the 53 built-in
+ * The legacy validator only had detailed rules for 19 of the 56 built-in
  * challenges. Every challenge now has at least a handful of structural rules
  * derived from its objectives — challenges that are fully covered get rich
  * type-aware checks, while the rest get sensible defaults the compiler can
@@ -108,7 +108,10 @@ public final class ChallengeRubrics {
         Map.entry(50, challenge50()),
         Map.entry(51, challenge51()),
         Map.entry(52, challenge52()),
-        Map.entry(53, challenge53())
+        Map.entry(53, challenge53()),
+        Map.entry(54, challenge54()),
+        Map.entry(55, challenge55()),
+        Map.entry(56, challenge56())
     );
 
     // ──────────────────────────────────────────────────────────────────────
@@ -1369,6 +1372,84 @@ public final class ChallengeRubrics {
                 "Combine vx and vy with sqrt or hypot.",
                 "double speed = Math.sqrt(vxMMs * vxMMs + vyMMs * vyMMs);",
                 ctx -> sourceContains(ctx, Pattern.compile("Math\\.sqrt\\s*\\(|Math\\.hypot\\s*\\(")))
+        );
+    }
+
+    /** Challenge 54 — Field vs Loop Scope. */
+    private static List<RubricRule> challenge54() {
+        return Rules.of(
+            Rules.required("loopCount declared as field",
+                "Counter must be a class field, not re-declared inside the loop.",
+                "private int loopCount = 0;  // next to other fields, not inside while",
+                ctx -> sourceContains(ctx, Pattern.compile("private\\s+int\\s+loopCount"))),
+            Rules.required("Loop counter incremented",
+                "Increment loopCount once per loop iteration.",
+                "loopCount++;",
+                ctx -> sourceContains(ctx, Pattern.compile("loopCount\\s*\\+\\+|\\+\\+\\s*loopCount|loopCount\\s*=\\s*loopCount\\s*\\+"))),
+            Rules.required("Loop count in telemetry",
+                "Display the counter on the Driver Station each frame.",
+                "telemetry.addData(\"Loop Count\", loopCount);",
+                ctx -> callsMethod(ctx, "addData") && sourceContains(ctx, Pattern.compile("loopCount"))),
+            Rules.improvement("Motor driven from stick",
+                "Read negated left_stick_y and set motor power each iteration.",
+                "driveMotor.setPower(-gamepad1.left_stick_y);",
+                ctx -> sourceContains(ctx, NEGATED_LEFT_STICK_Y) && callsMethodInsideWhileLoop(ctx, "setPower"))
+        );
+    }
+
+    /** Challenge 55 — Method Scope & Parameters. */
+    private static List<RubricRule> challenge55() {
+        Pattern helperMethod = Pattern.compile(
+                "getForwardPower|getDrivePower|readStick|readForwardPower|getStickPower");
+        return Rules.of(
+            Rules.required("Stick helper method declared",
+                "Extract stick reading into a private helper method.",
+                "private double getForwardPower() { return -gamepad1.left_stick_y; }",
+                ctx -> declaresMethod(ctx, "getForwardPower")
+                       || declaresMethod(ctx, "getDrivePower")
+                       || declaresMethod(ctx, "readStick")
+                       || declaresMethod(ctx, "readForwardPower")
+                       || declaresMethod(ctx, "getStickPower")),
+            Rules.required("Negated Y-axis in helper",
+                "Forward stick push must produce positive power.",
+                "return -gamepad1.left_stick_y;",
+                ctx -> sourceContains(ctx, NEGATED_LEFT_STICK_Y)),
+            Rules.required("Helper called from loop",
+                "setPower() must use the helper method each iteration.",
+                "driveMotor.setPower(getForwardPower());",
+                ctx -> callsMethodInsideWhileLoop(ctx, "setPower")
+                       && sourceContains(ctx, helperMethod)),
+            Rules.improvement("Helper is private",
+                "Helper methods should be private unless shared.",
+                "private double getForwardPower() { ... }",
+                ctx -> sourceContains(ctx, Pattern.compile("private\\s+double\\s+(getForwardPower|getDrivePower|readStick|readForwardPower|getStickPower)\\s*\\(")))
+        );
+    }
+
+    /** Challenge 56 — Block Scope & Visibility. */
+    private static List<RubricRule> challenge56() {
+        Pattern boostVar = Pattern.compile("boostMultiplier|boost\\s*Multiplier|boostFactor|speedMultiplier");
+        return Rules.of(
+            Rules.required("Bumper controls boost",
+                "Right bumper selects full vs reduced speed.",
+                "if (gamepad1.right_bumper) { boostMultiplier = 1.0; }",
+                ctx -> sourceContains(ctx, Pattern.compile("gamepad1\\.right_bumper|gamepad1\\.left_bumper"))),
+            Rules.required("Boost variable at loop scope",
+                "Declare boost multiplier before the if block, assign inside branches.",
+                "double boostMultiplier = 1.0; if (...) { boostMultiplier = 1.0; } else { boostMultiplier = 0.5; }",
+                ctx -> sourceContains(ctx, boostVar)
+                       && sourceContains(ctx, Pattern.compile("\\belse\\b"))
+                       && sourceContains(ctx, Pattern.compile("0\\.5|1\\.0"))),
+            Rules.required("Power uses boost multiplier",
+                "Multiply negated stick input by boost and call setPower().",
+                "double power = -gamepad1.left_stick_y * boostMultiplier;",
+                ctx -> sourceContains(ctx, NEGATED_LEFT_STICK_Y)
+                       && sourceContains(ctx, boostVar)
+                       && callsMethodInsideWhileLoop(ctx, "setPower")),
+            Rules.improvement("Boost shown in telemetry",
+                "Display the active boost multiplier for debugging.",
+                "telemetry.addData(\"Boost\", boostMultiplier);",
+                ctx -> callsMethod(ctx, "addData") && sourceContains(ctx, boostVar))
         );
     }
 }

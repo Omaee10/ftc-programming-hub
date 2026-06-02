@@ -13,10 +13,10 @@ export default function JavaBasicsPage() {
         { label: "Java Basics" },
       ]}
       title="Java Basics"
-      description="A beginner-friendly introduction to Java for FTC programmers. Covers variables, data types, control flow, methods, classes, and inheritance — everything you need before writing your first OpMode."
+      description="A beginner-friendly introduction to Java for FTC programmers. Covers variables, data types, control flow, methods, scope, classes, and inheritance — everything you need before writing your first OpMode."
       badge="Beginner"
       badgeColor="blue"
-      readingTime="20 min"
+      readingTime="22 min"
       sections={[
         {
           id: "why-java",
@@ -355,6 +355,118 @@ if (isTargetReached(500)) { stopAllMotors(); }`}
                 anything. For all other return types, you <strong>must</strong>{" "}
                 include a <code>return</code> statement inside the method body,
                 or Java will give a compile error.
+              </NoteBox>
+            </Prose>
+          ),
+        },
+        {
+          id: "scope",
+          title: "Variable Scope",
+          content: (
+            <Prose>
+              <p>
+                <strong>Scope</strong> defines where a name (variable, method,
+                or field) is visible and usable in your code. Using a variable
+                outside its scope causes a compile error — one of the most
+                common mistakes in beginner FTC code.
+              </p>
+              <SpecTable
+                rows={[
+                  { label: "Block scope", value: "Inside { } of if, while, for", note: "Exists only within that block" },
+                  { label: "Method scope", value: "Parameters and locals inside a method", note: "Destroyed when the method returns" },
+                  { label: "Class (field) scope", value: "Instance variables declared in the class body", note: "Shared by all methods; persist between calls" },
+                  { label: "Static scope", value: "static fields and methods on the class", note: "See Static vs Instance below" },
+                ]}
+              />
+              <p>
+                Think of scope as nested boxes: a <strong>class</strong> contains{" "}
+                <strong>methods</strong>, and each method contains{" "}
+                <strong>blocks</strong> (loops, if statements). A name declared
+                in an inner box cannot be seen from outside it.
+              </p>
+              <CodeBlock
+                filename="ScopeBasics.java"
+                code={`public class DriveTeleOp extends LinearOpMode {
+
+    // ── Class (field) scope — visible to every method in this class ───────
+    private DcMotor driveMotor;
+    private int loopCount = 0;       // persists across loop iterations
+    private boolean lastA = false;   // persists for edge detection
+
+    @Override
+    public void runOpMode() {
+        driveMotor = hardwareMap.get(DcMotor.class, "drive_motor");
+        waitForStart();
+
+        while (opModeIsActive()) {
+            // ── Block scope — variables here die when the loop body ends ───
+            double power = getForwardPower();  // method scope (see below)
+            driveMotor.setPower(power);
+
+            loopCount++;  // field — survives to the next iteration
+
+            if (gamepad1.a && !lastA) {
+                // lastA is a field; 'pressed' is block-local to this if
+                boolean pressed = true;
+                telemetry.addData("Edge", pressed);
+            }
+            lastA = gamepad1.a;
+
+            telemetry.addData("Loops", loopCount);
+            telemetry.update();
+        }
+    }
+
+    // ── Method scope — parameters and locals live only inside this method ─
+    private double getForwardPower() {
+        double stick = -gamepad1.left_stick_y;  // local to getForwardPower()
+        return stick;
+    }
+}`}
+              />
+              <h3>Common FTC scope mistakes</h3>
+              <CodeBlock
+                filename="ScopeMistakes.java"
+                code={`// ❌ Counter inside the loop — resets to 0 every frame (~50×/sec)
+while (opModeIsActive()) {
+    int loopCount = 0;
+    loopCount++;
+}
+
+// ✅ Declare counters as class fields, increment inside the loop
+private int loopCount = 0;
+while (opModeIsActive()) {
+    loopCount++;
+}
+
+// ❌ Variable declared inside if, used outside — won't compile
+if (gamepad1.right_bumper) {
+    double boost = 1.0;
+}
+motor.setPower(power * boost);  // error: boost is out of scope
+
+// ✅ Declare before the block, assign inside if/else
+double boostMultiplier = 1.0;
+if (gamepad1.right_bumper) {
+    boostMultiplier = 1.0;
+} else {
+    boostMultiplier = 0.5;
+}
+double power = -gamepad1.left_stick_y * boostMultiplier;
+motor.setPower(power);`}
+              />
+              <NoteBox type="warning">
+                If a value must <strong>survive from one loop iteration to the
+                next</strong> (counters, toggle state, debounce flags), it
+                cannot be declared inside the loop body. Declare it as a{" "}
+                <strong>class field</strong> instead.
+              </NoteBox>
+              <NoteBox type="tip">
+                Extract repeated logic into a <strong>private helper
+                method</strong> — parameters and locals stay in method scope,
+                keeping <code>runOpMode()</code> readable. See the{" "}
+                <em>Static vs Instance</em> section for how{" "}
+                <code>static</code> members differ from instance fields.
               </NoteBox>
             </Prose>
           ),
