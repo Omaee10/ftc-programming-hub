@@ -1037,7 +1037,7 @@ function ManageChallengesTab() {
             <div className="flex-1 min-w-0">
               <a
                 href={`/challenges/${row.id}`}
-                className="text-sm font-medium text-slate-200 truncate hover:text-white transition-colors block"
+                className="text-sm font-medium text-slate-200 truncate hover:text-slate-100 transition-colors block"
               >
                 {row.title}
               </a>

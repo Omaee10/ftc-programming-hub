@@ -79,7 +79,7 @@ function ChallengeCard({
 
           {/* Title */}
           <div className="min-w-0">
-            <h3 className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors truncate">
+            <h3 className="text-sm font-medium text-slate-200 group-hover:text-slate-100 transition-colors truncate">
               {challenge.title}
             </h3>
           </div>

@@ -165,7 +165,7 @@ export default function PastProgramsClient() {
                       <FileCode className={`h-4 w-4 ${colors.text}`} />
                     </div>
                     <div className="min-w-0">
-                      <h2 className="truncate text-sm font-semibold text-slate-200 group-hover:text-white transition-colors">
+                      <h2 className="truncate text-sm font-semibold text-slate-200 group-hover:text-slate-100 transition-colors">
                         {program.name}
                       </h2>
                       <p className="font-mono text-[11px] text-slate-600 truncate">

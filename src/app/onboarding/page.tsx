@@ -40,7 +40,7 @@ export default function OnboardingPage() {
           <div className="flex items-center gap-3">
             <LogIn className="h-5 w-5 text-slate-500 group-hover:text-slate-300 transition-colors shrink-0" />
             <div>
-              <p className="text-base font-medium text-slate-200 group-hover:text-white transition-colors">
+              <p className="text-base font-medium text-slate-200 group-hover:text-slate-100 transition-colors">
                 Sign in
               </p>
               <p className="text-sm text-slate-600 mt-0.5">
