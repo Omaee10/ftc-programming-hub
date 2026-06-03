@@ -99,10 +99,9 @@ export function ModeSwitchDialog({
           Switch to {targetMode === "java" ? "OnBot Java" : "FTC Blocks"}?
         </h2>
         <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-          Switching editor modes may replace your current work in the other view.
-          Unsaved changes in{" "}
-          {targetMode === "java" ? "FTC Blocks" : "OnBot Java"} might be lost
-          unless you already saved a draft.
+          {targetMode === "java"
+            ? "OnBot Java shows the lesson starter (or your previous Java edits), not your blocks. Your block workspace is saved separately."
+            : "FTC Blocks keeps your block workspace. Run still grades the Java generated from your blocks."}
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <button

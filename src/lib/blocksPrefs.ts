@@ -3,14 +3,11 @@
 const KEY = "ftc-hub-blocks-prefs-v1";
 
 export interface BlocksPrefs {
-  /** Show read-only Generated Java split pane in Blocks mode. */
-  showGeneratedJava: boolean;
   /** Coach marks completed (Blocks onboarding). */
   onboardingDone: boolean;
 }
 
 const DEFAULTS: BlocksPrefs = {
-  showGeneratedJava: true,
   onboardingDone: false,
 };
 
@@ -21,8 +18,6 @@ export function readBlocksPrefs(): BlocksPrefs {
     if (!raw) return { ...DEFAULTS };
     const parsed = JSON.parse(raw) as Partial<BlocksPrefs>;
     return {
-      showGeneratedJava:
-        parsed.showGeneratedJava ?? DEFAULTS.showGeneratedJava,
       onboardingDone: parsed.onboardingDone ?? DEFAULTS.onboardingDone,
     };
   } catch {
