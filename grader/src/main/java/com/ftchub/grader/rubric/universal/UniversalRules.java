@@ -1,9 +1,7 @@
 package com.ftchub.grader.rubric.universal;
 
 import com.ftchub.grader.rubric.RubricRule;
-import com.ftchub.grader.rubric.RuleResult;
 import com.ftchub.grader.rubric.Rules;
-import com.ftchub.grader.rubric.Tier;
 import com.ftchub.grader.rubric.TreeHelpers;
 
 import java.util.List;
@@ -76,18 +74,6 @@ public final class UniversalRules {
             "while(true) prevents the FTC app from stopping the robot.",
             "Replace with `while (opModeIsActive())` so Stop actually stops the robot.",
             WHILE_TRUE
-        ),
-
-        Rules.custom(
-            "No empty while-loop body",
-            "A while loop with only `{;}` or `{}` spins without running your driving code.",
-            "Move gamepad reads, setPower(), and telemetry.update() inside the while body — "
-                + "code after `{;}` is not part of the loop.",
-            Tier.REQUIRED,
-            ctx -> {
-                var lines = TreeHelpers.emptyWhileLoopBodyLines(ctx);
-                return lines.isEmpty() ? RuleResult.ok() : RuleResult.fail(lines);
-            }
         ),
 
         Rules.requiredAbsent(
