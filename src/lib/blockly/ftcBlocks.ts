@@ -1108,14 +1108,51 @@ const CATEGORY_ORDER: BlockCategory[] = [
   "Helpers",
 ];
 
+interface ShadowNumberInput {
+  shadow: { type: "ftc_number"; fields: { NUM: number } };
+}
+
+interface ToolboxBlockEntry {
+  kind: "block";
+  type: string;
+  inputs?: Record<string, ShadowNumberInput>;
+}
+
 export interface ToolboxJson {
   kind: "categoryToolbox";
   contents: Array<{
     kind: "category";
     name: string;
     colour: string;
-    contents: Array<{ kind: "block"; type: string }>;
+    contents: ToolboxBlockEntry[];
   }>;
+}
+
+/**
+ * Value inputs that should come pre-filled with an editable "0" number block
+ * (a Blockly shadow) so students can type a number directly instead of having
+ * to drag a separate number block into the socket.
+ */
+const NUMBER_SHADOW_INPUTS: Record<string, string[]> = {
+  ftc_declare_var: ["INIT"],
+  ftc_assign: ["VALUE"],
+  ftc_change_by: ["VALUE"],
+  ftc_set_power: ["VALUE"],
+  ftc_set_position: ["VALUE"],
+  ftc_set_target: ["VALUE"],
+  ftc_set_velocity: ["VALUE"],
+  ftc_run_to_position: ["VALUE", "POWER"],
+  ftc_sleep: ["MS"],
+};
+
+function toolboxBlockEntry(type: string): ToolboxBlockEntry {
+  const inputs = NUMBER_SHADOW_INPUTS[type];
+  if (!inputs) return { kind: "block", type };
+  const entry: ToolboxBlockEntry = { kind: "block", type, inputs: {} };
+  for (const name of inputs) {
+    entry.inputs![name] = { shadow: { type: "ftc_number", fields: { NUM: 0 } } };
+  }
+  return entry;
 }
 
 /**
@@ -1139,10 +1176,9 @@ export function buildToolbox(blockTypes: string[]): ToolboxJson {
       kind: "category" as const,
       name: cat,
       colour: CATEGORY_COLOUR[cat],
-      contents: (byCategory.get(cat) ?? []).map((type) => ({
-        kind: "block" as const,
-        type,
-      })),
+      contents: (byCategory.get(cat) ?? []).map((type) =>
+        toolboxBlockEntry(type)
+      ),
     })
   );
 
