@@ -58,7 +58,10 @@ import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
 import EditorModeSwitch, { ModeSwitchDialog } from "./EditorModeSwitch";
 import type { EditorMode } from "@/lib/blockly/types";
-import { getBlockStarterXml } from "@/data/blockStarters";
+import {
+  getBlockStarterXml,
+  isLegacyBlockXml,
+} from "@/data/blockStarters";
 
 // ─── Monaco loaded lazily (browser-only) ────────────────────────────────────
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -669,10 +672,16 @@ export default function ChallengeWorkspace({
   const [editorMode, setEditorMode] = useState<EditorMode>(
     () => openingDraft?.editorMode ?? "java"
   );
-  const [blockXml, setBlockXml] = useState(
-    () => openingDraft?.blockXml ?? getBlockStarterXml(challenge.id)
-  );
+  const [blockXml, setBlockXml] = useState(() => {
+    const draft = openingDraft?.blockXml;
+    if (draft && !isLegacyBlockXml(draft)) return draft;
+    return getBlockStarterXml(challenge.id);
+  });
   const [blockWorkspaceKey, setBlockWorkspaceKey] = useState(0);
+  const [showBlocksJava, setShowBlocksJava] = useState(false);
+  const [blocksMigratedNotice, setBlocksMigratedNotice] = useState(
+    () => !!openingDraft?.blockXml && isLegacyBlockXml(openingDraft.blockXml)
+  );
   const [pendingEditorMode, setPendingEditorMode] = useState<EditorMode | null>(
     null
   );
@@ -1467,10 +1476,23 @@ export default function ChallengeWorkspace({
             <span className="font-mono text-[11px] text-slate-600 truncate min-w-0">
               {editorMode === "java"
                 ? `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.java`
-                : "Block workspace"}
+                : `Blocks · ${challenge.title}`}
             </span>
 
             <div className="ml-auto flex items-center gap-1.5">
+              {editorMode === "blocks" && (
+                <button
+                  type="button"
+                  onClick={() => setShowBlocksJava((v) => !v)}
+                  className={`rounded px-2 py-1 text-[11px] transition-all ${
+                    showBlocksJava
+                      ? "bg-slate-700/80 text-slate-200"
+                      : "text-slate-600 hover:text-slate-300 hover:bg-slate-800/60"
+                  }`}
+                >
+                  {showBlocksJava ? "Hide Java" : "Show Java"}
+                </button>
+              )}
               <button
                 onClick={resetCode}
                 title={
@@ -1493,16 +1515,69 @@ export default function ChallengeWorkspace({
             onCancel={() => setPendingEditorMode(null)}
           />
 
+          {blocksMigratedNotice && editorMode === "blocks" && (
+            <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-3 py-1.5">
+              <span className="text-[11px] text-amber-300">
+                Blocks layout updated to match FTC Blocks — your previous block
+                workspace was reset to the new starter.
+              </span>
+              <button
+                type="button"
+                onClick={() => setBlocksMigratedNotice(false)}
+                className="ml-auto text-[11px] text-amber-400/80 hover:text-amber-200"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           {/* Code editor: Java (Monaco) or Blocks (Blockly) */}
-          <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {editorMode === "blocks" ? (
-              <BlocklyWorkspacePanel
-                key={`${challenge.id}-${blockWorkspaceKey}`}
-                challenge={challenge}
-                initialXml={blockXml}
-                onCodeChange={handleBlocksCodeChange}
-              />
+              <>
+                <div
+                  className={
+                    showBlocksJava
+                      ? "min-h-0 flex-[3] overflow-hidden"
+                      : "min-h-0 flex-1 overflow-hidden"
+                  }
+                >
+                  <BlocklyWorkspacePanel
+                    key={`${challenge.id}-${blockWorkspaceKey}`}
+                    challenge={challenge}
+                    initialXml={blockXml}
+                    onCodeChange={handleBlocksCodeChange}
+                    onMigrated={() => setBlocksMigratedNotice(true)}
+                  />
+                </div>
+                {showBlocksJava && (
+                  <div className="flex min-h-0 flex-[2] flex-col overflow-hidden border-t border-slate-800/80">
+                    <div className="flex h-7 shrink-0 items-center border-b border-slate-800/60 bg-slate-950/90 px-3">
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                        Generated Java
+                      </span>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                      <MonacoEditor
+                        height="100%"
+                        language="java"
+                        theme={monacoTheme}
+                        value={code}
+                        options={{
+                          readOnly: true,
+                          fontSize: 12,
+                          minimap: { enabled: false },
+                          wordWrap: "on",
+                          scrollBeyondLastLine: false,
+                          lineNumbers: "on",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
+            <div className="min-h-0 flex-1 overflow-hidden">
             <MonacoEditor
               height="100%"
               language="java"
@@ -1549,6 +1624,7 @@ export default function ChallengeWorkspace({
                 suggest: { showWords: true },
               }}
             />
+            </div>
             )}
           </div>
 

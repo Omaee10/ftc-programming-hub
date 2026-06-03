@@ -692,25 +692,30 @@ body {
   letter-spacing: -0.02em;
 }
 
-/* ─── Blockly workspace (challenge block editor) ───────────────── */
+/* ─── Blockly workspace (FTC Blocks style) ─────────────────────── */
 .blockly-root .blocklySvg {
-  background-color: #18181f;
+  background-color: #1e1e1e;
 }
 .blockly-root .blocklyToolboxDiv {
-  background-color: #18181b !important;
-  border-right: 1px solid #32323c !important;
+  background-color: #2d2d2d !important;
+  border-right: 1px solid #404040 !important;
 }
 .blockly-root .blocklyFlyoutBackground {
-  fill: #22222a;
+  fill: #303030;
   fill-opacity: 0.98;
 }
 .blockly-root .blocklyScrollbarHandle {
-  fill: #3f3f46;
+  fill: #5a5a5a;
 }
 .blockly-root .blocklyTreeLabel {
-  color: #a1a1aa !important;
-  font-size: 11px !important;
+  color: #cccccc !important;
+  font-size: 12px !important;
 }
 .blockly-root .blocklyTreeRow {
-  padding: 4px 8px !important;
+  padding: 6px 10px !important;
+  margin: 1px 4px !important;
+  border-radius: 4px;
+}
+.blockly-root .blocklyTreeSelected .blocklyTreeLabel {
+  color: #ffffff !important;
 }

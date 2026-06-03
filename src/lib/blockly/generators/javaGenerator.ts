@@ -1,9 +1,10 @@
 import * as Blockly from "blockly/core";
 import { CodeGenerator } from "blockly/core";
+import { Order } from "blockly/javascript";
 import type { Block } from "blockly/core";
 import type { BlocklyChallengeMeta } from "@/lib/blockly/types";
-import { wrapOpModeSkeleton } from "@/lib/blockly/generators/opModeSkeleton";
-import { registerFtcBlocks } from "@/lib/blockly/blocks/ftcBlocks";
+import { wrapOpModeSkeleton, collectImports } from "@/lib/blockly/generators/opModeSkeleton";
+import { registerAllBlocks } from "@/lib/blockly/blocks/registerBlocks";
 
 let javaGenerator: JavaGenerator | null = null;
 
@@ -12,15 +13,18 @@ class JavaGenerator extends CodeGenerator {
     super("Java");
     this.INDENT = "    ";
     this.addReservedWords(
-      "package,import,public,private,class,void,extends,while,if,else,new,double,boolean,int,true,false,null"
+      "package,import,public,private,class,void,extends,while,if,else,new,double,boolean,int,true,false,null,return"
     );
   }
 
-  /** Blockly 11+ does not auto-chain stack statements; walk next links explicitly. */
   override statementToCode(block: Block, name: string): string {
     let code = "";
     let current = block.getInputTargetBlock(name);
     while (current) {
+      if (current.type === "ftc_comment") {
+        current = current.getNextBlock();
+        continue;
+      }
       const chunk = this.blockToCode(current);
       if (typeof chunk === "string") code += chunk;
       else if (Array.isArray(chunk)) code += chunk[0];
@@ -28,308 +32,406 @@ class JavaGenerator extends CodeGenerator {
     }
     return code;
   }
+
 }
 
-function sanitizeId(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_]/g, "") || "device";
+function sanitizeVar(name: string): string {
+  const s = name.replace(/[^a-zA-Z0-9_]/g, "");
+  return s && /^[a-zA-Z_]/.test(s) ? s : `v_${s || "x"}`;
+}
+
+function hwToVar(hw: string): string {
+  const parts = hw.split("_").filter(Boolean);
+  if (parts.length === 0) return "device";
+  return parts
+    .map((p, i) =>
+      i === 0 ? p.toLowerCase() : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()
+    )
+    .join("");
+}
+
+function stmt(code: string): string {
+  const lines = code.split("\n").filter((l) => l.trim());
+  return lines.map((l) => (l.endsWith(";") ? l : `${l};`)).join("\n") + "\n";
+}
+
+interface DeviceDecl {
+  javaType: string;
+  varName: string;
+  hwName: string;
+  kind: "DcMotor" | "DcMotorEx" | "Servo" | "CRServo" | "ElapsedTime";
+}
+
+function collectDevices(workspace: Blockly.Workspace): Map<string, DeviceDecl> {
+  const map = new Map<string, DeviceDecl>();
+  const all = workspace.getAllBlocks(false);
+  for (const block of all) {
+    if (block.type === "ftc_dc_motor_hw_get") {
+      const varName = sanitizeVar(block.getFieldValue("VAR") || hwToVar(block.getFieldValue("HW")));
+      const hw = block.getFieldValue("HW");
+      map.set(varName, {
+        javaType: "DcMotor",
+        varName,
+        hwName: hw,
+        kind: "DcMotor",
+      });
+    }
+    if (block.type === "ftc_dc_motor_ex_hw_get") {
+      const varName = sanitizeVar(block.getFieldValue("VAR") || hwToVar(block.getFieldValue("HW")));
+      map.set(varName, {
+        javaType: "DcMotorEx",
+        varName,
+        hwName: block.getFieldValue("HW"),
+        kind: "DcMotorEx",
+      });
+    }
+    if (block.type === "ftc_servo_hw_get") {
+      const varName = sanitizeVar(block.getFieldValue("VAR") || hwToVar(block.getFieldValue("HW")));
+      map.set(varName, {
+        javaType: "Servo",
+        varName,
+        hwName: block.getFieldValue("HW"),
+        kind: "Servo",
+      });
+    }
+    if (block.type === "ftc_cr_servo_hw_get") {
+      const varName = sanitizeVar(block.getFieldValue("VAR") || hwToVar(block.getFieldValue("HW")));
+      map.set(varName, {
+        javaType: "CRServo",
+        varName,
+        hwName: block.getFieldValue("HW"),
+        kind: "CRServo",
+      });
+    }
+    if (block.type === "ftc_elapsed_time_new") {
+      const varName = sanitizeVar(block.getFieldValue("NAME"));
+      map.set(varName, {
+        javaType: "ElapsedTime",
+        varName,
+        hwName: "",
+        kind: "ElapsedTime",
+      });
+    }
+    for (const field of ["VAR", "MOTOR", "SERVO", "NAME"]) {
+      if (block.getField(field)) {
+        const v = sanitizeVar(block.getFieldValue(field));
+        if (v && !map.has(v) && block.type.startsWith("ftc_dc_motor")) {
+          map.set(v, {
+            javaType: block.type.includes("ex") ? "DcMotorEx" : "DcMotor",
+            varName: v,
+            hwName: v.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, ""),
+            kind: block.type.includes("ex") ? "DcMotorEx" : "DcMotor",
+          });
+        }
+      }
+    }
+  }
+  return map;
 }
 
 function registerBlockGenerators(gen: JavaGenerator): void {
-  const stmt = (code: string) => code + "\n";
-
-  gen.forBlock["ftc_declare_dc_motor"] = (block) =>
-    stmt(`private DcMotor ${sanitizeId(block.getFieldValue("NAME"))};`);
-
-  gen.forBlock["ftc_declare_dc_motor_ex"] = (block) =>
-    stmt(`private DcMotorEx ${sanitizeId(block.getFieldValue("NAME"))};`);
-
-  gen.forBlock["ftc_declare_servo"] = (block) =>
-    stmt(`private Servo ${sanitizeId(block.getFieldValue("NAME"))};`);
-
-  gen.forBlock["ftc_declare_cr_servo"] = (block) =>
-    stmt(`private CRServo ${sanitizeId(block.getFieldValue("NAME"))};`);
-
-  gen.forBlock["ftc_declare_elapsed_time"] = (block) =>
-    stmt(`private ElapsedTime ${sanitizeId(block.getFieldValue("NAME"))};`);
-
-  gen.forBlock["ftc_declare_boolean"] = (block) =>
-    stmt(
-      `private boolean ${sanitizeId(block.getFieldValue("NAME"))} = ${block.getFieldValue("VALUE") === "TRUE" ? "true" : "false"};`
-    );
-
-  gen.forBlock["ftc_declare_int"] = (block) =>
-    stmt(
-      `private int ${sanitizeId(block.getFieldValue("NAME"))} = ${Number(block.getFieldValue("VALUE"))};`
-    );
-
-  gen.forBlock["ftc_declare_double"] = (block) =>
-    stmt(
-      `private double ${sanitizeId(block.getFieldValue("NAME"))} = ${Number(block.getFieldValue("VALUE"))};`
-    );
-
-  gen.forBlock["ftc_private_double_method"] = (block) => {
-    const name = sanitizeId(block.getFieldValue("NAME"));
-    const body = block.getFieldValue("BODY") || "-gamepad1.left_stick_y";
-    return stmt(`private double ${name}() {\n        return ${body};\n    }`);
+  gen.forBlock["procedures_defnoreturn"] = (block, generator) => {
+    const name = block.getFieldValue("NAME");
+    if (name !== "runOpMode") return "";
+    const body = generator.statementToCode(block, "STACK");
+    return body;
   };
 
-  gen.forBlock["ftc_hw_get_dc_motor"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("VAR"))} = hardwareMap.get(DcMotor.class, "${block.getFieldValue("HW")}");`
-    );
+  gen.forBlock["procedures_defreturn"] = () => "";
+  gen.forBlock["procedures_callnoreturn"] = () => "";
+  gen.forBlock["procedures_callreturn"] = () => "";
 
-  gen.forBlock["ftc_hw_get_dc_motor_ex"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("VAR"))} = hardwareMap.get(DcMotorEx.class, "${block.getFieldValue("HW")}");`
-    );
+  gen.forBlock["controls_whileUntil"] = (block, generator) => {
+    const mode = block.getFieldValue("MODE");
+    const cond =
+      generator.valueToCode(block, "BOOL", Order.NONE) || "false";
+    const body = generator.statementToCode(block, "DO");
+    if (mode === "UNTIL") {
+      return stmt(`while (!(${cond}) && opModeIsActive()) {\n${body}        }`);
+    }
+    return stmt(`while (${cond} && opModeIsActive()) {\n${body}        }`);
+  };
 
-  gen.forBlock["ftc_hw_get_servo"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("VAR"))} = hardwareMap.get(Servo.class, "${block.getFieldValue("HW")}");`
-    );
+  gen.forBlock["controls_repeat_ext"] = (block, generator) => {
+    const mode = block.getFieldValue("MODE");
+    if (mode === "TIMES") {
+      const times =
+        generator.valueToCode(block, "TIMES", Order.NONE) || "0";
+      const body = generator.statementToCode(block, "DO");
+      return stmt(`for (int i = 0; i < ${times} && opModeIsActive(); i++) {\n${body}        }`);
+    }
+    const cond =
+      generator.valueToCode(block, "BOOL", Order.NONE) || "false";
+    const body = generator.statementToCode(block, "DO");
+    return stmt(`while (${cond} && opModeIsActive()) {\n${body}        }`);
+  };
 
-  gen.forBlock["ftc_hw_get_cr_servo"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("VAR"))} = hardwareMap.get(CRServo.class, "${block.getFieldValue("HW")}");`
-    );
+  gen.forBlock["controls_if"] = (block, generator) => {
+    let code = "";
+    for (let i = 0; block.getInput(`IF${i}`); i++) {
+      const clause = i === 0 ? "if" : "else if";
+      const cond =
+        generator.valueToCode(block, `IF${i}`, Order.NONE) || "false";
+      const branch = generator.statementToCode(block, `DO${i}`);
+      code += `${clause} (${cond}) {\n${branch}        } else `;
+    }
+    if (block.getInput("ELSE")) {
+      const branch = generator.statementToCode(block, "ELSE");
+      code = code.replace(/ else $/, "") + `else {\n${branch}        }`;
+    } else {
+      code = code.replace(/ else $/, "");
+    }
+    return stmt(code);
+  };
 
-  gen.forBlock["ftc_set_direction"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("MOTOR"))}.setDirection(DcMotorSimple.Direction.${block.getFieldValue("DIR")});`
-    );
+  gen.forBlock["logic_compare"] = (block, generator) => {
+    const op = block.getFieldValue("OP");
+    const a = generator.valueToCode(block, "A", Order.EQUALITY) || "0";
+    const b = generator.valueToCode(block, "B", Order.EQUALITY) || "0";
+    const ops: Record<string, string> = {
+      EQ: "==",
+      NEQ: "!=",
+      LT: "<",
+      LTE: "<=",
+      GT: ">",
+      GTE: ">=",
+    };
+    return [`${a} ${ops[op] || "=="} ${b}`, Order.EQUALITY];
+  };
 
-  gen.forBlock["ftc_set_zero_power_behavior"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("MOTOR"))}.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.${block.getFieldValue("MODE")});`
-    );
+  gen.forBlock["logic_operation"] = (block, generator) => {
+    const op = block.getFieldValue("OP");
+    const a = generator.valueToCode(block, "A", Order.LOGICAL_AND) || "false";
+    const b = generator.valueToCode(block, "B", Order.LOGICAL_AND) || "false";
+    return [
+      op === "AND" ? `${a} && ${b}` : `${a} || ${b}`,
+      Order.LOGICAL_AND,
+    ];
+  };
 
-  gen.forBlock["ftc_motor_set_power"] = (block, generator) => {
-    const power =
-      generator.valueToCode(block, "POWER", Order.ATOMIC) || "0";
+  gen.forBlock["logic_negate"] = (block, generator) => {
+    const a = generator.valueToCode(block, "BOOL", Order.LOGICAL_NOT) || "true";
+    return [`!${a}`, Order.LOGICAL_NOT];
+  };
+
+  gen.forBlock["logic_boolean"] = (block) => {
+    return [
+      block.getFieldValue("BOOL") === "TRUE" ? "true" : "false",
+      Order.ATOMIC,
+    ];
+  };
+
+  gen.forBlock["math_number"] = (block) => {
+    return [String(Number(block.getFieldValue("NUM"))), Order.ATOMIC];
+  };
+
+  gen.forBlock["math_arithmetic"] = (block, generator) => {
+    const op = block.getFieldValue("OP");
+    const a = generator.valueToCode(block, "A", Order.ADDITION) || "0";
+    const b = generator.valueToCode(block, "B", Order.ADDITION) || "0";
+    const ops: Record<string, string> = {
+      ADD: "+",
+      MINUS: "-",
+      MULTIPLY: "*",
+      DIVIDE: "/",
+      POWER: "*",
+    };
+    return [`${a} ${ops[op] || "+"} ${b}`, Order.ADDITION];
+  };
+
+  gen.forBlock["math_single"] = (block, generator) => {
+    const op = block.getFieldValue("OP");
+    const a = generator.valueToCode(block, "NUM", Order.FUNCTION_CALL) || "0";
+    if (op === "NEG") return [`-${a}`, Order.UNARY_NEGATION];
+    if (op === "ABS") return [`Math.abs(${a})`, Order.FUNCTION_CALL];
+    return [a, Order.ATOMIC];
+  };
+
+  gen.forBlock["variables_get"] = (block) => {
+    const name = sanitizeVar(block.getFieldValue("VAR"));
+    return [name, Order.ATOMIC];
+  };
+
+  gen.forBlock["variables_set"] = (block, generator) => {
+    const name = sanitizeVar(block.getFieldValue("VAR"));
+    const val =
+      generator.valueToCode(block, "VALUE", Order.ASSIGNMENT) || "0";
+    return stmt(`${name} = ${val}`);
+  };
+
+  gen.forBlock["ftc_comment"] = () => "";
+
+  gen.forBlock["ftc_call_wait_for_start"] = () => stmt("waitForStart()");
+  gen.forBlock["ftc_call_sleep"] = (block) =>
+    stmt(`sleep(${Number(block.getFieldValue("MS"))})`);
+  gen.forBlock["ftc_call_idle"] = () => stmt("idle()");
+  gen.forBlock["ftc_call_telemetry_update"] = () => stmt("telemetry.update()");
+  gen.forBlock["ftc_call_telemetry_add_data"] = (block, generator) => {
+    const key = block.getFieldValue("KEY");
+    const val =
+      generator.valueToCode(block, "VALUE", Order.NONE) || '""';
+    return stmt(`telemetry.addData("${key}", ${val})`);
+  };
+  gen.forBlock["ftc_reporter_op_mode_is_active"] = () => ["opModeIsActive()", Order.ATOMIC];
+  gen.forBlock["ftc_reporter_is_active"] = () => ["isStarted()", Order.ATOMIC];
+  gen.forBlock["ftc_if_is_active"] = (block, generator) => {
+    const body = generator.statementToCode(block, "DO");
+    return stmt(`if (isStarted()) {\n${body}        }`);
+  };
+
+  gen.forBlock["ftc_gamepad_stick_y"] = (block) => {
+    const stick = block.getFieldValue("STICK");
+    return [`gamepad1.${stick}`, Order.ATOMIC];
+  };
+  gen.forBlock["ftc_gamepad_button"] = (block) => {
+    return [`gamepad1.${block.getFieldValue("BTN")}`, Order.ATOMIC];
+  };
+  gen.forBlock["ftc_gamepad_trigger"] = (block) => {
+    return [`gamepad1.${block.getFieldValue("TR")}`, Order.ATOMIC];
+  };
+
+  gen.forBlock["ftc_dc_motor_set_power"] = (block, generator) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const p = generator.valueToCode(block, "POWER", Order.NONE) || "0";
+    return stmt(`${v}.setPower(${p})`);
+  };
+  gen.forBlock["ftc_dc_motor_get_power"] = (block) => [
+    `${sanitizeVar(block.getFieldValue("VAR"))}.getPower()`,
+    Order.ATOMIC,
+  ];
+  gen.forBlock["ftc_dc_motor_set_mode"] = (block) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const mode = block.getFieldValue("MODE");
+    return stmt(`${v}.setMode(DcMotor.RunMode.${mode})`);
+  };
+  gen.forBlock["ftc_dc_motor_set_target_position"] = (block, generator) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const t = generator.valueToCode(block, "TICKS", Order.NONE) || "0";
+    return stmt(`${v}.setTargetPosition((int) ${t})`);
+  };
+  gen.forBlock["ftc_dc_motor_set_direction"] = (block) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
     return stmt(
-      `${sanitizeId(block.getFieldValue("MOTOR"))}.setPower(${power});`
+      `${v}.setDirection(DcMotorSimple.Direction.${block.getFieldValue("DIR")})`
     );
   };
-
-  gen.forBlock["ftc_motor_set_power_negated_stick"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("MOTOR"))}.setPower(-gamepad1.left_stick_y);`
+  gen.forBlock["ftc_dc_motor_set_zero_power"] = (block) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    return stmt(
+      `${v}.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.${block.getFieldValue("ZPB")})`
     );
-
-  gen.forBlock["ftc_motor_set_power_helper"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("MOTOR"))}.setPower(${sanitizeId(block.getFieldValue("HELPER"))}());`
+  };
+  gen.forBlock["ftc_dc_motor_get_position"] = (block) => [
+    `${sanitizeVar(block.getFieldValue("VAR"))}.getCurrentPosition()`,
+    Order.ATOMIC,
+  ];
+  gen.forBlock["ftc_dc_motor_is_busy"] = (block) => [
+    `${sanitizeVar(block.getFieldValue("VAR"))}.isBusy()`,
+    Order.ATOMIC,
+  ];
+  gen.forBlock["ftc_dc_motor_hw_get"] = (block) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const hw = block.getFieldValue("HW");
+    return stmt(`${v} = hardwareMap.get(DcMotor.class, "${hw}")`);
+  };
+  gen.forBlock["ftc_dc_motor_ex_hw_get"] = (block) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const hw = block.getFieldValue("HW");
+    return stmt(`${v} = hardwareMap.get(DcMotorEx.class, "${hw}")`);
+  };
+  gen.forBlock["ftc_dc_motor_ex_set_velocity"] = (block, generator) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const tps = generator.valueToCode(block, "TPS", Order.NONE) || "0";
+    return stmt(`${v}.setVelocity(${tps})`);
+  };
+  gen.forBlock["ftc_servo_set_position"] = (block, generator) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const p = generator.valueToCode(block, "POS", Order.NONE) || "0";
+    return stmt(`${v}.setPosition(${p})`);
+  };
+  gen.forBlock["ftc_servo_hw_get"] = (block) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    return stmt(
+      `${v} = hardwareMap.get(Servo.class, "${block.getFieldValue("HW")}")`
     );
-
-  gen.forBlock["ftc_motor_set_power_stick_boost"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("MOTOR"))}.setPower(-gamepad1.left_stick_y * ${sanitizeId(block.getFieldValue("BOOST"))});`
-    );
-
+  };
   gen.forBlock["ftc_cr_servo_set_power"] = (block, generator) => {
-    const power =
-      generator.valueToCode(block, "POWER", Order.ATOMIC) || "0";
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const p = generator.valueToCode(block, "POWER", Order.NONE) || "0";
+    return stmt(`${v}.setPower(${p})`);
+  };
+  gen.forBlock["ftc_cr_servo_hw_get"] = (block) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
     return stmt(
-      `${sanitizeId(block.getFieldValue("SERVO"))}.setPower(${power});`
+      `${v} = hardwareMap.get(CRServo.class, "${block.getFieldValue("HW")}")`
     );
   };
-
-  gen.forBlock["ftc_cr_servo_set_power_trigger"] = (block) =>
-    stmt(
-      `if (gamepad1.right_trigger > 0.05) {\n            ${sanitizeId(block.getFieldValue("SERVO"))}.setPower(gamepad1.right_trigger);\n        }`
-    );
-
-  gen.forBlock["ftc_servo_set_position"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("SERVO"))}.setPosition(${Number(block.getFieldValue("POS"))});`
-    );
-
-  gen.forBlock["ftc_servo_set_position_button"] = (block) =>
-    stmt(
-      `if (gamepad1.${block.getFieldValue("BTN")}) {\n            ${sanitizeId(block.getFieldValue("SERVO"))}.setPosition(${Number(block.getFieldValue("POS"))});\n        }`
-    );
-
-  gen.forBlock["ftc_sleep_after_servo"] = (block) =>
-    stmt(`sleep(${Number(block.getFieldValue("MS"))});`);
-
-  gen.forBlock["ftc_encoder_move"] = (block) => {
-    const m = sanitizeId(block.getFieldValue("MOTOR"));
-    const ticks = Number(block.getFieldValue("TICKS"));
-    const power = Number(block.getFieldValue("POWER"));
+  gen.forBlock["ftc_elapsed_time_new"] = (block) => {
+    const n = sanitizeVar(block.getFieldValue("NAME"));
+    return stmt(`${n} = new ElapsedTime()`);
+  };
+  gen.forBlock["ftc_elapsed_time_reset"] = (block) =>
+    stmt(`${sanitizeVar(block.getFieldValue("NAME"))}.reset()`);
+  gen.forBlock["ftc_elapsed_time_seconds"] = (block) => [
+    `${sanitizeVar(block.getFieldValue("NAME"))}.seconds()`,
+    Order.ATOMIC,
+  ];
+  gen.forBlock["ftc_while_is_busy"] = (block, generator) => {
+    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const body = generator.statementToCode(block, "DO");
     return stmt(
-      `${m}.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);\n` +
-        `        ${m}.setTargetPosition(${ticks});\n` +
-        `        ${m}.setMode(DcMotor.RunMode.RUN_TO_POSITION);\n` +
-        `        ${m}.setPower(${power});\n` +
-        `        while (${m}.isBusy() && opModeIsActive()) {\n` +
-        `            idle();\n` +
-        `        }\n` +
-        `        ${m}.setPower(0);`
+      `while (${v}.isBusy() && opModeIsActive()) {\n${body}            idle();\n        }`
     );
   };
-
-  gen.forBlock["ftc_run_using_encoder"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("MOTOR"))}.setMode(DcMotor.RunMode.RUN_USING_ENCODER);`
-    );
-
-  gen.forBlock["ftc_set_velocity"] = (block) =>
-    stmt(
-      `${sanitizeId(block.getFieldValue("MOTOR"))}.setVelocity(${Number(block.getFieldValue("TPS"))});`
-    );
-
-  gen.forBlock["ftc_elapsed_time_new"] = (block) =>
-    stmt(`${sanitizeId(block.getFieldValue("NAME"))} = new ElapsedTime();`);
-
-  gen.forBlock["ftc_timer_reset"] = (block) =>
-    stmt(`${sanitizeId(block.getFieldValue("NAME"))}.reset();`);
-
-  gen.forBlock["ftc_while_timer_seconds"] = (block, generator) => {
-    const timer = sanitizeId(block.getFieldValue("TIMER"));
-    const sec = Number(block.getFieldValue("SECONDS"));
-    const body =
-      generator.statementToCode(block, "BODY") || "";
-    return stmt(
-      `while (${timer}.seconds() < ${sec} && opModeIsActive()) {\n${body}        }`
-    );
-  };
-
-  gen.forBlock["ftc_motors_stop_zero"] = (block) => {
-    const motors = block
-      .getFieldValue("MOTORS")
-      .split(",")
-      .map((s: string) => sanitizeId(s.trim()))
-      .filter(Boolean);
-    return stmt(motors.map((m: string) => `${m}.setPower(0);`).join("\n"));
-  };
-
-  gen.forBlock["ftc_sleep"] = (block) =>
-    stmt(`sleep(${Number(block.getFieldValue("MS"))});`);
-
-  gen.forBlock["ftc_telemetry_ready"] = () =>
-    stmt(`telemetry.addData("Status", "Ready");\n        telemetry.update();`);
-
-  gen.forBlock["ftc_telemetry_add"] = (block) =>
-    stmt(
-      `telemetry.addData("${block.getFieldValue("KEY")}", ${block.getFieldValue("VAL")});`
-    );
-
-  gen.forBlock["ftc_telemetry_update"] = () => stmt("telemetry.update();");
-
-  gen.forBlock["ftc_button_toggle"] = (block) => {
-    const flag = sanitizeId(block.getFieldValue("FLAG"));
-    const last = sanitizeId(block.getFieldValue("LAST"));
-    return stmt(
-      `if (gamepad1.a && !${last}) {\n            ${flag} = !${flag};\n        }\n        ${last} = gamepad1.a;`
-    );
-  };
-
-  gen.forBlock["ftc_if_button"] = (block, generator) => {
-    const btn = block.getFieldValue("BTN");
-    const body = generator.statementToCode(block, "BODY") || "";
-    return stmt(`if (gamepad1.${btn}) {\n${body}        }`);
-  };
-
-  gen.forBlock["ftc_declare_boost_if_bumper"] = (block) => {
-    const v = sanitizeId(block.getFieldValue("VAR"));
-    const ifV = Number(block.getFieldValue("IF_VAL"));
-    const elseV = Number(block.getFieldValue("ELSE_VAL"));
-    return stmt(
-      `double ${v} = 1.0;\n        if (gamepad1.right_bumper) {\n            ${v} = ${ifV};\n        } else {\n            ${v} = ${elseV};\n        }`
-    );
-  };
-
-  gen.forBlock["ftc_loop_count_increment"] = () => stmt("loopCount++;");
-
-  gen.forBlock["ftc_mecanum_teleop"] = (block) => {
-    const fl = sanitizeId(block.getFieldValue("FL"));
-    const fr = sanitizeId(block.getFieldValue("FR"));
-    const bl = sanitizeId(block.getFieldValue("BL"));
-    const br = sanitizeId(block.getFieldValue("BR"));
-    return stmt(
-      `double y = -gamepad1.left_stick_y;\n` +
-        `        double x = gamepad1.left_stick_x;\n` +
-        `        double rx = gamepad1.right_stick_x;\n` +
-        `        double flP = y + x + rx;\n` +
-        `        double frP = y - x - rx;\n` +
-        `        double blP = y - x + rx;\n` +
-        `        double brP = y + x - rx;\n` +
-        `        double max = Math.max(Math.max(Math.abs(flP), Math.abs(frP)), Math.max(Math.abs(blP), Math.abs(brP)));\n` +
-        `        if (max > 1.0) { flP /= max; frP /= max; blP /= max; brP /= max; }\n` +
-        `        ${fl}.setPower(flP);\n` +
-        `        ${fr}.setPower(frP);\n` +
-        `        ${bl}.setPower(blP);\n` +
-        `        ${br}.setPower(brP);`
-    );
-  };
-
-  gen.forBlock["ftc_pid_p_loop"] = (block) => {
-    const m = sanitizeId(block.getFieldValue("MOTOR"));
-    const target = Number(block.getFieldValue("TARGET"));
-    const kp = Number(block.getFieldValue("KP"));
-    return stmt(
-      `int error = ${target} - ${m}.getCurrentPosition();\n` +
-        `        double power = ${kp} * error;\n` +
-        `        power = Math.max(-1.0, Math.min(1.0, power));\n` +
-        `        ${m}.setPower(power);`
-    );
-  };
-
-  gen.forBlock["ftc_road_runner_trajectory"] = (block) => {
-    const drive = sanitizeId(block.getFieldValue("DRIVE"));
-    return stmt(
-      `Pose2d startPose = new Pose2d(0, 0, 0);\n` +
-        `        Trajectory traj = ${drive}.trajectoryBuilder(startPose)\n` +
-        `                .forward(24)\n` +
-        `                .build();\n` +
-        `        Actions.runBlocking(${drive}.followTrajectory(traj));`
-    );
-  };
-
-  gen.forBlock["ftc_pedro_follow_path"] = (block) => {
-    const follower = sanitizeId(block.getFieldValue("FOLLOWER"));
-    return stmt(
-      `Pose start = new Pose(0, 0, 0);\n` +
-        `        BezierLine line = new BezierLine(start, new Pose(24, 0, 0));\n` +
-        `        PathChain chain = ${follower}.pathBuilder().addPath(line).build();\n` +
-        `        ${follower}.followPath(chain, true);\n` +
-        `        while (!${follower}.atParametricEnd() && opModeIsActive()) {\n` +
-        `            ${follower}.update();\n` +
-        `            telemetry.update();\n` +
-        `        }`
-    );
-  };
-
-  gen.forBlock["ftc_limelight_poll"] = (block) => {
-    const ll = sanitizeId(block.getFieldValue("LL"));
-    return stmt(
-      `LLResult result = ${ll}.getLatestResult();\n` +
-        `        if (result != null && result.isValid()) {\n` +
-        `            telemetry.addData("Tag", result.getFiducialResults().get(0).getFiducialId());\n` +
-        `        }`
-    );
-  };
-
-  gen.forBlock["ftc_number"] = (block) => {
-    const n = Number(block.getFieldValue("NUM"));
-    return [String(n), Order.ATOMIC];
-  };
-
-  gen.forBlock["ftc_comment"] = (block) =>
-    stmt(`// ${block.getFieldValue("TEXT")}`);
 }
-
-const Order = {
-  ATOMIC: 0,
-};
 
 export function getJavaGenerator(): JavaGenerator {
   if (!javaGenerator) {
-    registerFtcBlocks();
+    registerAllBlocks();
     javaGenerator = new JavaGenerator();
     registerBlockGenerators(javaGenerator);
   }
   return javaGenerator;
+}
+
+export function initBlocklyOnce(): void {
+  registerAllBlocks();
+  getJavaGenerator();
+}
+
+function findRunOpModeBlock(workspace: Blockly.Workspace): Block | null {
+  for (const block of workspace.getTopBlocks(true)) {
+    if (
+      block.type === "procedures_defnoreturn" &&
+      block.getFieldValue("NAME") === "runOpMode"
+    ) {
+      return block;
+    }
+  }
+  return null;
+}
+
+function emitFields(
+  workspace: Blockly.Workspace,
+  devices: Map<string, DeviceDecl>
+): string {
+  const lines: string[] = [];
+  const vars = workspace.getVariableMap()?.getAllVariables() ?? [];
+  for (const v of vars) {
+    const name = sanitizeVar(v.name);
+    const type = v.type;
+    const javaType =
+      type === "Boolean"
+        ? "boolean"
+        : type === "String"
+          ? "String"
+          : "double";
+    lines.push(`    private ${javaType} ${name};`);
+  }
+  for (const d of devices.values()) {
+    lines.push(`    private ${d.javaType} ${d.varName};`);
+  }
+  return lines.length ? `${lines.join("\n")}\n\n` : "";
 }
 
 export function generateJavaFromWorkspace(
@@ -337,20 +439,16 @@ export function generateJavaFromWorkspace(
   meta: BlocklyChallengeMeta
 ): string {
   const gen = getJavaGenerator();
-  const top = workspace.getTopBlocks(true).find((b) => b.type === "ftc_program");
-  if (!top) {
-    return wrapOpModeSkeleton(meta, "", "", "", "");
+  const runBlock = findRunOpModeBlock(workspace);
+  if (!runBlock) {
+    return wrapOpModeSkeleton(meta, "", "        // Add a runOpMode block\n");
   }
 
-  const fields = gen.statementToCode(top, "FIELD_STACK");
-  const methods = gen.statementToCode(top, "METHOD_STACK");
-  const init = gen.statementToCode(top, "INIT_STACK");
-  const loop = gen.statementToCode(top, "LOOP_STACK");
+  const devices = collectDevices(workspace);
+  const fields = emitFields(workspace, devices);
+  const body = gen.statementToCode(runBlock, "STACK");
+  const sourceHint = body + fields;
+  collectImports(meta, sourceHint);
 
-  return wrapOpModeSkeleton(meta, fields, methods, init, loop);
-}
-
-export function initBlocklyOnce(): void {
-  registerFtcBlocks();
-  getJavaGenerator();
+  return wrapOpModeSkeleton(meta, fields, body);
 }

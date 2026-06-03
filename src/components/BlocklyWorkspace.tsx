@@ -13,6 +13,7 @@ export interface BlocklyWorkspaceProps {
   challenge: Challenge;
   initialXml: string;
   onCodeChange: (java: string, blockXml: string) => void;
+  onMigrated?: () => void;
   className?: string;
 }
 
@@ -20,16 +21,17 @@ export default function BlocklyWorkspace({
   challenge,
   initialXml,
   onCodeChange,
+  onMigrated,
   className = "",
 }: BlocklyWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
   const onCodeChangeRef = useRef(onCodeChange);
+  const onMigratedRef = useRef(onMigrated);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const challengeIdRef = useRef(challenge.id);
 
   onCodeChangeRef.current = onCodeChange;
-  challengeIdRef.current = challenge.id;
+  onMigratedRef.current = onMigrated;
 
   const emitChange = useCallback(() => {
     const ws = workspaceRef.current;
@@ -40,6 +42,17 @@ export default function BlocklyWorkspace({
     onCodeChangeRef.current(java, xml);
   }, [challenge]);
 
+  const layoutWorkspace = useCallback((workspace: Blockly.WorkspaceSvg) => {
+    requestAnimationFrame(() => {
+      Blockly.svgResize(workspace);
+      const metrics = workspace.getMetrics();
+      workspace.scroll(
+        metrics.contentLeft + metrics.contentWidth / 2 - metrics.viewWidth / 2,
+        metrics.contentTop + 40
+      );
+    });
+  }, []);
+
   useEffect(() => {
     initBlocklyOnce();
     const container = containerRef.current;
@@ -49,27 +62,38 @@ export default function BlocklyWorkspace({
     const workspace = Blockly.inject(container, {
       toolbox,
       theme: FTC_BLOCKLY_THEME,
+      renderer: "thrasos",
       media: "/blockly/media/",
       sounds: false,
       trashcan: true,
       zoom: {
         controls: true,
         wheel: true,
-        startScale: 0.9,
-        maxScale: 1.4,
-        minScale: 0.5,
+        startScale: 0.85,
+        maxScale: 1.5,
+        minScale: 0.4,
+      },
+      move: {
+        scrollbars: true,
+        wheel: true,
       },
       grid: {
-        spacing: 20,
+        spacing: 24,
         length: 1,
-        colour: "#27272a",
+        colour: "#333338",
         snap: false,
       },
     }) as Blockly.WorkspaceSvg;
 
     workspaceRef.current = workspace;
-    loadXmlIntoWorkspace(workspace, initialXml);
+    const migrated = loadXmlIntoWorkspace(
+      workspace,
+      initialXml,
+      challenge.id
+    );
+    if (migrated) onMigratedRef.current?.();
     emitChange();
+    layoutWorkspace(workspace);
 
     const onChange = () => {
       clearTimeout(debounceRef.current);
@@ -89,13 +113,12 @@ export default function BlocklyWorkspace({
       workspace.dispose();
       workspaceRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-init when challenge changes
-  }, [challenge.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [challenge.id, initialXml]);
 
   useEffect(() => {
     const ws = workspaceRef.current;
-    if (!ws || challengeIdRef.current === challenge.id) return;
-    challengeIdRef.current = challenge.id;
+    if (!ws) return;
     ws.updateToolbox(buildToolbox(challenge));
   }, [challenge]);
 
@@ -103,15 +126,7 @@ export default function BlocklyWorkspace({
     <div
       ref={containerRef}
       className={`blockly-root h-full w-full min-h-0 ${className}`}
-      aria-label="Block coding workspace"
+      aria-label="FTC Blocks workspace"
     />
   );
-}
-
-/** Load new XML into an existing workspace (e.g. reset). */
-export function loadBlocklyXml(
-  workspace: Blockly.Workspace,
-  xml: string
-): void {
-  loadXmlIntoWorkspace(workspace, xml);
 }
