@@ -22,6 +22,7 @@ import {
   Code2,
   Loader2,
   MessageSquare,
+  Copy,
   Play,
   RefreshCcw,
   Send,
@@ -58,6 +59,10 @@ import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
 import EditorModeSwitch, { ModeSwitchDialog } from "./EditorModeSwitch";
 import BlocksGuideRail from "./BlocksGuideRail";
+import BlocksOnboarding, {
+  shouldShowBlocksOnboarding,
+} from "./BlocksOnboarding";
+import { readBlocksPrefs, saveBlocksPrefs } from "@/lib/blocksPrefs";
 import type { EditorMode } from "@/lib/blockly/types";
 import {
   getBlockStarterXml,
@@ -689,7 +694,11 @@ export default function ChallengeWorkspace({
     return getBlockStarterXml(challenge.id);
   });
   const [blockWorkspaceKey, setBlockWorkspaceKey] = useState(0);
-  const [showBlocksJava, setShowBlocksJava] = useState(false);
+  const [showBlocksJava, setShowBlocksJava] = useState(
+    () => !blocksJavaOnly && readBlocksPrefs().showGeneratedJava
+  );
+  const [blocksOnboardingOpen, setBlocksOnboardingOpen] = useState(false);
+  const [javaCopied, setJavaCopied] = useState(false);
   const [blocksMigratedNotice, setBlocksMigratedNotice] = useState(
     () => !!openingDraft?.blockXml && isLegacyBlockXml(openingDraft.blockXml)
   );
@@ -713,6 +722,28 @@ export default function ChallengeWorkspace({
   useEffect(() => {
     monacoRef.current?.editor.setTheme(monacoTheme);
   }, [monacoTheme]);
+
+  useEffect(() => {
+    if (!blocksJavaOnly) {
+      saveBlocksPrefs({ showGeneratedJava: showBlocksJava });
+    }
+  }, [showBlocksJava, blocksJavaOnly]);
+
+  useEffect(() => {
+    if (editorMode === "blocks" && shouldShowBlocksOnboarding("blocks")) {
+      setBlocksOnboardingOpen(true);
+    }
+  }, [editorMode, challenge.id]);
+
+  const copyGeneratedJava = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(codeRef.current);
+      setJavaCopied(true);
+      setTimeout(() => setJavaCopied(false), 2000);
+    } catch {
+      // clipboard unavailable
+    }
+  }, []);
 
   const resetCode = useCallback(() => {
     if (editorMode === "blocks") {
@@ -1484,7 +1515,10 @@ export default function ChallengeWorkspace({
           {editorMode === "blocks" && !blocksJavaOnly && (
             <div className="flex shrink-0 items-center gap-2 border-b border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5">
               <span className="text-[11px] font-medium text-indigo-300">
-                FTC Blocks — drag blocks from the toolbox; Java is generated for grading.
+                FTC Blocks — edit the workspace;{" "}
+                <span className="text-indigo-200/90">Run</span> compiles and
+                grades the <span className="text-indigo-200/90">Generated Java</span>{" "}
+                panel (like FTC Sim → OnBot Java).
               </span>
             </div>
           )}
@@ -1545,6 +1579,11 @@ export default function ChallengeWorkspace({
             onCancel={() => setPendingEditorMode(null)}
           />
 
+          <BlocksOnboarding
+            active={blocksOnboardingOpen && editorMode === "blocks"}
+            onDismiss={() => setBlocksOnboardingOpen(false)}
+          />
+
           {blocksMigratedNotice && editorMode === "blocks" && (
             <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-3 py-1.5">
               <span className="text-[11px] text-amber-300">
@@ -1583,10 +1622,19 @@ export default function ChallengeWorkspace({
                 </div>
                 {showBlocksJava && (
                   <div className="flex min-h-0 flex-[2] flex-col overflow-hidden border-t border-slate-800/80">
-                    <div className="flex h-7 shrink-0 items-center border-b border-slate-800/60 bg-slate-950/90 px-3">
+                    <div className="flex h-7 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/90 px-3">
                       <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
                         Generated Java
                       </span>
+                      <button
+                        type="button"
+                        onClick={copyGeneratedJava}
+                        className="ml-auto flex items-center gap-1 rounded px-2 py-0.5 text-[10px] text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+                        title="Copy generated Java to clipboard"
+                      >
+                        <Copy className="h-3 w-3" />
+                        {javaCopied ? "Copied" : "Copy Java"}
+                      </button>
                     </div>
                     <div className="min-h-0 flex-1">
                       <MonacoEditor

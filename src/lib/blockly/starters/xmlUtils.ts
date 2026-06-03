@@ -77,14 +77,28 @@ export function dcDirection(hw: string, dir: string): string {
   </block>`;
 }
 
+/** Negated Y stick for drive (preferred over math NEG wrapper). */
+export function driveStickY(stick = "left_stick_y"): string {
+  return `<block type="ftc_gamepad_stick_y_drive"><field name="STICK">${stick}</field></block>`;
+}
+
 export function negatedStickY(stick = "left_stick_y"): string {
-  return `<block type="math_single">
-    <field name="OP">NEG</field>
-    <value name="NUM">
-      <block type="ftc_gamepad_stick_y">
-        <field name="STICK">${stick}</field>
-      </block>
-    </value>
+  return driveStickY(stick);
+}
+
+export function setPowerZero(hw: string): string {
+  return `<block type="ftc_set_power_zero"><field name="DEVICE">${hw}</field></block>`;
+}
+
+export function encoderRunToPosition(
+  hw: string,
+  ticksXml: string,
+  powerXml: string
+): string {
+  return `<block type="ftc_encoder_run_to_position">
+    <field name="DEVICE">${hw}</field>
+    <value name="TICKS">${ticksXml}</value>
+    <value name="POWER">${powerXml}</value>
   </block>`;
 }
 
@@ -98,14 +112,14 @@ export function telemetryUpdate(): string {
 
 export function varSet(name: string, valueXml: string): string {
   return `<block type="variables_set">
-    <field name="VAR" id="${name}Var">${name}</field>
+    <field name="VAR" id="${name}">${name}</field>
     <value name="VALUE">${valueXml}</value>
   </block>`;
 }
 
 export function varGet(name: string): string {
   return `<block type="variables_get">
-    <field name="VAR" id="${name}Var">${name}</field>
+    <field name="VAR" id="${name}">${name}</field>
   </block>`;
 }
 
@@ -141,7 +155,8 @@ export function buildRunOpModeXml(opts: RunOpModeOptions): string {
       ...opts.loopBlocks,
     ]);
   } else {
-    runSection = ifIsActiveWithLoop(loopChain);
+    // TeleOp: waitForStart then opModeIsActive loop (no isStarted wrapper).
+    runSection = repeatWhileOpMode(loopChain);
   }
 
   const stack = chainBlocks([
@@ -168,7 +183,7 @@ export function buildRunOpModeXml(opts: RunOpModeOptions): string {
   const variablesXml =
     varNames.size > 0
       ? `<variables>${[...varNames]
-          .map((n) => `<variable id="${n}Var">${n}</variable>`)
+          .map((n) => `<variable id="${n}">${n}</variable>`)
           .join("")}</variables>`
       : "";
 

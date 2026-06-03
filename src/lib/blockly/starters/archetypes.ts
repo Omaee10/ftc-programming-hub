@@ -6,6 +6,7 @@ import {
   comment,
   dcDirection,
   elapsedTimeNew,
+  encoderRunToPosition,
   hwCrServo,
   hwMotor,
   hwMotorEx,
@@ -89,24 +90,7 @@ export function buildArchetypeStarter(
         autonomous: true,
         initBlocks: [hwMotor(m)],
         loopBlocks: [
-          `<block type="ftc_dc_motor_set_mode">
-        <field name="DEVICE">${m}</field>
-        <field name="MODE">STOP_AND_RESET_ENCODER</field>
-      </block>`,
-          `<block type="ftc_dc_motor_set_target_position">
-        <field name="DEVICE">${m}</field>
-        <value name="TICKS">${mathNum(1000)}</value>
-      </block>`,
-          `<block type="ftc_dc_motor_set_mode">
-        <field name="DEVICE">${m}</field>
-        <field name="MODE">RUN_TO_POSITION</field>
-      </block>`,
-          setPower(m, mathNum(0.6)),
-          `<block type="ftc_while_is_busy">
-        <field name="DEVICE">${m}</field>
-        <statement name="DO"></statement>
-      </block>`,
-          setPower(m, mathNum(0)),
+          encoderRunToPosition(m, mathNum(1000), mathNum(0.6)),
         ],
         skipTelemetry: true,
       });
@@ -301,13 +285,19 @@ export function buildArchetypeStarter(
         loopBlocks: [
           comment("Drive until touch sensor pressed, then reset encoder."),
           setPower(turret, mathNum(0.3)),
-          `<block type="controls_if">
-        <value name="IF0">
+          `<block type="controls_whileUntil">
+        <field name="MODE">UNTIL</field>
+        <value name="BOOL">
           <block type="ftc_touch_sensor_is_pressed">
             <field name="HW">${touch}</field>
           </block>
         </value>
-        <statement name="DO0">${setPower(turret, mathNum(0))}</statement>
+        <statement name="DO">${setPower(turret, mathNum(0.3))}</statement>
+      </block>`,
+          setPower(turret, mathNum(0)),
+          `<block type="ftc_dc_motor_set_mode">
+        <field name="DEVICE">${turret}</field>
+        <field name="MODE">STOP_AND_RESET_ENCODER</field>
       </block>`,
         ],
         skipTelemetry: true,

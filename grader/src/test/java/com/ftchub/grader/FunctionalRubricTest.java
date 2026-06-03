@@ -4,6 +4,8 @@ import com.ftchub.grader.api.CompileRequest;
 import com.ftchub.grader.api.GradedResultJson;
 import com.ftchub.grader.compile.InMemoryCompiler;
 import com.ftchub.grader.compile.StubLoader;
+
+import java.io.IOException;
 import com.ftchub.grader.grade.Grader;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -24,8 +26,10 @@ class FunctionalRubricTest {
     private static Grader grader;
 
     @BeforeAll
-    static void setUp() {
-        grader = new Grader(new InMemoryCompiler(new StubLoader()));
+    static void setUp() throws IOException {
+        StubLoader stubs = new StubLoader();
+        stubs.compile();
+        grader = new Grader(new InMemoryCompiler(stubs));
     }
 
     private static final String BROKEN_MOTOR_TELEOP = """

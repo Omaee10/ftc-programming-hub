@@ -46,7 +46,15 @@ function sanitizeVar(name: string): string {
 
 function stmt(code: string): string {
   const lines = code.split("\n").filter((l) => l.trim());
-  return lines.map((l) => (l.endsWith(";") ? l : `${l};`)).join("\n") + "\n";
+  return (
+    lines
+      .map((l) => {
+        const t = l.trim();
+        if (t.endsWith(";") || t.endsWith("{") || t.endsWith("}")) return l;
+        return `${l};`;
+      })
+      .join("\n") + "\n"
+  );
 }
 
 interface DeviceDecl {
@@ -336,6 +344,29 @@ function registerBlockGenerators(gen: JavaGenerator): void {
   gen.forBlock["ftc_gamepad_stick_y"] = (block) => {
     const stick = block.getFieldValue("STICK");
     return [`gamepad1.${stick}`, Order.ATOMIC];
+  };
+  gen.forBlock["ftc_gamepad_stick_y_drive"] = (block) => {
+    const stick = block.getFieldValue("STICK");
+    return [`-gamepad1.${stick}`, Order.UNARY_NEGATION];
+  };
+  gen.forBlock["ftc_set_power_zero"] = (block) => {
+    const v = sanitizeVar(getDeviceVarName(block));
+    return stmt(`${v}.setPower(0)`);
+  };
+  gen.forBlock["ftc_encoder_run_to_position"] = (block, generator) => {
+    const v = sanitizeVar(getDeviceVarName(block));
+    const ticks = generator.valueToCode(block, "TICKS", Order.NONE) || "0";
+    const power = generator.valueToCode(block, "POWER", Order.NONE) || "0.6";
+    return (
+      stmt(`${v}.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER)`) +
+      stmt(`${v}.setTargetPosition((int) ${ticks})`) +
+      stmt(`${v}.setMode(DcMotor.RunMode.RUN_TO_POSITION)`) +
+      stmt(`${v}.setPower(${power})`) +
+      stmt(
+        `while (${v}.isBusy() && opModeIsActive()) {\n            idle();\n        }`
+      ) +
+      stmt(`${v}.setPower(0)`)
+    );
   };
   gen.forBlock["ftc_gamepad_button"] = (block) => {
     return [`gamepad1.${block.getFieldValue("BTN")}`, Order.ATOMIC];

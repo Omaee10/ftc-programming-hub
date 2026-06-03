@@ -89,6 +89,12 @@ export const CHALLENGE_BLOCKS_META: Record<number, ChallengeBlocksMeta> = {
     blocksSupport: "full",
     courseTrack: "movement",
     starterArchetype: "teleop_dual_tank",
+    blocksGuideSteps: [
+      "Get left and right drive motors from hardwareMap.",
+      "Set direction on both motors before waitForStart.",
+      "In the loop, use drive sticks (negated Y) for each side.",
+      "Add telemetry for left and right power.",
+    ],
   },
   7: {
     blocksSupport: "full",
@@ -104,6 +110,11 @@ export const CHALLENGE_BLOCKS_META: Record<number, ChallengeBlocksMeta> = {
     blocksSupport: "full",
     courseTrack: "intro",
     starterArchetype: "telemetry_dashboard",
+    blocksGuideSteps: [
+      "Add telemetry.addData for the values you want on the Driver Station.",
+      "Call telemetry.update() inside the main loop after addData.",
+      "Show a Ready message before waitForStart.",
+    ],
   },
   10: {
     blocksSupport: "full",
@@ -129,6 +140,11 @@ export const CHALLENGE_BLOCKS_META: Record<number, ChallengeBlocksMeta> = {
     blocksSupport: "full",
     courseTrack: "movement",
     starterArchetype: "autonomous_encoder_move",
+    blocksGuideSteps: [
+      "Use the encoder run-to-position block or set target after reset.",
+      "Apply non-zero power in RUN_TO_POSITION mode.",
+      "Wait while isBusy, then set motor power to 0.",
+    ],
   },
   15: { blocksSupport: "java-only", courseTrack: "advanced" },
   16: {
@@ -140,11 +156,21 @@ export const CHALLENGE_BLOCKS_META: Record<number, ChallengeBlocksMeta> = {
     blocksSupport: "full",
     courseTrack: "movement",
     starterArchetype: "teleop_mecanum_4",
+    blocksGuideSteps: [
+      "Initialize all four mecanum motors and set directions.",
+      "Read gamepad sticks (use drive sticks for forward/strafe).",
+      "Combine stick values into four motor powers in the loop.",
+    ],
   },
   18: {
     blocksSupport: "full",
     courseTrack: "movement",
     starterArchetype: "teleop_mecanum_4",
+    blocksGuideSteps: [
+      "Map left stick to forward/strafe and right stick to rotation.",
+      "Normalize combined power so no value exceeds 1.0.",
+      "Update telemetry with at least one drive value.",
+    ],
   },
   19: {
     blocksSupport: "full",
@@ -155,6 +181,11 @@ export const CHALLENGE_BLOCKS_META: Record<number, ChallengeBlocksMeta> = {
     blocksSupport: "full",
     courseTrack: "movement",
     starterArchetype: "autonomous_sleep_sequence",
+    blocksGuideSteps: [
+      "Chain sleep blocks or motor moves between timed segments.",
+      "Use sleep only in autonomous — not inside a TeleOp loop.",
+      "Set motor power to 0 between moves when needed.",
+    ],
   },
   21: {
     blocksSupport: "full",
@@ -248,16 +279,31 @@ export const CHALLENGE_BLOCKS_META: Record<number, ChallengeBlocksMeta> = {
     blocksSupport: "full",
     courseTrack: "intro",
     starterArchetype: "math_generic",
+    blocksGuideSteps: [
+      "Use Math blocks to compute a value before setPower.",
+      "Keep motor power between -1 and 1 with min/max logic.",
+      "Read the gamepad with a drive stick block for forward control.",
+    ],
   },
   50: {
     blocksSupport: "full",
     courseTrack: "movement",
     starterArchetype: "teleop_mecanum_4",
+    blocksGuideSteps: [
+      "Practice mecanum mixing with four motor set power blocks.",
+      "Negate Y sticks so forward on the gamepad drives forward.",
+      "Call telemetry.update() each loop iteration.",
+    ],
   },
   51: {
     blocksSupport: "full",
     courseTrack: "movement",
     starterArchetype: "autonomous_elapsed_time",
+    blocksGuideSteps: [
+      "Create an ElapsedTime before waitForStart.",
+      "Use timer.seconds() in a while condition for timed moves.",
+      "Reset the timer before each new timed segment.",
+    ],
   },
   52: {
     blocksSupport: "full",
@@ -273,16 +319,31 @@ export const CHALLENGE_BLOCKS_META: Record<number, ChallengeBlocksMeta> = {
     blocksSupport: "full",
     courseTrack: "intro",
     starterArchetype: "telemetry_dashboard",
+    blocksGuideSteps: [
+      "Declare variables outside the loop for values that persist.",
+      "Use telemetry.addData to show variable values each frame.",
+      "Flush with telemetry.update() inside opModeIsActive loop.",
+    ],
   },
   55: {
     blocksSupport: "full",
     courseTrack: "intro",
     starterArchetype: "teleop_single_drive",
+    blocksGuideSteps: [
+      "Hardware get and setDirection belong before waitForStart.",
+      "Use gamepad1 LeftStickY for drive (negated block).",
+      "setPower and telemetry belong inside the main loop.",
+    ],
   },
   56: {
     blocksSupport: "full",
     courseTrack: "intro",
     starterArchetype: "scope_basics",
+    blocksGuideSteps: [
+      "Put field declarations in the class area (device blocks in init).",
+      "Do not create new ElapsedTime inside the loop every frame.",
+      "Counters and toggles must be variables declared before the loop.",
+    ],
   },
 };
 

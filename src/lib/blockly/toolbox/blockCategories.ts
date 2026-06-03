@@ -16,11 +16,14 @@ export const FTC_BLOCK_TYPES = {
     "ftc_elapsed_time_seconds",
   ],
   gamepad: [
+    "ftc_gamepad_stick_y_drive",
     "ftc_gamepad_stick_y",
     "ftc_gamepad_button",
     "ftc_gamepad_trigger",
   ],
   dcMotor: [
+    "ftc_encoder_run_to_position",
+    "ftc_set_power_zero",
     "ftc_dc_motor_hw_get",
     "ftc_dc_motor_ex_hw_get",
     "ftc_dc_motor_set_power",

@@ -127,6 +127,7 @@ export function getBlockedBlockTypes(challenge: Challenge): Set<string> {
 
   if (!challengeUsesGamepad(challenge)) {
     blocked.add("ftc_gamepad_stick_y");
+    blocked.add("ftc_gamepad_stick_y_drive");
     blocked.add("ftc_gamepad_button");
     blocked.add("ftc_gamepad_trigger");
   }
