@@ -25,6 +25,8 @@ interface BlocklyWorkspaceProps {
   /** Incrementing this triggers a reset back to `starterState`. */
   resetSignal: number;
   dark: boolean;
+  /** Whether this editor is the visible one (Blockly must resize on show). */
+  visible: boolean;
   onChange: (state: WorkspaceState) => void;
 }
 
@@ -79,6 +81,7 @@ export default function BlocklyWorkspace({
   starterState,
   resetSignal,
   dark,
+  visible,
   onChange,
 }: BlocklyWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,6 +89,7 @@ export default function BlocklyWorkspace({
   const onChangeRef = useRef(onChange);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const loadingRef = useRef(false);
+  const recalcRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -140,6 +144,7 @@ export default function BlocklyWorkspace({
         /* workspace may be mid-dispose */
       }
     };
+    recalcRef.current = recalc;
     // On the very first mount the container/fonts/CSS may not be fully settled,
     // and no later size *change* fires the ResizeObserver to self-correct (which
     // is why toggling Java↔Blocks "fixed" it). Recalc across a longer tail, once
@@ -185,6 +190,20 @@ export default function BlocklyWorkspace({
     // Inject exactly once; challenge changes remount via React key in the parent.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Resize when this editor becomes visible ────────────────────────────────
+  // While hidden (display:none) Blockly measures a zero-size container, so we
+  // re-fit every time the Blocks editor is shown.
+  useEffect(() => {
+    if (!visible) return;
+    const r = recalcRef.current;
+    const raf = requestAnimationFrame(() => requestAnimationFrame(r));
+    const t = setTimeout(r, 60);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [visible]);
 
   // ── Theme switching ───────────────────────────────────────────────────────
   useEffect(() => {

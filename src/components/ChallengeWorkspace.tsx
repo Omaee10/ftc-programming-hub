@@ -695,8 +695,27 @@ export default function ChallengeWorkspace({
     [blocksEnabled, challenge.id]
   );
   const [editorMode, setEditorMode] = useState<EditorMode>("java");
+  const [pendingMode, setPendingMode] = useState<EditorMode | null>(null);
   const [blockResetSignal, setBlockResetSignal] = useState(0);
   const blockStateRef = useRef<WorkspaceState | null>(null);
+
+  const requestModeSwitch = useCallback(
+    (target: EditorMode) => {
+      setEditorMode((current) => {
+        if (current === target) return current;
+        setPendingMode(target);
+        return current;
+      });
+    },
+    []
+  );
+
+  const confirmModeSwitch = useCallback(() => {
+    setPendingMode((target) => {
+      if (target) setEditorMode(target);
+      return null;
+    });
+  }, []);
 
   // Initial Blockly state: saved draft (client) or the challenge starter layout.
   const blocksInitialState = useMemo<WorkspaceState | null>(() => {
@@ -1463,7 +1482,7 @@ export default function ChallengeWorkspace({
             {blocksEnabled && (
               <div className="flex items-center rounded-md border border-slate-800 bg-slate-900/70 p-0.5">
                 <button
-                  onClick={() => setEditorMode("java")}
+                  onClick={() => requestModeSwitch("java")}
                   title="Type Java in the OnBot editor"
                   className={
                     editorMode === "java"
@@ -1474,7 +1493,7 @@ export default function ChallengeWorkspace({
                   OnBot Java
                 </button>
                 <button
-                  onClick={() => setEditorMode("blocks")}
+                  onClick={() => requestModeSwitch("blocks")}
                   title="Build with FTC Blocks"
                   className={
                     editorMode === "blocks"
@@ -1510,18 +1529,10 @@ export default function ChallengeWorkspace({
           </div>
 
           {/* Editor surface: Monaco (Java) or Blockly (FTC Blocks) */}
-          <div className="min-w-0 flex-1 overflow-hidden">
-            {editorMode === "blocks" && blocksConfig && blocksInitialState ? (
-              <BlocklyWorkspace
-                key={challenge.id}
-                toolbox={blocksConfig.toolbox}
-                initialState={blocksInitialState}
-                starterState={blocksConfig.starter}
-                resetSignal={blockResetSignal}
-                dark={monacoTheme === "ftc-dark"}
-                onChange={handleBlocksChange}
-              />
-            ) : (
+          <div className="relative min-w-0 flex-1 overflow-hidden">
+            {/* Both editors stay mounted so neither loses its in-progress work
+                when toggling modes; only the inactive one is hidden. */}
+            <div className={editorMode === "blocks" ? "hidden" : "h-full w-full"}>
               <MonacoEditor
                 height="100%"
                 language="java"
@@ -1553,6 +1564,7 @@ export default function ChallengeWorkspace({
                   tabSize: 4,
                   insertSpaces: true,
                   folding: true,
+                  automaticLayout: true,
                   bracketPairColorization: { enabled: true },
                   smoothScrolling: true,
                   cursorBlinking: "smooth",
@@ -1568,8 +1580,59 @@ export default function ChallengeWorkspace({
                   suggest: { showWords: true },
                 }}
               />
+            </div>
+            {blocksEnabled && blocksConfig && blocksInitialState && (
+              <div className={editorMode === "blocks" ? "h-full w-full" : "hidden"}>
+                <BlocklyWorkspace
+                  key={challenge.id}
+                  toolbox={blocksConfig.toolbox}
+                  initialState={blocksInitialState}
+                  starterState={blocksConfig.starter}
+                  resetSignal={blockResetSignal}
+                  dark={monacoTheme === "ftc-dark"}
+                  visible={editorMode === "blocks"}
+                  onChange={handleBlocksChange}
+                />
+              </div>
             )}
           </div>
+
+          {/* ── Mode-switch confirmation ────────────────────────────────── */}
+          {pendingMode && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm"
+              onClick={() => setPendingMode(null)}
+            >
+              <div
+                className="mx-4 w-full max-w-sm rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-sm font-semibold text-slate-100">
+                  Switch to {pendingMode === "blocks" ? "FTC Blocks" : "OnBot Java"}?
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                  Your{" "}
+                  {pendingMode === "blocks" ? "OnBot Java code" : "block layout"} is
+                  saved separately and will still be here when you switch back. The two
+                  modes do not share or convert each other&apos;s work.
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    onClick={() => setPendingMode(null)}
+                    className="rounded-md px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmModeSwitch}
+                    className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-amber-400"
+                  >
+                    Switch
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Submit error banner ─────────────────────────────────────── */}
           {submitError && (
