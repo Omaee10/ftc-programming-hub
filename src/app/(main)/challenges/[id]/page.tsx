@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { enrichChallengeWithBlocksMeta } from "@/data/challengeBlocksMeta";
 import { getChallengeById, type Challenge } from "@/data/challenges";
 import { supabase, type ChallengeRow } from "@/lib/supabase";
 import ChallengeRedirectGuard from "@/components/ChallengeRedirectGuard";
@@ -34,7 +35,7 @@ async function getChallenge(id: number): Promise<Challenge | null> {
       .eq("id", id)
       .single();
 
-    if (data) return rowToChallenge(data as ChallengeRow);
+    if (data) return enrichChallengeWithBlocksMeta(rowToChallenge(data as ChallengeRow));
   } catch {
     // Supabase unavailable — fall through to static data
   }

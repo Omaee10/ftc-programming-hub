@@ -12,7 +12,7 @@ export function hwToVar(hw: string): string {
 }
 
 export function getChallengeHardware(challengeId: number): string[] {
-  return CHALLENGE_HARDWARE[challengeId] ?? ["drive_motor"];
+  return [...(CHALLENGE_HARDWARE[challengeId] ?? ["drive_motor"])];
 }
 
 export function getDcMotorHardware(challengeId: number): string[] {
@@ -28,6 +28,26 @@ export function getServoHardware(challengeId: number): string[] {
 
 export function getCrServoHardware(challengeId: number): string[] {
   return getChallengeHardware(challengeId).filter((h) => h.includes("intake"));
+}
+
+export function getTouchSensorHardware(challengeId: number): string[] {
+  return getChallengeHardware(challengeId).filter((h) => h.includes("touch"));
+}
+
+export function getDistanceSensorHardware(challengeId: number): string[] {
+  return getChallengeHardware(challengeId).filter(
+    (h) => h.includes("distance") || h.includes("range")
+  );
+}
+
+export function getColorSensorHardware(challengeId: number): string[] {
+  return getChallengeHardware(challengeId).filter((h) => h.includes("color"));
+}
+
+export function getImuHardware(challengeId: number): string[] {
+  const hw = getChallengeHardware(challengeId);
+  const imu = hw.filter((h) => h === "imu" || h.includes("imu"));
+  return imu.length ? imu : ["imu"];
 }
 
 /** Blockly dropdown: [display label, stored hardware config name]. */

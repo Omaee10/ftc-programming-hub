@@ -10,11 +10,16 @@ const MODE_SWITCH_DIALOG_Z = 100_001;
 interface EditorModeSwitchProps {
   mode: EditorMode;
   onModeChange: (mode: EditorMode) => void;
+  /** When true, Blocks tab is disabled (advanced Java-only challenges). */
+  blocksDisabled?: boolean;
+  blocksDisabledTitle?: string;
 }
 
 export default function EditorModeSwitch({
   mode,
   onModeChange,
+  blocksDisabled = false,
+  blocksDisabledTitle = "This challenge uses libraries that aren't in Blocks yet — use Java.",
 }: EditorModeSwitchProps) {
   return (
     <div
@@ -22,22 +27,29 @@ export default function EditorModeSwitch({
       role="tablist"
       aria-label="Editor mode"
     >
-      {(["java", "blocks"] as const).map((m) => (
-        <button
-          key={m}
-          type="button"
-          role="tab"
-          aria-selected={mode === m}
-          onClick={() => onModeChange(m)}
-          className={`rounded px-2.5 py-0.5 text-[11px] font-medium transition-all ${
-            mode === m
-              ? "bg-slate-700/80 text-slate-100 shadow-sm"
-              : "text-slate-500 hover:text-slate-300"
-          }`}
-        >
-          {m === "java" ? "Java" : "Blocks"}
-        </button>
-      ))}
+      {(["java", "blocks"] as const).map((m) => {
+        const disabled = m === "blocks" && blocksDisabled;
+        return (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={mode === m}
+            disabled={disabled}
+            title={disabled ? blocksDisabledTitle : undefined}
+            onClick={() => !disabled && onModeChange(m)}
+            className={`rounded px-2.5 py-0.5 text-[11px] font-medium transition-all ${
+              disabled
+                ? "cursor-not-allowed text-slate-700 opacity-50"
+                : mode === m
+                  ? "bg-slate-700/80 text-slate-100 shadow-sm"
+                  : "text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            {m === "java" ? "Java" : "Blocks"}
+          </button>
+        );
+      })}
     </div>
   );
 }
