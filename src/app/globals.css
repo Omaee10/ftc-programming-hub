@@ -691,3 +691,20 @@ body {
   font-feature-settings: "tnum";
   letter-spacing: -0.02em;
 }
+
+/* ─── FTC Blocks (Blockly) ─────────────────────────────────────── */
+/* Hide the toolbox category list and flyout scrollbars (the workspace pan
+   scrollbar is kept). These otherwise leave a stranded bar beside the
+   categories after a flyout opens/closes. */
+.blocklyToolboxDiv {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.blocklyToolboxDiv::-webkit-scrollbar {
+  display: none;
+}
+.blocklyFlyout .blocklyScrollbarVertical,
+.blocklyFlyout .blocklyScrollbarHorizontal,
+.blocklyFlyoutScrollbar {
+  display: none !important;
+}

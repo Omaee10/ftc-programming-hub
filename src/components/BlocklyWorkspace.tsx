@@ -121,9 +121,9 @@ export default function BlocklyWorkspace({
       renderer: "geras",
       trashcan: true,
       sounds: false,
-      // No scrollbars — pan via drag/wheel. (Avoids the flyout leaving a
-      // stranded scrollbar beside the toolbox.)
-      move: { scrollbars: false, drag: true, wheel: true },
+      // Workspace pan scrollbars stay on (for moving around the build area).
+      // The toolbox/flyout scrollbar is hidden via CSS in globals.css.
+      move: { scrollbars: true, drag: true, wheel: true },
       zoom: { controls: true, wheel: false, startScale: 0.95, minScale: 0.5, maxScale: 1.5 },
       grid: { spacing: 24, length: 2, colour: dark ? "#27272a" : "#e5e7eb", snap: true },
     });
