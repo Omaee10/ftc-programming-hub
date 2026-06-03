@@ -8,6 +8,7 @@ import {
   useMemo,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -1597,42 +1598,45 @@ export default function ChallengeWorkspace({
             )}
           </div>
 
-          {/* ── Mode-switch confirmation ────────────────────────────────── */}
-          {pendingMode && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm"
-              onClick={() => setPendingMode(null)}
-            >
+          {/* ── Mode-switch confirmation (portaled above Blockly) ───────── */}
+          {pendingMode &&
+            typeof document !== "undefined" &&
+            createPortal(
               <div
-                className="mx-4 w-full max-w-sm rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
+                className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm"
+                onClick={() => setPendingMode(null)}
               >
-                <h3 className="text-sm font-semibold text-slate-100">
-                  Switch to {pendingMode === "blocks" ? "FTC Blocks" : "OnBot Java"}?
-                </h3>
-                <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                  Your{" "}
-                  {pendingMode === "blocks" ? "OnBot Java code" : "block layout"} is
-                  saved separately and will still be here when you switch back. The two
-                  modes do not share or convert each other&apos;s work.
-                </p>
-                <div className="mt-4 flex justify-end gap-2">
-                  <button
-                    onClick={() => setPendingMode(null)}
-                    className="rounded-md px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmModeSwitch}
-                    className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-amber-400"
-                  >
-                    Switch
-                  </button>
+                <div
+                  className="mx-4 w-full max-w-sm rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 className="text-sm font-semibold text-slate-100">
+                    Switch to {pendingMode === "blocks" ? "FTC Blocks" : "OnBot Java"}?
+                  </h3>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                    Your{" "}
+                    {pendingMode === "blocks" ? "OnBot Java code" : "block layout"} is
+                    saved separately and will still be here when you switch back. The
+                    two modes do not share or convert each other&apos;s work.
+                  </p>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button
+                      onClick={() => setPendingMode(null)}
+                      className="rounded-md px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmModeSwitch}
+                      className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-amber-400"
+                    >
+                      Switch
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              </div>,
+              document.body
+            )}
 
           {/* ── Submit error banner ─────────────────────────────────────── */}
           {submitError && (
