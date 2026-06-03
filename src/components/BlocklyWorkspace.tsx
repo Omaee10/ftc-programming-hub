@@ -144,7 +144,21 @@ export default function BlocklyWorkspace({
         /* workspace may be mid-dispose */
       }
     };
-    recalcRef.current = recalc;
+    // A toolbox flyout collapses the workspace view width while open; on close
+    // the metrics restore over a couple of frames, so a single resize on the
+    // close event runs too early. Re-fit across a short delay chain and also
+    // fire the window-resize event Blockly listens to for a full re-layout.
+    const scheduleRecalc = () => {
+      recalc();
+      requestAnimationFrame(recalc);
+      [60, 180, 360].forEach((ms) => setTimeout(recalc, ms));
+      try {
+        window.dispatchEvent(new Event("resize"));
+      } catch {
+        /* non-browser */
+      }
+    };
+    recalcRef.current = scheduleRecalc;
     // On the very first mount the container/fonts/CSS may not be fully settled,
     // and no later size *change* fires the ResizeObserver to self-correct (which
     // is why toggling Java↔Blocks "fixed" it). Recalc across a longer tail, once
@@ -160,7 +174,7 @@ export default function BlocklyWorkspace({
       if (event.isUiEvent) {
         // Toolbox flyout open/close fires UI events; re-layout afterward so the
         // scrollbar returns to the canvas edge.
-        requestAnimationFrame(recalc);
+        scheduleRecalc();
         return;
       }
       clearTimeout(saveTimer.current);
