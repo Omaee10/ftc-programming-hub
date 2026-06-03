@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import type { EditorMode } from "@/lib/blockly/types";
 
 interface EditorModeSwitchProps {
@@ -51,15 +50,6 @@ export function ModeSwitchDialog({
   onConfirm,
   onCancel,
 }: ModeSwitchDialogProps) {
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onCancel]);
-
   if (!open) return null;
 
   return (
@@ -68,12 +58,8 @@ export function ModeSwitchDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="mode-switch-title"
-      onClick={onCancel}
     >
-      <div
-        className="max-w-sm rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="max-w-sm rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl">
         <h2 id="mode-switch-title" className="text-sm font-semibold text-slate-100">
           Switch to {targetMode === "java" ? "Java" : "Blocks"}?
         </h2>
