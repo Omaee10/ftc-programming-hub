@@ -20,9 +20,7 @@ export function resolveEditorModeForChallenge(
   if (draft?.editorMode === "blocks") return "blocks";
 
   const hasJavaEdits =
-    !!draft?.code &&
-    draft.code.trim() !== starterCode.trim() &&
-    draft.editorMode !== "blocks";
+    !!draft?.code && draft.code.trim() !== starterCode.trim();
 
   if (hasJavaEdits) return "java";
 
