@@ -282,10 +282,6 @@ function registerBlockGenerators(gen: JavaGenerator): void {
     const body = generator.statementToCode(block, "DO");
     return stmt(`if (isStarted()) {\n${body}        }`);
   };
-  gen.forBlock["ftc_repeat_while_op_mode"] = (block, generator) => {
-    const body = generator.statementToCode(block, "DO");
-    return stmt(`while (opModeIsActive()) {\n${body}        }`);
-  };
 
   gen.forBlock["ftc_gamepad_stick_y"] = (block) => {
     const stick = block.getFieldValue("STICK");

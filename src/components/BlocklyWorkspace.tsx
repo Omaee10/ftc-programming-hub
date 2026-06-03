@@ -67,14 +67,14 @@ export default function BlocklyWorkspace({
     const workspace = Blockly.inject(container, {
       toolbox,
       theme: FTC_BLOCKLY_THEME,
-      renderer: "zelos",
+      renderer: "thrasos",
       media: "/blockly/media/",
       sounds: false,
       trashcan: true,
       zoom: {
         controls: true,
         wheel: true,
-        startScale: 0.92,
+        startScale: 0.85,
         maxScale: 1.5,
         minScale: 0.4,
       },
@@ -106,11 +106,6 @@ export default function BlocklyWorkspace({
       debounceRef.current = setTimeout(emitChange, 400);
     };
     workspace.addChangeListener(onChange);
-    workspace.addChangeListener((e) => {
-      if (e.type === Blockly.Events.TOOLBOX_ITEM_SELECT) {
-        layoutWorkspace(workspace);
-      }
-    });
 
     const ro = new ResizeObserver(() => {
       Blockly.svgResize(workspace);

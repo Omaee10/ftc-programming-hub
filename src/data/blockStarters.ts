@@ -41,7 +41,13 @@ function waitForStart(): string {
 
 function repeatWhileOpMode(loopBody: string): string {
   const body = loopBody.trim() || comment("Put loop blocks here.");
-  return `<block type="ftc_repeat_while_op_mode"><statement name="DO">${body}</statement></block>`;
+  return `<block type="controls_whileUntil">
+    <field name="MODE">WHILE</field>
+    <value name="BOOL">
+      <block type="ftc_reporter_op_mode_is_active"></block>
+    </value>
+    <statement name="DO">${body}</statement>
+  </block>`;
 }
 
 function ifIsActiveWithLoop(loopBody: string): string {
