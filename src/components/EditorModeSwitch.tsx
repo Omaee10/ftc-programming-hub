@@ -42,8 +42,12 @@ export default function EditorModeSwitch({
               disabled
                 ? "cursor-not-allowed text-slate-700 opacity-50"
                 : mode === m
-                  ? "bg-slate-700/80 text-slate-100 shadow-sm"
-                  : "text-slate-500 hover:text-slate-300"
+                  ? m === "blocks"
+                    ? "bg-indigo-600/90 text-white shadow-sm ring-1 ring-indigo-400/40"
+                    : "bg-slate-700/80 text-slate-100 shadow-sm"
+                  : m === "blocks"
+                    ? "text-indigo-400/90 hover:text-indigo-300"
+                    : "text-slate-500 hover:text-slate-300"
             }`}
           >
             {m === "java" ? "Java" : "Blocks"}

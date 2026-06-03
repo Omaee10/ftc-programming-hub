@@ -263,8 +263,26 @@ export default function ChallengesClient() {
         </h1>
         <p className="mt-1 text-sm text-slate-500 max-w-xl">
           Practice real FTC concepts — from basic motor control to advanced
-          autonomous pathing.
+          autonomous pathing. Many challenges now open in{" "}
+          <span className="text-indigo-400 font-medium">FTC Blocks</span> (like
+          FTC Sim), with course tracks to filter by skill.
         </p>
+      </div>
+
+      <div className="mb-8 rounded-lg border border-indigo-500/25 bg-indigo-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-indigo-200">FTC Blocks mode</p>
+          <p className="text-xs text-indigo-300/80 mt-0.5">
+            Beginner challenges start in block coding. Switch to Java anytime. Advanced
+            library challenges (Road Runner, vision) stay Java-only.
+          </p>
+        </div>
+        <Link
+          href="/challenges/1"
+          className="shrink-0 rounded-md bg-indigo-600/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors text-center"
+        >
+          Try Blocks on Challenge 1
+        </Link>
       </div>
 
       {/* ── Progress — open, inline ──────────────────────────────────────── */}
@@ -370,7 +388,11 @@ export default function ChallengesClient() {
       )}
 
       {/* ── FTC Sim–style course tracks ───────────────────────────────────── */}
-      <div className="mb-8 flex flex-wrap gap-2">
+      <div className="mb-8">
+        <h2 className="text-[11px] font-medium uppercase tracking-widest text-slate-500 mb-3">
+          Course tracks
+        </h2>
+        <div className="flex flex-wrap gap-2">
         {courseTrackOptions.map((track) => (
           <button
             key={track}
@@ -385,6 +407,7 @@ export default function ChallengesClient() {
             {track === "all" ? "All tracks" : COURSE_TRACK_LABELS[track]}
           </button>
         ))}
+        </div>
       </div>
 
       {/* ── Challenge grid by difficulty ──────────────────────────────────── */}
