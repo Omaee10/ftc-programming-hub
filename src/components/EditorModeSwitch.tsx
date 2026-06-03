@@ -50,7 +50,7 @@ export default function EditorModeSwitch({
                     : "text-slate-500 hover:text-slate-300"
             }`}
           >
-            {m === "java" ? "OnBot Java" : "FTC Blocks"}
+            {m === "java" ? "Java" : "Blocks"}
           </button>
         );
       })}
@@ -96,13 +96,12 @@ export function ModeSwitchDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="mode-switch-title" className="text-sm font-semibold text-slate-100">
-          Switch to {targetMode === "java" ? "OnBot Java" : "FTC Blocks"}?
+          Switch to {targetMode === "java" ? "Java" : "Blocks"}?
         </h2>
         <p className="mt-2 text-xs text-slate-400 leading-relaxed">
           Switching editor modes may replace your current work in the other view.
-          Unsaved changes in{" "}
-          {targetMode === "java" ? "FTC Blocks" : "OnBot Java"} might be lost
-          unless you already saved a draft.
+          Unsaved changes in {targetMode === "java" ? "Blocks" : "Java"} might be
+          lost unless you already saved a draft.
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <button

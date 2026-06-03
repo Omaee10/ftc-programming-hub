@@ -96,13 +96,13 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_reporter_is_active",
-      message0: "call isStarted",
+      message0: "call isActive",
       output: "Boolean",
       style: CALL,
     },
     {
       type: "ftc_if_is_active",
-      message0: "if call isStarted  %1",
+      message0: "if call isActive  %1",
       args0: [{ type: "input_statement", name: "DO" }],
       previousStatement: null,
       nextStatement: null,
@@ -169,51 +169,6 @@ export function registerFtcPrimitiveBlocks(): void {
       ],
       output: "Number",
       style: PAD,
-    },
-    {
-      type: "ftc_gamepad_stick_y_drive",
-      message0: "gamepad1 %1 for drive",
-      args0: [
-        {
-          type: "field_dropdown",
-          name: "STICK",
-          options: [
-            ["LeftStickY", "left_stick_y"],
-            ["LeftStickX", "left_stick_x"],
-            ["RightStickY", "right_stick_y"],
-            ["RightStickX", "right_stick_x"],
-          ],
-        },
-      ],
-      output: "Number",
-      style: PAD,
-      tooltip: "Negated stick — push forward gives positive power (FTC Y-axis is inverted).",
-    },
-    {
-      type: "ftc_set_power_zero",
-      message0: "set %1 power to 0",
-      args0: [DC_DEVICE],
-      previousStatement: null,
-      nextStatement: null,
-      style: SET,
-      extensions: ["ftc_dc_device_init"],
-      tooltip: "Stop the motor after a move or at the end of a sequence.",
-    },
-    {
-      type: "ftc_encoder_run_to_position",
-      message0: "run %1 to encoder %2 at power %3",
-      args0: [
-        DC_DEVICE,
-        { type: "input_value", name: "TICKS", check: "Number" },
-        { type: "input_value", name: "POWER", check: "Number" },
-      ],
-      inputsInline: false,
-      previousStatement: null,
-      nextStatement: null,
-      style: SET,
-      extensions: ["ftc_dc_device_init"],
-      tooltip:
-        "Reset encoder, set target, RUN_TO_POSITION, wait while busy, then set power to 0.",
     },
     {
       type: "ftc_dc_motor_set_power",

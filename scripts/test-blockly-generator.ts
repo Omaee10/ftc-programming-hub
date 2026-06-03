@@ -1,20 +1,13 @@
 /**
- * Smoke tests: FTC-style Blockly → Java source + grader (not "wrong").
+ * Smoke tests: FTC-style Blockly → Java source.
  * Run: npm run test:blockly
  */
-import { execSync } from "child_process";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { JSDOM } from "jsdom";
 import * as Blockly from "blockly/core";
 import { challenges } from "../src/data/challenges";
 import { initBlocklyOnce, generateJavaFromWorkspace } from "../src/lib/blockly/generators/javaGenerator";
 import { getBlockStarterXml } from "../src/data/blockStarters";
-import {
-  configureDeviceFieldsForChallenge,
-  refreshDeviceFieldsInWorkspace,
-} from "../src/lib/blockly/blocks/deviceFields";
+import { configureDeviceFieldsForChallenge } from "../src/lib/blockly/blocks/deviceFields";
 import { challengeToBlocklyMeta } from "../src/lib/blockly/types";
 import type { StarterArchetype } from "../src/data/challengeBlocksMeta";
 
@@ -47,7 +40,6 @@ function loadAndGenerate(challengeId: number): string {
   const workspace = new Blockly.Workspace(new Blockly.Options({ sounds: false }));
   const xml = getBlockStarterXml(challengeId);
   Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml), workspace);
-  refreshDeviceFieldsInWorkspace(workspace);
   const java = generateJavaFromWorkspace(
     workspace,
     challengeToBlocklyMeta(challenge!)
@@ -69,7 +61,6 @@ assert(
   java2.indexOf("setTargetPosition") < java2.indexOf("RUN_TO_POSITION"),
   "ch2 target before mode"
 );
-assert(java2.includes("setPower(0)"), "ch2 setPower zero after encoder macro");
 
 const java6 = loadAndGenerate(6);
 assert(java6.includes("left_drive"), "ch6 tank motors");
@@ -103,67 +94,6 @@ assert(archetypesSeen.has("teleop_single_drive"), "teleop_single_drive archetype
 assert(archetypesSeen.has("autonomous_encoder_move"), "autonomous_encoder_move used");
 assert(archetypesSeen.has("sensor_touch_homing"), "sensor_touch_homing used");
 
-// Grade every full-support starter via Java grader (javac + rubrics)
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const smokeDir = path.join(scriptDir, "../grader/build/blockly-smoke");
-mkdirSync(smokeDir, { recursive: true });
-const manifest = fullIds.map((id) => ({
-  challengeId: id,
-  code: loadAndGenerate(id),
-}));
-writeFileSync(
-  path.join(smokeDir, "manifest.json"),
-  JSON.stringify(manifest, null, 0)
-);
-
-const graderDir = path.join(scriptDir, "../grader");
-const graderTest =
-  "test --tests com.ftchub.grader.BlockStarterGradeTest -q --no-daemon";
-
-function graderEnv(): NodeJS.ProcessEnv {
-  const env = { ...process.env };
-  if (!env.JAVA_HOME) {
-    try {
-      const java17 = execSync("/usr/libexec/java_home -v 17 2>/dev/null", {
-        encoding: "utf8",
-      }).trim();
-      if (java17) env.JAVA_HOME = java17;
-    } catch {
-      // use default JVM
-    }
-  }
-  return env;
-}
-
-function runGraderSmoke(): void {
-  const gradlew = path.join(graderDir, "gradlew");
-  const env = graderEnv();
-  try {
-    const bin = existsSync(gradlew) ? "./gradlew" : "gradle";
-    execSync(`${bin} test --tests com.ftchub.grader.BlockStarterGradeTest -q --rerun-tasks`, {
-      cwd: graderDir,
-      stdio: "inherit",
-      env,
-    });
-    return;
-  } catch {
-    // fall through — try Docker (same image as grader/Dockerfile)
-  }
-  try {
-    execSync(
-      `docker run --rm -v "${graderDir}:/home/gradle/src" -w /home/gradle/src gradle:8.10-jdk17 gradle ${graderTest}`,
-      { stdio: "inherit", env }
-    );
-    return;
-  } catch {
-    throw new Error(
-      "Grader smoke failed — install Gradle or Docker, then: cd grader && gradle test --tests BlockStarterGradeTest"
-    );
-  }
-}
-
-runGraderSmoke();
-
 console.log(
-  `OK: blockly generator + grader — ${fullIds.length} full-support starters, ${archetypesSeen.size} archetypes`
+  `OK: blockly generator — ${fullIds.length} full-support starters, ${archetypesSeen.size} archetypes`
 );

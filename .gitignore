@@ -20,10 +20,6 @@
 # production
 /build
 
-# Java grader
-grader/.gradle/
-grader/build/
-
 # misc
 .DS_Store
 *.pem
