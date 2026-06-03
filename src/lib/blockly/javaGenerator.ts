@@ -56,7 +56,9 @@ function escapeStr(raw: string | null): string {
 }
 
 function defaultFor(type: string): string {
-  return type === "boolean" ? "false" : "0";
+  if (type === "boolean") return "false";
+  if (type === "String") return '""';
+  return "0";
 }
 
 /** Prefix every non-blank line of `code` with `pad` spaces. */
@@ -165,10 +167,24 @@ F["ftc_set_zeropower"] = (block) =>
     "MODE"
   )});`;
 
-F["ftc_set_mode"] = (block) =>
-  `${safeId(block.getFieldValue("VAR"), "motor")}.setMode(DcMotor.RunMode.${block.getFieldValue(
-    "RUNMODE"
-  )});`;
+F["ftc_reset_encoder"] = (block) => {
+  const v = safeId(block.getFieldValue("VAR"), "motor");
+  return (
+    `${v}.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);\n` +
+    `${v}.setMode(DcMotor.RunMode.RUN_USING_ENCODER);`
+  );
+};
+
+F["ftc_run_to_position"] = (block) => {
+  const v = safeId(block.getFieldValue("VAR"), "motor");
+  const target = val(block, "VALUE", "0");
+  const power = val(block, "POWER", "0");
+  return (
+    `${v}.setTargetPosition((int)(${target}));\n` +
+    `${v}.setMode(DcMotor.RunMode.RUN_TO_POSITION);\n` +
+    `${v}.setPower(${power});`
+  );
+};
 
 F["ftc_set_target"] = (block) =>
   `${safeId(block.getFieldValue("VAR"), "motor")}.setTargetPosition((int)(${val(
@@ -211,15 +227,15 @@ F["ftc_set_position"] = (block) =>
 // ── Gamepad ─────────────────────────────────────────────────────────────
 
 F["ftc_gamepad_axis"] = (block) => [
-  `gamepad1.${block.getFieldValue("AXIS")}`,
+  `${block.getFieldValue("PAD") || "gamepad1"}.${block.getFieldValue("AXIS")}`,
   ATOMIC,
 ];
 F["ftc_gamepad_trigger"] = (block) => [
-  `gamepad1.${block.getFieldValue("TRIG")}`,
+  `${block.getFieldValue("PAD") || "gamepad1"}.${block.getFieldValue("TRIG")}`,
   ATOMIC,
 ];
 F["ftc_gamepad_button"] = (block) => [
-  `gamepad1.${block.getFieldValue("BTN")}`,
+  `${block.getFieldValue("PAD") || "gamepad1"}.${block.getFieldValue("BTN")}`,
   ATOMIC,
 ];
 
@@ -356,8 +372,23 @@ F["ftc_assign"] = (block) =>
 F["ftc_increment"] = (block) =>
   `${safeId(block.getFieldValue("NAME"), "loopCount")}++;`;
 
+F["ftc_decrement"] = (block) =>
+  `${safeId(block.getFieldValue("NAME"), "loopCount")}--;`;
+
+F["ftc_change_by"] = (block) =>
+  `${safeId(block.getFieldValue("NAME"), "value")} += ${val(
+    block,
+    "VALUE",
+    "0"
+  )};`;
+
 F["ftc_var_get"] = (block) => [
   safeId(block.getFieldValue("NAME"), "value"),
+  ATOMIC,
+];
+
+F["ftc_string"] = (block) => [
+  `"${escapeStr(block.getFieldValue("TEXT"))}"`,
   ATOMIC,
 ];
 

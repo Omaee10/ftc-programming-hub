@@ -62,6 +62,7 @@ import {
   isBlocksEnabled,
   type WorkspaceState,
 } from "@/data/blockChallenges";
+import { FULL_TOOLBOX } from "@/lib/blockly/ftcBlocks";
 import {
   clearBlockDraft,
   readBlockDraft,
@@ -1586,7 +1587,7 @@ export default function ChallengeWorkspace({
               <div className={editorMode === "blocks" ? "h-full w-full" : "hidden"}>
                 <BlocklyWorkspace
                   key={challenge.id}
-                  toolbox={blocksConfig.toolbox}
+                  toolbox={FULL_TOOLBOX}
                   initialState={blocksInitialState}
                   starterState={blocksConfig.starter}
                   resetSignal={blockResetSignal}

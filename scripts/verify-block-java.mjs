@@ -48,7 +48,12 @@ const setPos = (VAR, val) => ({ type: "ftc_set_position", fields: { VAR }, input
 const setVel = (VAR, val) => ({ type: "ftc_set_velocity", fields: { VAR }, inputs: { VALUE: val } });
 const setDir = (VAR, DIR) => ({ type: "ftc_set_direction", fields: { VAR, DIR } });
 const setZero = (VAR, MODE) => ({ type: "ftc_set_zeropower", fields: { VAR, MODE } });
-const setMode = (VAR, RUNMODE) => ({ type: "ftc_set_mode", fields: { VAR, RUNMODE } });
+const resetEncoder = (VAR) => ({ type: "ftc_reset_encoder", fields: { VAR } });
+const runToPos = (VAR, target, power) => ({
+  type: "ftc_run_to_position",
+  fields: { VAR },
+  inputs: { VALUE: target, POWER: power },
+});
 const setTarget = (VAR, val) => ({ type: "ftc_set_target", fields: { VAR }, inputs: { VALUE: val } });
 const declVar = (VTYPE, NAME, init) => ({ type: "ftc_declare_var", fields: { VTYPE, NAME }, inputs: { INIT: init } });
 const declConst = (VTYPE, NAME, init) => ({ type: "ftc_declare_const", fields: { VTYPE, NAME }, inputs: { INIT: init } });
@@ -99,17 +104,19 @@ const frame = (className, kind = "TeleOp") => ({
   imports: IMPORTS,
 });
 
-const MEC = [
-  dev("DcMotor", "front_left", "frontLeft"),
-  dev("DcMotor", "front_right", "frontRight"),
-  dev("DcMotor", "back_left", "backLeft"),
-  dev("DcMotor", "back_right", "backRight"),
+// Fresh device nodes each call — chain() mutates `.next`, so a shared array
+// would let later solutions overwrite earlier ones.
+const mec = () => [
+  dev("DcMotorEx", "front_left", "frontLeft"),
+  dev("DcMotorEx", "front_right", "frontRight"),
+  dev("DcMotorEx", "back_left", "backLeft"),
+  dev("DcMotorEx", "back_right", "backRight"),
 ];
 
 // ── Full solution workspaces per challenge ───────────────────────────────────
 const SOLUTIONS = {
   1: root([
-    dev("DcMotor", "left_motor", "leftMotor"),
+    dev("DcMotorEx", "left_motor", "leftMotor"),
     setDir("leftMotor", "REVERSE"),
     wait(),
     whileActive([
@@ -120,12 +127,10 @@ const SOLUTIONS = {
     ]),
   ]),
   2: root([
-    dev("DcMotor", "drive_motor", "driveMotor"),
+    dev("DcMotorEx", "drive_motor", "driveMotor"),
     wait(),
-    setMode("driveMotor", "STOP_AND_RESET_ENCODER"),
-    setTarget("driveMotor", num(1000)),
-    setMode("driveMotor", "RUN_TO_POSITION"),
-    setPower("driveMotor", num(0.6)),
+    resetEncoder("driveMotor"),
+    runToPos("driveMotor", num(1000), num(0.6)),
     whileCond(isBusy("driveMotor"), [
       teleAdd("Pos", motorPos("driveMotor")),
       teleUpd(),
@@ -134,8 +139,8 @@ const SOLUTIONS = {
     setPower("driveMotor", num(0)),
   ]),
   3: root([
-    dev("DcMotor", "left_motor", "leftMotor"),
-    dev("DcMotor", "right_motor", "rightMotor"),
+    dev("DcMotorEx", "left_motor", "leftMotor"),
+    dev("DcMotorEx", "right_motor", "rightMotor"),
     setDir("rightMotor", "REVERSE"),
     newTimer("timer"),
     wait(),
@@ -150,8 +155,8 @@ const SOLUTIONS = {
     setPower("rightMotor", num(0)),
   ]),
   6: root([
-    dev("DcMotor", "left_drive", "leftMotor"),
-    dev("DcMotor", "right_drive", "rightMotor"),
+    dev("DcMotorEx", "left_drive", "leftMotor"),
+    dev("DcMotorEx", "right_drive", "rightMotor"),
     setDir("rightMotor", "REVERSE"),
     wait(),
     whileActive([
@@ -182,9 +187,9 @@ const SOLUTIONS = {
     ]),
   ]),
   9: root([
-    dev("DcMotor", "drive_motor", "driveMotor"),
+    dev("DcMotorEx", "drive_motor", "driveMotor"),
     newTimer("runtime"),
-    declVar("int", "loopCount", num(0)),
+    declVar("double", "loopCount", num(0)),
     wait(),
     whileActive([
       incr("loopCount"),
@@ -212,7 +217,7 @@ const SOLUTIONS = {
     ]),
   ]),
   11: root([
-    dev("DcMotor", "drive_motor", "driveMotor"),
+    dev("DcMotorEx", "drive_motor", "driveMotor"),
     newTimer("timer"),
     wait(),
     resetTimer("timer"),
@@ -224,7 +229,7 @@ const SOLUTIONS = {
     setPower("driveMotor", num(0)),
   ]),
   12: root([
-    dev("DcMotor", "drive_motor", "driveMotor"),
+    dev("DcMotorEx", "drive_motor", "driveMotor"),
     wait(),
     whileActive([
       ifDo(button("x"), [setZero("driveMotor", "BRAKE")], [setZero("driveMotor", "FLOAT")]),
@@ -245,18 +250,15 @@ const SOLUTIONS = {
     whileActive([teleAdd("Alliance", getv("isRedAlliance")), teleUpd()]),
   ]),
   14: root([
-    dev("DcMotor", "drive_motor", "driveMotor"),
+    dev("DcMotorEx", "drive_motor", "driveMotor"),
     wait(),
-    setMode("driveMotor", "STOP_AND_RESET_ENCODER"),
-    setMode("driveMotor", "RUN_USING_ENCODER"),
-    setTarget("driveMotor", num(2000)),
-    setMode("driveMotor", "RUN_TO_POSITION"),
-    setPower("driveMotor", num(0.5)),
+    resetEncoder("driveMotor"),
+    runToPos("driveMotor", num(2000), num(0.5)),
     whileCond(isBusy("driveMotor"), [teleAdd("Pos", motorPos("driveMotor")), teleUpd(), idle()]),
     setPower("driveMotor", num(0)),
   ]),
   16: root([
-    dev("DcMotor", "turret_motor", "turretMotor"),
+    dev("DcMotorEx", "turret_motor", "turretMotor"),
     dev("TouchSensor", "touch_sensor", "touchSensor"),
     wait(),
     whileCond(not(touchPressed("touchSensor")), [
@@ -266,10 +268,10 @@ const SOLUTIONS = {
       idle(),
     ]),
     setPower("turretMotor", num(0)),
-    setMode("turretMotor", "STOP_AND_RESET_ENCODER"),
+    resetEncoder("turretMotor"),
   ]),
   17: root([
-    ...MEC,
+    ...mec(),
     setDir("frontLeft", "REVERSE"),
     setDir("backLeft", "REVERSE"),
     defNorm(),
@@ -289,7 +291,7 @@ const SOLUTIONS = {
     ]),
   ]),
   18: root([
-    ...MEC,
+    ...mec(),
     setDir("frontLeft", "REVERSE"),
     setDir("backLeft", "REVERSE"),
     defNorm(),
@@ -309,7 +311,7 @@ const SOLUTIONS = {
     ]),
   ]),
   20: root([
-    ...MEC,
+    ...mec(),
     setDir("frontLeft", "REVERSE"),
     setDir("backLeft", "REVERSE"),
     wait(),
@@ -328,7 +330,7 @@ const SOLUTIONS = {
     teleUpd(),
   ]),
   21: root([
-    ...MEC,
+    ...mec(),
     declConst("double", "DEADBAND", num(0.05)),
     wait(),
     whileActive([
@@ -356,7 +358,7 @@ const SOLUTIONS = {
   ]),
   22: root([
     dev("DcMotorEx", "shooter_motor", "shooterMotor"),
-    setMode("shooterMotor", "RUN_USING_ENCODER"),
+    resetEncoder("shooterMotor"),
     wait(),
     whileActive([
       setVel("shooterMotor", num(1500)),
@@ -365,13 +367,13 @@ const SOLUTIONS = {
     ]),
   ]),
   23: root([
-    dev("DcMotor", "turret_motor", "turretMotor"),
+    dev("DcMotorEx", "turret_motor", "turretMotor"),
     declConst("double", "Kp", num(0.01)),
-    declVar("int", "targetPosition", num(500)),
+    declVar("double", "targetPosition", num(500)),
     wait(),
     whileActive([
-      declVar("int", "currentPosition", motorPos("turretMotor")),
-      declVar("int", "error", arith(getv("targetPosition"), "-", getv("currentPosition"))),
+      declVar("double", "currentPosition", motorPos("turretMotor")),
+      declVar("double", "error", arith(getv("targetPosition"), "-", getv("currentPosition"))),
       declVar("double", "power", mbin("max", num(-0.8), mbin("min", num(0.8), arith(getv("Kp"), "*", getv("error"))))),
       setPower("turretMotor", getv("power")),
       teleAdd("error", getv("error")),
@@ -380,13 +382,13 @@ const SOLUTIONS = {
     ]),
   ]),
   24: root([
-    dev("DcMotor", "turret_motor", "turretMotor"),
+    dev("DcMotorEx", "turret_motor", "turretMotor"),
     declConst("double", "TICKS_PER_REV", num(537.7)),
     declConst("double", "GEAR_RATIO", num(1.0)),
     defTtd(),
     wait(),
     whileActive([
-      declVar("int", "ticks", motorPos("turretMotor")),
+      declVar("double", "ticks", motorPos("turretMotor")),
       declVar("double", "degrees", callTtd(getv("ticks"))),
       teleAdd("Ticks", getv("ticks")),
       teleAdd("Degrees", getv("degrees")),
@@ -413,10 +415,10 @@ const UNIVERSAL = [
 ];
 
 const CHK = {
-  1: [["DcMotor field", re(/private\s+DcMotor\s/)], ["neg left_stick_y", re(/-\s*gamepad1\.left_stick_y/)], ["setPower in loop", has(".setPower(")], ["setDirection", has(".setDirection(")], ["deadzone", re(/Math\.abs\([^)]+\)\s*<\s*0\./)]],
+  1: [["DcMotor field", re(/private\s+DcMotorEx\s/)], ["neg left_stick_y", re(/-\s*gamepad1\.left_stick_y/)], ["setPower in loop", has(".setPower(")], ["setDirection", has(".setDirection(")], ["deadzone", re(/Math\.abs\([^)]+\)\s*<\s*0\./)]],
   2: [["reset->target->run order", re(/STOP_AND_RESET_ENCODER[\s\S]*setTargetPosition[\s\S]*RUN_TO_POSITION/)], ["nonzero power", re(/setPower\(\s*0?\.[1-9]/)], ["isBusy while+active", re(/while\s*\([^)]*isBusy\(\)[^)]*opModeIsActive/)], ["getCurrentPosition", has("getCurrentPosition(")]],
   3: [["ElapsedTime", has("new ElapsedTime()")], ["seconds compare", re(/\.seconds\(\)\s*<\s*\d/)], ["opModeIsActive loop", has("opModeIsActive()")], ["reverse one side", has(".setDirection(")], ["setPower 0 after", re(/setPower\(0\)/)]],
-  6: [["two motors", (s) => (s.match(/private\s+DcMotor\s/g) || []).length >= 2], ["left stick y neg", re(/-\s*gamepad1\.left_stick_y/)], ["right stick y", has("gamepad1.right_stick_y")], ["2 setPower", (s) => (s.match(/\.setPower\(/g) || []).length >= 2], ["setDirection", has(".setDirection(")]],
+  6: [["two motors", (s) => (s.match(/private\s+DcMotorEx\s/g) || []).length >= 2], ["left stick y neg", re(/-\s*gamepad1\.left_stick_y/)], ["right stick y", has("gamepad1.right_stick_y")], ["2 setPower", (s) => (s.match(/\.setPower\(/g) || []).length >= 2], ["setDirection", has(".setDirection(")]],
   7: [["Servo from hardwareMap", re(/hardwareMap\.get\(\s*Servo/)], ["setPosition", has(".setPosition(")], ["no setPower on servo", (s) => !/blockerServo\.setPower/.test(s)], ["gamepad button", re(/gamepad1\.(a|b|x|y)/)]],
   8: [["CRServo", re(/private\s+CRServo\s/)], ["setPower", has(".setPower(")], ["no setPosition", (s) => !/intakeServo\.setPosition/.test(s)], ["trigger", has("gamepad1.right_trigger")]],
   9: [["ElapsedTime", has("new ElapsedTime()")], ["counter ++", has("++")], ["getCurrentPosition", has("getCurrentPosition(")], ["addLine", has(".addLine(")], [">=4 addData", (s) => (s.match(/\.addData\(/g) || []).length >= 4], ["update in loop", has("telemetry.update()")]],
@@ -426,10 +428,10 @@ const CHK = {
   13: [["boolean alliance", re(/boolean\s+\w*[Aa]lliance|isRedAlliance/)], ["init loop", re(/while\s*\(\s*!isStarted/)], ["gamepad b", has("gamepad1.b")], ["gamepad x", has("gamepad1.x")], ["opModeIsActive while", re(/while\s*\(\s*opModeIsActive/)]],
   14: [["reset->target->run", re(/STOP_AND_RESET_ENCODER[\s\S]*setTargetPosition[\s\S]*RUN_TO_POSITION/)], ["isBusy while+active", re(/while\s*\([^)]*isBusy\(\)[^)]*opModeIsActive/)], ["setPower 0", re(/setPower\(0\)/)], ["RUN_USING_ENCODER", has("RUN_USING_ENCODER")]],
   16: [["TouchSensor", re(/private\s+TouchSensor\s/)], ["isPressed", has(".isPressed()")], ["while + active", re(/while\s*\([^)]*isPressed\(\)[^)]*opModeIsActive/)], ["STOP_AND_RESET_ENCODER", has("STOP_AND_RESET_ENCODER")], ["setPower 0", re(/setPower\(0\)/)]],
-  17: [["4 motors", (s) => (s.match(/private\s+DcMotor\s/g) || []).length >= 4], ["left_stick_y", has("left_stick_y")], ["left_stick_x", has("left_stick_x")], ["right_stick_x", has("right_stick_x")], ["4 setPower", (s) => (s.match(/\.setPower\(/g) || []).length >= 4], ["Math.max/abs", re(/Math\.(max|abs)/)]],
-  18: [["4 motors", (s) => (s.match(/private\s+DcMotor\s/g) || []).length >= 4], ["normalize defined", has("normalize(")], ["max>1", re(/max\s*>\s*1/)], ["Math.max", has("Math.max")], ["Math.abs", has("Math.abs")]],
-  20: [["4 motors", (s) => (s.match(/private\s+DcMotor\s/g) || []).length >= 4], ["strafe", re(/strafe|left_stick_x/)], [">=2 sleep", (s) => (s.match(/sleep\(/g) || []).length >= 2], ["setPower 0 end", re(/setPower\(0\)/)]],
-  21: [["4 motors", (s) => (s.match(/private\s+DcMotor\s/g) || []).length >= 4], ["hypot/sqrt", re(/Math\.(hypot|sqrt)/)], ["deadband", re(/0\.05|DEADBAND|deadband/)], ["magnitude addData", re(/addData\([^)]*[Mm]agnitude/)]],
+  17: [["4 motors", (s) => (s.match(/private\s+DcMotorEx\s/g) || []).length >= 4], ["left_stick_y", has("left_stick_y")], ["left_stick_x", has("left_stick_x")], ["right_stick_x", has("right_stick_x")], ["4 setPower", (s) => (s.match(/\.setPower\(/g) || []).length >= 4], ["Math.max/abs", re(/Math\.(max|abs)/)]],
+  18: [["4 motors", (s) => (s.match(/private\s+DcMotorEx\s/g) || []).length >= 4], ["normalize defined", has("normalize(")], ["max>1", re(/max\s*>\s*1/)], ["Math.max", has("Math.max")], ["Math.abs", has("Math.abs")]],
+  20: [["4 motors", (s) => (s.match(/private\s+DcMotorEx\s/g) || []).length >= 4], ["strafe", re(/strafe|left_stick_x/)], [">=2 sleep", (s) => (s.match(/sleep\(/g) || []).length >= 2], ["setPower 0 end", re(/setPower\(0\)/)]],
+  21: [["4 motors", (s) => (s.match(/private\s+DcMotorEx\s/g) || []).length >= 4], ["hypot/sqrt", re(/Math\.(hypot|sqrt)/)], ["deadband", re(/0\.05|DEADBAND|deadband/)], ["magnitude addData", re(/addData\([^)]*[Mm]agnitude/)]],
   22: [["DcMotorEx", re(/private\s+DcMotorEx\s/)], ["setVelocity", has(".setVelocity(")], ["RUN_USING_ENCODER", has("RUN_USING_ENCODER")], ["getVelocity", has(".getVelocity()")]],
   23: [["error target-current", re(/(target|setpoint|goal)\w*\s*-\s*(current\w*|measured\w*|actual\w*|pos\b)/)], ["Kp*error", re(/Kp\s*\*\s*error|error\s*\*\s*Kp/)], ["clamp max..min", re(/Math\.max[\s\S]*Math\.min/)], [">=2 addData", (s) => (s.match(/\.addData\(/g) || []).length >= 2]],
   24: [["ticksToDegrees defined", re(/double\s+ticksToDegrees\s*\(/)], ["TICKS_PER_REV or 537.7", re(/TICKS_PER_REV|537\.7/)], ["ticksToDegrees called", re(/=\s*ticksToDegrees\(/)], ["getCurrentPosition", has("getCurrentPosition(")], ["addData", has(".addData(")]],

@@ -122,14 +122,14 @@ const MATH = ["ftc_number", "ftc_arith", "ftc_negate"];
 const GP_DRIVE = ["ftc_gamepad_axis", "ftc_negate", "ftc_deadzone"];
 const VARS = ["ftc_declare_var", "ftc_assign", "ftc_var_get"];
 const LOGIC = ["ftc_if", "ftc_compare", "ftc_and", "ftc_not", "ftc_boolean"];
-const ENCODER = ["ftc_set_mode", "ftc_set_target", "ftc_motor_position", "ftc_motor_isbusy", "ftc_idle"];
+const ENCODER = ["ftc_reset_encoder", "ftc_run_to_position", "ftc_set_target", "ftc_motor_position", "ftc_motor_isbusy", "ftc_idle"];
 const TIMER = ["ftc_new_timer", "ftc_timer_reset", "ftc_timer_seconds"];
 
 const MECANUM_DEVICES = [
-  dev("DcMotor", "front_left", "frontLeft"),
-  dev("DcMotor", "front_right", "frontRight"),
-  dev("DcMotor", "back_left", "backLeft"),
-  dev("DcMotor", "back_right", "backRight"),
+  dev("DcMotorEx", "front_left", "frontLeft"),
+  dev("DcMotorEx", "front_right", "frontRight"),
+  dev("DcMotorEx", "back_left", "backLeft"),
+  dev("DcMotorEx", "back_right", "backRight"),
 ];
 
 // ─── Per-challenge configs ──────────────────────────────────────────────────
@@ -150,7 +150,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
       ...LIFE_LOOP,
     ]),
     starter: starter({
-      devices: [dev("DcMotor", "left_motor", "leftMotor")],
+      devices: [dev("DcMotorEx", "left_motor", "leftMotor")],
       post: [whileActiveEmpty()],
     }),
     frame: frame("BasicTeleOpBlocks", "TeleOp", "Basic TeleOp", "Challenge 1"),
@@ -168,7 +168,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
       ...TELE,
     ]),
     starter: starter({
-      devices: [dev("DcMotor", "drive_motor", "driveMotor")],
+      devices: [dev("DcMotorEx", "drive_motor", "driveMotor")],
     }),
     frame: frame("EncoderTargetBlocks", "Autonomous", "Encoder Target", "Challenge 2"),
   },
@@ -188,8 +188,8 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
     ]),
     starter: starter({
       devices: [
-        dev("DcMotor", "left_motor", "leftMotor"),
-        dev("DcMotor", "right_motor", "rightMotor"),
+        dev("DcMotorEx", "left_motor", "leftMotor"),
+        dev("DcMotorEx", "right_motor", "rightMotor"),
       ],
     }),
     frame: frame("AutonomousTimerBlocks", "Autonomous", "Autonomous Timer", "Challenge 3"),
@@ -211,8 +211,8 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
     ]),
     starter: starter({
       devices: [
-        dev("DcMotor", "left_drive", "leftMotor"),
-        dev("DcMotor", "right_drive", "rightMotor"),
+        dev("DcMotorEx", "left_drive", "leftMotor"),
+        dev("DcMotorEx", "right_drive", "rightMotor"),
       ],
       post: [whileActiveEmpty()],
     }),
@@ -270,7 +270,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
       ...LIFE_LOOP,
     ]),
     starter: starter({
-      devices: [dev("DcMotor", "drive_motor", "driveMotor")],
+      devices: [dev("DcMotorEx", "drive_motor", "driveMotor")],
       post: [whileActiveEmpty()],
     }),
     frame: frame("TelemetryDashboardBlocks", "TeleOp", "Telemetry Dashboard", "Challenge 9"),
@@ -310,7 +310,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
       ...TELE,
     ]),
     starter: starter({
-      devices: [dev("DcMotor", "drive_motor", "driveMotor")],
+      devices: [dev("DcMotorEx", "drive_motor", "driveMotor")],
     }),
     frame: frame("ElapsedTimeBlocks", "TeleOp", "ElapsedTime Patterns", "Challenge 11"),
   },
@@ -329,7 +329,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
       ...LIFE_LOOP,
     ]),
     starter: starter({
-      devices: [dev("DcMotor", "drive_motor", "driveMotor")],
+      devices: [dev("DcMotorEx", "drive_motor", "driveMotor")],
       post: [whileActiveEmpty()],
     }),
     frame: frame("ZeroPowerBlocks", "TeleOp", "Zero Power Behavior", "Challenge 12"),
@@ -366,7 +366,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
       ...TELE,
     ]),
     starter: starter({
-      devices: [dev("DcMotor", "drive_motor", "driveMotor")],
+      devices: [dev("DcMotorEx", "drive_motor", "driveMotor")],
     }),
     frame: frame("EncoderDriveBlocks", "Autonomous", "Encoder Drive Distance", "Challenge 14"),
   },
@@ -376,7 +376,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
     toolbox: buildToolbox([
       ...HW,
       "ftc_set_power",
-      "ftc_set_mode",
+      "ftc_reset_encoder",
       "ftc_touch_pressed",
       "ftc_not",
       ...COND_LOOP,
@@ -386,7 +386,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
     ]),
     starter: starter({
       devices: [
-        dev("DcMotor", "turret_motor", "turretMotor"),
+        dev("DcMotorEx", "turret_motor", "turretMotor"),
         dev("TouchSensor", "touch_sensor", "touchSensor"),
       ],
     }),
@@ -484,7 +484,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
   22: {
     toolbox: buildToolbox([
       ...HW,
-      "ftc_set_mode",
+      "ftc_reset_encoder",
       "ftc_set_velocity",
       "ftc_motor_velocity",
       "ftc_gamepad_button",
@@ -516,7 +516,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
       ...LIFE_LOOP,
     ]),
     starter: starter({
-      devices: [dev("DcMotor", "turret_motor", "turretMotor")],
+      devices: [dev("DcMotorEx", "turret_motor", "turretMotor")],
       post: [whileActiveEmpty()],
     }),
     frame: frame("PControllerBlocks", "TeleOp", "Simple P Controller", "Challenge 23"),
@@ -536,7 +536,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
       ...LIFE_LOOP,
     ]),
     starter: starter({
-      devices: [dev("DcMotor", "turret_motor", "turretMotor")],
+      devices: [dev("DcMotorEx", "turret_motor", "turretMotor")],
       post: [whileActiveEmpty()],
     }),
     frame: frame("TicksToDegreesBlocks", "TeleOp", "Ticks to Degrees", "Challenge 24"),

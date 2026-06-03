@@ -64,7 +64,8 @@ export const CATEGORY_OF: Record<string, BlockCategory> = {
   ftc_set_power: "Motors",
   ftc_set_direction: "Motors",
   ftc_set_zeropower: "Motors",
-  ftc_set_mode: "Motors",
+  ftc_reset_encoder: "Motors",
+  ftc_run_to_position: "Motors",
   ftc_set_target: "Motors",
   ftc_set_velocity: "Motors",
   ftc_motor_position: "Motors",
@@ -101,7 +102,10 @@ export const CATEGORY_OF: Record<string, BlockCategory> = {
   ftc_declare_const: "Variables",
   ftc_assign: "Variables",
   ftc_increment: "Variables",
+  ftc_decrement: "Variables",
+  ftc_change_by: "Variables",
   ftc_var_get: "Variables",
+  ftc_string: "Variables",
   ftc_new_timer: "Variables",
   ftc_timer_reset: "Variables",
   ftc_timer_seconds: "Variables",
@@ -113,6 +117,81 @@ export const CATEGORY_OF: Record<string, BlockCategory> = {
 };
 
 const C = CATEGORY_COLOUR;
+
+// ─── Custom field: variable / device name dropdown ──────────────────────────
+//
+// A dropdown that offers every name the student has "created" elsewhere in the
+// workspace — hardware devices (ftc_get_hardware), declared variables/fields/
+// constants, and timers. Reference blocks (set power of X, read X, etc.) use it
+// so a name only ever has to be typed once, at the place it is created.
+
+const NAME_PLACEHOLDER = "(create a variable)";
+
+/** Block types whose VAR field introduces a hardware device name. */
+const DEVICE_NAME_BLOCKS = new Set(["ftc_get_hardware"]);
+/** Block types whose NAME field introduces a variable / timer name. */
+const VAR_NAME_BLOCKS = new Set([
+  "ftc_declare_var",
+  "ftc_declare_field",
+  "ftc_declare_const",
+  "ftc_new_timer",
+]);
+
+/** Collect every created name (devices + variables + timers) in a workspace. */
+function collectCreatedNames(ws: Blockly.Workspace | null | undefined): string[] {
+  if (!ws) return [];
+  const out: string[] = [];
+  const add = (raw: string | null) => {
+    const v = (raw ?? "").trim();
+    if (v && !out.includes(v)) out.push(v);
+  };
+  for (const b of ws.getAllBlocks(false)) {
+    if (DEVICE_NAME_BLOCKS.has(b.type)) add(b.getFieldValue("VAR"));
+    else if (VAR_NAME_BLOCKS.has(b.type)) add(b.getFieldValue("NAME"));
+  }
+  return out;
+}
+
+type NameOption = [string, string];
+
+// `this` is the field (see Blockly's MenuGeneratorFunction type).
+function nameMenuGenerator(this: Blockly.FieldDropdown): NameOption[] {
+  const block = this.getSourceBlock();
+  const names = collectCreatedNames(block?.workspace);
+  const current = this.getValue();
+  if (typeof current === "string" && current && !names.includes(current)) {
+    names.unshift(current);
+  }
+  if (names.length === 0) return [[NAME_PLACEHOLDER, ""]];
+  return names.map((n) => [n, n] as NameOption);
+}
+
+/** Dropdown of created names; accepts any value so load order never drops it. */
+class FieldNameDropdown extends BK.FieldDropdown {
+  constructor(value?: string, validator?: unknown, config?: unknown) {
+    super(nameMenuGenerator, validator as never, config as never);
+    if (typeof value === "string" && value.length > 0) this.setValue(value);
+  }
+
+  static fromJson(
+    options: Blockly.FieldDropdownFromJsonConfig
+  ): FieldNameDropdown {
+    const text = (options as { text?: string }).text;
+    return new FieldNameDropdown(text, undefined, options);
+  }
+
+  // Accept any name even if the declaring block hasn't loaded yet, so saved
+  // references survive (de)serialization regardless of block order.
+  protected override doClassValidation_(newValue?: string): string | null {
+    return newValue == null ? null : String(newValue);
+  }
+
+  // Show the raw name (label === value here); fall back to a hint when empty.
+  protected override getText_(): string {
+    const v = this.getValue();
+    return typeof v === "string" && v.length > 0 ? v : NAME_PLACEHOLDER;
+  }
+}
 
 // ─── Block definitions (JSON) ───────────────────────────────────────────────
 
@@ -212,7 +291,6 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
         type: "field_dropdown",
         name: "TYPE",
         options: [
-          ["DcMotor", "DcMotor"],
           ["DcMotorEx", "DcMotorEx"],
           ["Servo", "Servo"],
           ["CRServo", "CRServo"],
@@ -233,7 +311,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     type: "ftc_set_power",
     message0: "set power of %1 to %2",
     args0: [
-      { type: "field_input", name: "VAR", text: "motor" },
+      { type: "field_ftc_name", name: "VAR", text: "motor" },
       { type: "input_value", name: "VALUE", check: "Number" },
     ],
     previousStatement: null,
@@ -245,7 +323,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     type: "ftc_set_direction",
     message0: "set direction of %1 to %2",
     args0: [
-      { type: "field_input", name: "VAR", text: "motor" },
+      { type: "field_ftc_name", name: "VAR", text: "motor" },
       {
         type: "field_dropdown",
         name: "DIR",
@@ -264,7 +342,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     type: "ftc_set_zeropower",
     message0: "set zero-power behavior of %1 to %2",
     args0: [
-      { type: "field_input", name: "VAR", text: "motor" },
+      { type: "field_ftc_name", name: "VAR", text: "motor" },
       {
         type: "field_dropdown",
         name: "MODE",
@@ -280,31 +358,35 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     tooltip: "Choose whether the motor brakes or floats at zero power.",
   },
   {
-    type: "ftc_set_mode",
-    message0: "set mode of %1 to %2",
-    args0: [
-      { type: "field_input", name: "VAR", text: "motor" },
-      {
-        type: "field_dropdown",
-        name: "RUNMODE",
-        options: [
-          ["STOP_AND_RESET_ENCODER", "STOP_AND_RESET_ENCODER"],
-          ["RUN_TO_POSITION", "RUN_TO_POSITION"],
-          ["RUN_USING_ENCODER", "RUN_USING_ENCODER"],
-          ["RUN_WITHOUT_ENCODER", "RUN_WITHOUT_ENCODER"],
-        ],
-      },
-    ],
+    type: "ftc_reset_encoder",
+    message0: "reset encoder of %1",
+    args0: [{ type: "field_ftc_name", name: "VAR", text: "motor" }],
     previousStatement: null,
     nextStatement: null,
     colour: C.Motors,
-    tooltip: "Set the motor RunMode (encoder behaviour).",
+    tooltip:
+      "Zero the encoder, then switch the motor to RUN_USING_ENCODER — no mode switching needed.",
+  },
+  {
+    type: "ftc_run_to_position",
+    message0: "run %1 to position %2 at power %3",
+    args0: [
+      { type: "field_ftc_name", name: "VAR", text: "motor" },
+      { type: "input_value", name: "VALUE", check: "Number" },
+      { type: "input_value", name: "POWER", check: "Number" },
+    ],
+    inputsInline: true,
+    previousStatement: null,
+    nextStatement: null,
+    colour: C.Motors,
+    tooltip:
+      "Set the target, switch to RUN_TO_POSITION, and apply power — all in one step.",
   },
   {
     type: "ftc_set_target",
     message0: "set target position of %1 to %2",
     args0: [
-      { type: "field_input", name: "VAR", text: "motor" },
+      { type: "field_ftc_name", name: "VAR", text: "motor" },
       { type: "input_value", name: "VALUE", check: "Number" },
     ],
     previousStatement: null,
@@ -316,7 +398,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     type: "ftc_set_velocity",
     message0: "set velocity of %1 to %2",
     args0: [
-      { type: "field_input", name: "VAR", text: "motor" },
+      { type: "field_ftc_name", name: "VAR", text: "motor" },
       { type: "input_value", name: "VALUE", check: "Number" },
     ],
     previousStatement: null,
@@ -327,7 +409,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
   {
     type: "ftc_motor_position",
     message0: "position of %1",
-    args0: [{ type: "field_input", name: "VAR", text: "motor" }],
+    args0: [{ type: "field_ftc_name", name: "VAR", text: "motor" }],
     output: "Number",
     colour: C.Motors,
     tooltip: "motor.getCurrentPosition() in encoder ticks.",
@@ -335,7 +417,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
   {
     type: "ftc_motor_velocity",
     message0: "velocity of %1",
-    args0: [{ type: "field_input", name: "VAR", text: "motor" }],
+    args0: [{ type: "field_ftc_name", name: "VAR", text: "motor" }],
     output: "Number",
     colour: C.Motors,
     tooltip: "motor.getVelocity() in ticks/sec (DcMotorEx).",
@@ -343,7 +425,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
   {
     type: "ftc_motor_isbusy",
     message0: "%1 is busy",
-    args0: [{ type: "field_input", name: "VAR", text: "motor" }],
+    args0: [{ type: "field_ftc_name", name: "VAR", text: "motor" }],
     output: "Boolean",
     colour: C.Motors,
     tooltip: "True while a RUN_TO_POSITION move is still running.",
@@ -354,7 +436,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     type: "ftc_set_position",
     message0: "set position of %1 to %2",
     args0: [
-      { type: "field_input", name: "VAR", text: "servo" },
+      { type: "field_ftc_name", name: "VAR", text: "servo" },
       { type: "input_value", name: "VALUE", check: "Number" },
     ],
     previousStatement: null,
@@ -366,8 +448,16 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
   // ── Gamepad ─────────────────────────────────────────────────────────────
   {
     type: "ftc_gamepad_axis",
-    message0: "gamepad %1",
+    message0: "%1 %2",
     args0: [
+      {
+        type: "field_dropdown",
+        name: "PAD",
+        options: [
+          ["gamepad 1", "gamepad1"],
+          ["gamepad 2", "gamepad2"],
+        ],
+      },
       {
         type: "field_dropdown",
         name: "AXIS",
@@ -380,13 +470,22 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
       },
     ],
     output: "Number",
+    inputsInline: true,
     colour: C.Gamepad,
     tooltip: "Analog joystick axis value (-1.0 to 1.0).",
   },
   {
     type: "ftc_gamepad_trigger",
-    message0: "gamepad %1",
+    message0: "%1 %2",
     args0: [
+      {
+        type: "field_dropdown",
+        name: "PAD",
+        options: [
+          ["gamepad 1", "gamepad1"],
+          ["gamepad 2", "gamepad2"],
+        ],
+      },
       {
         type: "field_dropdown",
         name: "TRIG",
@@ -397,13 +496,22 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
       },
     ],
     output: "Number",
+    inputsInline: true,
     colour: C.Gamepad,
     tooltip: "Analog trigger value (0.0 to 1.0).",
   },
   {
     type: "ftc_gamepad_button",
-    message0: "gamepad %1 pressed",
+    message0: "%1 %2 pressed",
     args0: [
+      {
+        type: "field_dropdown",
+        name: "PAD",
+        options: [
+          ["gamepad 1", "gamepad1"],
+          ["gamepad 2", "gamepad2"],
+        ],
+      },
       {
         type: "field_dropdown",
         name: "BTN",
@@ -422,6 +530,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
       },
     ],
     output: "Boolean",
+    inputsInline: true,
     colour: C.Gamepad,
     tooltip: "Whether a gamepad button is currently held.",
   },
@@ -536,7 +645,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
   {
     type: "ftc_touch_pressed",
     message0: "%1 is pressed",
-    args0: [{ type: "field_input", name: "VAR", text: "touchSensor" }],
+    args0: [{ type: "field_ftc_name", name: "VAR", text: "touchSensor" }],
     output: "Boolean",
     colour: C.Logic,
     tooltip: "TouchSensor.isPressed().",
@@ -564,6 +673,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
           ["−", "-"],
           ["×", "*"],
           ["÷", "/"],
+          ["mod", "%"],
         ],
       },
       { type: "input_value", name: "B", check: "Number" },
@@ -571,7 +681,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     output: "Number",
     inputsInline: true,
     colour: C.Math,
-    tooltip: "Arithmetic on two numbers.",
+    tooltip: "Arithmetic on two numbers (+, −, ×, ÷, mod).",
   },
   {
     type: "ftc_negate",
@@ -591,6 +701,13 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
         options: [
           ["abs", "abs"],
           ["sqrt", "sqrt"],
+          ["sin", "sin"],
+          ["cos", "cos"],
+          ["tan", "tan"],
+          ["signum", "signum"],
+          ["round", "round"],
+          ["floor", "floor"],
+          ["ceil", "ceil"],
           ["toRadians", "toRadians"],
           ["toDegrees", "toDegrees"],
         ],
@@ -612,6 +729,8 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
           ["max", "max"],
           ["min", "min"],
           ["hypot", "hypot"],
+          ["pow", "pow"],
+          ["atan2", "atan2"],
         ],
       },
       { type: "input_value", name: "A", check: "Number" },
@@ -656,9 +775,9 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
         type: "field_dropdown",
         name: "VTYPE",
         options: [
-          ["double", "double"],
-          ["int", "int"],
+          ["number", "double"],
           ["boolean", "boolean"],
+          ["string", "String"],
         ],
       },
       { type: "field_input", name: "NAME", text: "value" },
@@ -677,9 +796,9 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
         type: "field_dropdown",
         name: "VTYPE",
         options: [
-          ["double", "double"],
-          ["int", "int"],
+          ["number", "double"],
           ["boolean", "boolean"],
+          ["string", "String"],
         ],
       },
       { type: "field_input", name: "NAME", text: "count" },
@@ -698,8 +817,8 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
         type: "field_dropdown",
         name: "VTYPE",
         options: [
-          ["double", "double"],
-          ["int", "int"],
+          ["number", "double"],
+          ["string", "String"],
         ],
       },
       { type: "field_input", name: "NAME", text: "TICKS_PER_REV" },
@@ -714,7 +833,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     type: "ftc_assign",
     message0: "set %1 = %2",
     args0: [
-      { type: "field_input", name: "NAME", text: "value" },
+      { type: "field_ftc_name", name: "NAME", text: "value" },
       { type: "input_value", name: "VALUE" },
     ],
     previousStatement: null,
@@ -725,19 +844,48 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
   {
     type: "ftc_increment",
     message0: "increment %1",
-    args0: [{ type: "field_input", name: "NAME", text: "loopCount" }],
+    args0: [{ type: "field_ftc_name", name: "NAME", text: "loopCount" }],
     previousStatement: null,
     nextStatement: null,
     colour: C.Variables,
     tooltip: "Add one to a counter (name++).",
   },
   {
+    type: "ftc_decrement",
+    message0: "decrement %1",
+    args0: [{ type: "field_ftc_name", name: "NAME", text: "loopCount" }],
+    previousStatement: null,
+    nextStatement: null,
+    colour: C.Variables,
+    tooltip: "Subtract one from a counter (name--).",
+  },
+  {
+    type: "ftc_change_by",
+    message0: "change %1 by %2",
+    args0: [
+      { type: "field_ftc_name", name: "NAME", text: "value" },
+      { type: "input_value", name: "VALUE", check: "Number" },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: C.Variables,
+    tooltip: "Add an amount to a variable (name += value).",
+  },
+  {
     type: "ftc_var_get",
     message0: "%1",
-    args0: [{ type: "field_input", name: "NAME", text: "value" }],
+    args0: [{ type: "field_ftc_name", name: "NAME", text: "value" }],
     output: null,
     colour: C.Variables,
     tooltip: "Read a variable's value.",
+  },
+  {
+    type: "ftc_string",
+    message0: '" %1 "',
+    args0: [{ type: "field_input", name: "TEXT", text: "hello" }],
+    output: "String",
+    colour: C.Variables,
+    tooltip: "A text (string) value.",
   },
   {
     type: "ftc_new_timer",
@@ -751,7 +899,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
   {
     type: "ftc_timer_reset",
     message0: "reset timer %1",
-    args0: [{ type: "field_input", name: "NAME", text: "timer" }],
+    args0: [{ type: "field_ftc_name", name: "NAME", text: "timer" }],
     previousStatement: null,
     nextStatement: null,
     colour: C.Variables,
@@ -760,7 +908,7 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
   {
     type: "ftc_timer_seconds",
     message0: "seconds on %1",
-    args0: [{ type: "field_input", name: "NAME", text: "timer" }],
+    args0: [{ type: "field_ftc_name", name: "NAME", text: "timer" }],
     output: "Number",
     colour: C.Variables,
     tooltip: "Elapsed seconds on a timer.",
@@ -785,10 +933,10 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
       { type: "input_value", name: "FR", check: "Number" },
       { type: "input_value", name: "BL", check: "Number" },
       { type: "input_value", name: "BR", check: "Number" },
-      { type: "field_input", name: "M0", text: "frontLeft" },
-      { type: "field_input", name: "M1", text: "frontRight" },
-      { type: "field_input", name: "M2", text: "backLeft" },
-      { type: "field_input", name: "M3", text: "backRight" },
+      { type: "field_ftc_name", name: "M0", text: "frontLeft" },
+      { type: "field_ftc_name", name: "M1", text: "frontRight" },
+      { type: "field_ftc_name", name: "M2", text: "backLeft" },
+      { type: "field_ftc_name", name: "M3", text: "backRight" },
     ],
     previousStatement: null,
     nextStatement: null,
@@ -814,6 +962,91 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
   },
 ];
 
+// ─── Per-field hover descriptions ───────────────────────────────────────────
+//
+// Hovering a specific field/parameter shows the matching description. Fields not
+// listed here fall back to the block's own tooltip.
+
+export const FIELD_TOOLTIPS: Record<string, Record<string, string>> = {
+  ftc_get_hardware: {
+    TYPE: "The kind of hardware device (motor, servo, or sensor).",
+    CONFIG: "The device name exactly as it appears in your Robot Configuration.",
+    VAR: "The variable name you'll use to refer to this device in your code.",
+  },
+  ftc_set_power: {
+    VAR: "Which motor or CRServo to drive.",
+    VALUE: "Power from -1.0 (full reverse) to 1.0 (full forward).",
+  },
+  ftc_set_direction: {
+    VAR: "Which motor to configure.",
+    DIR: "Motor polarity: FORWARD or REVERSE.",
+  },
+  ftc_set_zeropower: {
+    VAR: "Which motor to configure.",
+    MODE: "BRAKE holds position at zero power; FLOAT lets it coast.",
+  },
+  ftc_set_target: {
+    VAR: "Which motor to move.",
+    VALUE: "Target position in encoder ticks.",
+  },
+  ftc_set_velocity: {
+    VAR: "Which DcMotorEx motor to drive.",
+    VALUE: "Target velocity in encoder ticks per second.",
+  },
+  ftc_motor_position: { VAR: "Read this motor's encoder position (ticks)." },
+  ftc_motor_velocity: { VAR: "Read this motor's velocity (ticks/sec)." },
+  ftc_motor_isbusy: { VAR: "True while this motor is still running to position." },
+  ftc_reset_encoder: { VAR: "Zero this motor's encoder and re-enable running." },
+  ftc_run_to_position: {
+    VAR: "Which motor to move.",
+    VALUE: "Target position in encoder ticks.",
+    POWER: "Power used to drive to the target (0.0 to 1.0).",
+  },
+  ftc_set_position: {
+    VAR: "Which servo to move.",
+    VALUE: "Servo position from 0.0 to 1.0.",
+  },
+  ftc_touch_pressed: { VAR: "Which touch sensor to read." },
+  ftc_gamepad_axis: {
+    PAD: "Which controller (gamepad 1 or gamepad 2).",
+    AXIS: "Which joystick axis to read (-1.0 to 1.0).",
+  },
+  ftc_gamepad_trigger: {
+    PAD: "Which controller (gamepad 1 or gamepad 2).",
+    TRIG: "Which trigger to read (0.0 to 1.0).",
+  },
+  ftc_gamepad_button: {
+    PAD: "Which controller (gamepad 1 or gamepad 2).",
+    BTN: "Which button to check.",
+  },
+  ftc_declare_var: {
+    VTYPE: "Data type: number, true/false (boolean), or text (string).",
+    NAME: "The name of this variable.",
+  },
+  ftc_declare_field: {
+    VTYPE: "Data type: number, true/false (boolean), or text (string).",
+    NAME: "The name of this field (lives for the whole OpMode).",
+  },
+  ftc_declare_const: {
+    VTYPE: "Data type: number or text (string).",
+    NAME: "The constant's name (usually UPPER_CASE).",
+  },
+  ftc_assign: { NAME: "The variable to change." },
+  ftc_increment: { NAME: "The counter to add one to." },
+  ftc_decrement: { NAME: "The counter to subtract one from." },
+  ftc_change_by: { NAME: "The variable to add to." },
+  ftc_var_get: { NAME: "The variable to read." },
+  ftc_new_timer: { NAME: "The name of the timer." },
+  ftc_timer_reset: { NAME: "The timer to restart at zero." },
+  ftc_timer_seconds: { NAME: "The timer to read elapsed seconds from." },
+  ftc_string: { TEXT: "The text value." },
+  ftc_arith: { OP: "The arithmetic operator (+, −, ×, ÷, mod)." },
+  ftc_math_unary: { FN: "The one-argument math function." },
+  ftc_math_binary: { FN: "The two-argument math function." },
+  ftc_compare: { OP: "The comparison operator." },
+  ftc_deadzone: { THRESH: "Inputs smaller than this (absolute value) become 0." },
+};
+
 // ─── Registration ───────────────────────────────────────────────────────────
 
 let registered = false;
@@ -821,6 +1054,41 @@ let registered = false;
 /** Defines every FTC block exactly once (safe to call repeatedly). */
 export function registerFtcBlocks(): void {
   if (registered) return;
+  // Custom field must be registered before any block that uses it is built.
+  try {
+    BK.fieldRegistry.register(
+      "field_ftc_name",
+      FieldNameDropdown as unknown as Parameters<typeof BK.fieldRegistry.register>[1]
+    );
+  } catch {
+    /* already registered (e.g. after a hot reload) */
+  }
+
+  // Extension that applies per-field hover descriptions on block init.
+  try {
+    BK.Extensions.register("ftc_field_tooltips", function (this: Blockly.Block) {
+      const map = FIELD_TOOLTIPS[this.type];
+      if (!map) return;
+      for (const input of this.inputList) {
+        for (const field of input.fieldRow) {
+          const name = field.name;
+          if (name && map[name]) field.setTooltip(map[name]);
+        }
+      }
+    });
+  } catch {
+    /* already registered (e.g. after a hot reload) */
+  }
+
+  // Attach the field-tooltip extension to every block definition.
+  for (const def of FTC_BLOCK_DEFS) {
+    const d = def as { extensions?: string[] };
+    if (!d.extensions) d.extensions = [];
+    if (!d.extensions.includes("ftc_field_tooltips")) {
+      d.extensions.push("ftc_field_tooltips");
+    }
+  }
+
   BK.common.defineBlocksWithJsonArray(FTC_BLOCK_DEFS);
   registered = true;
 }
@@ -880,3 +1148,14 @@ export function buildToolbox(blockTypes: string[]): ToolboxJson {
 
   return { kind: "categoryToolbox", contents };
 }
+
+/**
+ * The single, universal toolbox: every category and every block, identical for
+ * every challenge (servos, logic, math, etc. are always available).
+ */
+export function buildFullToolbox(): ToolboxJson {
+  return buildToolbox(Object.keys(CATEGORY_OF));
+}
+
+/** Shared universal toolbox instance used by every challenge. */
+export const FULL_TOOLBOX: ToolboxJson = buildFullToolbox();
