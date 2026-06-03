@@ -1,20 +1,20 @@
 import * as Blockly from "blockly/core";
 
-/** FTC OnBot-style colors on Blockly Zelos renderer. */
-export const FTC_BLOCKLY_THEME = Blockly.Theme.defineTheme("ftc_blocks", {
-  name: "ftc_blocks",
-  base: Blockly.Themes.Zelos,
+/** Dark Blockly theme aligned with FTC Hub editor chrome. */
+export const FTC_BLOCKLY_THEME = Blockly.Theme.defineTheme("ftc_dark", {
+  name: "ftc_dark",
+  base: Blockly.Themes.Classic,
   componentStyles: {
-    workspaceBackgroundColour: "#1e1e1e",
-    toolboxBackgroundColour: "#2d2d2d",
-    toolboxForegroundColour: "#cccccc",
-    flyoutBackgroundColour: "#303030",
-    flyoutForegroundColour: "#e0e0e0",
+    workspaceBackgroundColour: "#18181f",
+    toolboxBackgroundColour: "#18181b",
+    toolboxForegroundColour: "#a1a1aa",
+    flyoutBackgroundColour: "#22222a",
+    flyoutForegroundColour: "#e4e4e7",
     flyoutOpacity: 0.98,
-    scrollbarColour: "#5a5a5a",
+    scrollbarColour: "#3f3f46",
     insertionMarkerColour: "#f59e0b",
-    insertionMarkerOpacity: 0.4,
-    scrollbarOpacity: 0.6,
+    insertionMarkerOpacity: 0.35,
+    scrollbarOpacity: 0.5,
     cursorColour: "#f59e0b",
   },
   fontStyle: {
@@ -23,76 +23,25 @@ export const FTC_BLOCKLY_THEME = Blockly.Theme.defineTheme("ftc_blocks", {
     size: 11,
   },
   blockStyles: {
-    procedure_blocks: {
-      colourPrimary: "#995ba5",
-      colourSecondary: "#7a4a85",
-      colourTertiary: "#5c3a66",
-    },
-    loop_blocks: {
-      colourPrimary: "#5ba55b",
-      colourSecondary: "#4a8a4a",
-      colourTertiary: "#3a6f3a",
-    },
-    logic_blocks: {
-      colourPrimary: "#5b80a5",
-      colourSecondary: "#4a6a85",
-      colourTertiary: "#3a5566",
-    },
-    math_blocks: {
-      colourPrimary: "#5b67a5",
-      colourSecondary: "#4a5585",
-      colourTertiary: "#3a4466",
-    },
-    text_blocks: {
-      colourPrimary: "#5ba58c",
-      colourSecondary: "#4a8570",
-      colourTertiary: "#3a6654",
-    },
-    variable_blocks: {
-      colourPrimary: "#a55b80",
-      colourSecondary: "#854a66",
-      colourTertiary: "#663a4d",
-    },
-    variable_dynamic_blocks: {
-      colourPrimary: "#a55b80",
-      colourSecondary: "#854a66",
-      colourTertiary: "#663a4d",
-    },
-    ftc_call_blocks: {
-      colourPrimary: "#995ba5",
-      colourSecondary: "#7a4a85",
-      colourTertiary: "#5c3a66",
-    },
-    ftc_setter_blocks: {
-      colourPrimary: "#5ba55b",
-      colourSecondary: "#4a8a4a",
-      colourTertiary: "#3a6f3a",
-    },
-    ftc_getter_blocks: {
-      colourPrimary: "#6db56d",
-      colourSecondary: "#569156",
-      colourTertiary: "#427042",
-    },
-    ftc_gamepad_blocks: {
-      colourPrimary: "#cf8b49",
-      colourSecondary: "#a6703a",
-      colourTertiary: "#80562d",
-    },
-    comment_blocks: {
-      colourPrimary: "#5ba5c6",
-      colourSecondary: "#4a859e",
-      colourTertiary: "#3a6677",
-    },
+    structure_blocks: { colourPrimary: "#6366f1", colourSecondary: "#4f46e5", colourTertiary: "#4338ca" },
+    motor_blocks: { colourPrimary: "#0ea5e9", colourSecondary: "#0284c7", colourTertiary: "#0369a1" },
+    servo_blocks: { colourPrimary: "#14b8a6", colourSecondary: "#0d9488", colourTertiary: "#0f766e" },
+    gamepad_blocks: { colourPrimary: "#f59e0b", colourSecondary: "#d97706", colourTertiary: "#b45309" },
+    timing_blocks: { colourPrimary: "#a855f7", colourSecondary: "#9333ea", colourTertiary: "#7e22ce" },
+    telemetry_blocks: { colourPrimary: "#22c55e", colourSecondary: "#16a34a", colourTertiary: "#15803d" },
+    control_blocks: { colourPrimary: "#ec4899", colourSecondary: "#db2777", colourTertiary: "#be185d" },
+    advanced_blocks: { colourPrimary: "#ef4444", colourSecondary: "#dc2626", colourTertiary: "#b91c1c" },
+    math_blocks: { colourPrimary: "#64748b", colourSecondary: "#475569", colourTertiary: "#334155" },
   },
   categoryStyles: {
-    linear_opmode_category: { colour: "#995ba5" },
-    gamepad_category: { colour: "#cf8b49" },
-    actuators_category: { colour: "#5ba55b" },
-    utilities_category: { colour: "#5ba5c6" },
-    logic_category: { colour: "#5b80a5" },
-    loops_category: { colour: "#5ba55b" },
-    math_category: { colour: "#5b67a5" },
-    variables_category: { colour: "#a55b80" },
-    misc_category: { colour: "#5ba5c6" },
+    structure_category: { colour: "#6366f1" },
+    motor_category: { colour: "#0ea5e9" },
+    servo_category: { colour: "#14b8a6" },
+    gamepad_category: { colour: "#f59e0b" },
+    timing_category: { colour: "#a855f7" },
+    telemetry_category: { colour: "#22c55e" },
+    control_category: { colour: "#ec4899" },
+    advanced_category: { colour: "#ef4444" },
+    math_category: { colour: "#64748b" },
   },
 });
