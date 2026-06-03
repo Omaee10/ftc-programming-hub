@@ -1,13 +1,10 @@
 import { getSession } from "@/lib/auth";
-import type { EditorMode } from "@/lib/blockly/types";
 
 const BASE_KEY = "ftc-hub-challenge-code-v1";
 
 export interface CodeDraft {
   code: string;
   updatedAt: string;
-  editorMode?: EditorMode;
-  blockXml?: string;
 }
 
 type DraftMap = Record<string, CodeDraft>;
@@ -45,18 +42,11 @@ export function readCodeDraft(challengeId: number): CodeDraft | null {
   return draft?.code ? draft : null;
 }
 
-export function saveCodeDraft(
-  challengeId: number,
-  code: string,
-  extras?: { editorMode?: EditorMode; blockXml?: string }
-): void {
+export function saveCodeDraft(challengeId: number, code: string): void {
   const map = readMap();
-  const prev = map[String(challengeId)];
   map[String(challengeId)] = {
     code,
     updatedAt: new Date().toISOString(),
-    editorMode: extras?.editorMode ?? prev?.editorMode,
-    blockXml: extras?.blockXml ?? prev?.blockXml,
   };
   writeMap(map);
 }

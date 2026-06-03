@@ -691,26 +691,3 @@ body {
   font-feature-settings: "tnum";
   letter-spacing: -0.02em;
 }
-
-/* ─── Blockly workspace (challenge block editor) ───────────────── */
-.blockly-root .blocklySvg {
-  background-color: #18181f;
-}
-.blockly-root .blocklyToolboxDiv {
-  background-color: #18181b !important;
-  border-right: 1px solid #32323c !important;
-}
-.blockly-root .blocklyFlyoutBackground {
-  fill: #22222a;
-  fill-opacity: 0.98;
-}
-.blockly-root .blocklyScrollbarHandle {
-  fill: #3f3f46;
-}
-.blockly-root .blocklyTreeLabel {
-  color: #a1a1aa !important;
-  font-size: 11px !important;
-}
-.blockly-root .blocklyTreeRow {
-  padding: 4px 8px !important;
-}
