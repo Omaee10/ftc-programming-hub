@@ -22,6 +22,7 @@ import {
   Code2,
   Loader2,
   MessageSquare,
+  Copy,
   Play,
   RefreshCcw,
   Send,
@@ -52,9 +53,7 @@ import { getSession, type Session } from "@/lib/auth";
 import {
   clearCodeDraft,
   readCodeDraft,
-  resolveJavaEditorCode,
   saveCodeDraft,
-  type CodeDraft,
 } from "@/lib/challengeCodeDrafts";
 import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
@@ -63,6 +62,7 @@ import BlocksGuideRail from "./BlocksGuideRail";
 import BlocksOnboarding, {
   shouldShowBlocksOnboarding,
 } from "./BlocksOnboarding";
+import { readBlocksPrefs, saveBlocksPrefs } from "@/lib/blocksPrefs";
 import type { EditorMode } from "@/lib/blockly/types";
 import {
   getBlockStarterXml,
@@ -197,7 +197,7 @@ function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
-function chooseSavedJavaCode(
+function chooseSavedCode(
   challengeId: number,
   starterCode: string,
   cloudCode: string | null,
@@ -207,30 +207,10 @@ function chooseSavedJavaCode(
   if (cloudCode && local) {
     const localTs = Date.parse(local.updatedAt);
     const cloudTs = cloudUpdatedAt ? Date.parse(cloudUpdatedAt) : 0;
-    const draft: CodeDraft =
-      cloudTs >= localTs
-        ? {
-            ...local,
-            code: cloudCode,
-            updatedAt: cloudUpdatedAt ?? local.updatedAt,
-            generatedCode:
-              local.generatedCode ??
-              (local.editorMode === "blocks" ? cloudCode : undefined),
-          }
-        : local;
-    return resolveJavaEditorCode(draft, starterCode);
+    return cloudTs >= localTs ? cloudCode : local.code;
   }
-  if (cloudCode) {
-    return resolveJavaEditorCode(
-      {
-        code: cloudCode,
-        updatedAt: cloudUpdatedAt ?? "",
-        editorMode: "java",
-      },
-      starterCode
-    );
-  }
-  if (local) return resolveJavaEditorCode(local, starterCode);
+  if (cloudCode) return cloudCode;
+  if (local) return local.code;
   return starterCode;
 }
 
@@ -699,7 +679,7 @@ export default function ChallengeWorkspace({
 
   const openingDraft = readCodeDraft(challenge.id);
   const [code, setCode] = useState(() =>
-    chooseSavedJavaCode(challenge.id, challenge.starterCode, null, null)
+    chooseSavedCode(challenge.id, challenge.starterCode, null, null)
   );
   const [editorMode, setEditorMode] = useState<EditorMode>(() =>
     resolveEditorModeForChallenge(
@@ -714,10 +694,11 @@ export default function ChallengeWorkspace({
     return getBlockStarterXml(challenge.id);
   });
   const [blockWorkspaceKey, setBlockWorkspaceKey] = useState(0);
-  const [blocksOnboardingOpen, setBlocksOnboardingOpen] = useState(false);
-  const blocksGeneratedRef = useRef(
-    openingDraft?.generatedCode ?? ""
+  const [showBlocksJava, setShowBlocksJava] = useState(
+    () => !blocksJavaOnly && readBlocksPrefs().showGeneratedJava
   );
+  const [blocksOnboardingOpen, setBlocksOnboardingOpen] = useState(false);
+  const [javaCopied, setJavaCopied] = useState(false);
   const [blocksMigratedNotice, setBlocksMigratedNotice] = useState(
     () => !!openingDraft?.blockXml && isLegacyBlockXml(openingDraft.blockXml)
   );
@@ -743,16 +724,25 @@ export default function ChallengeWorkspace({
   }, [monacoTheme]);
 
   useEffect(() => {
+    if (!blocksJavaOnly) {
+      saveBlocksPrefs({ showGeneratedJava: showBlocksJava });
+    }
+  }, [showBlocksJava, blocksJavaOnly]);
+
+  useEffect(() => {
     if (editorMode === "blocks" && shouldShowBlocksOnboarding("blocks")) {
       setBlocksOnboardingOpen(true);
     }
   }, [editorMode, challenge.id]);
 
-  const codeForGrading = useCallback(() => {
-    if (editorModeRef.current === "blocks" && blocksGeneratedRef.current.trim()) {
-      return blocksGeneratedRef.current;
+  const copyGeneratedJava = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(codeRef.current);
+      setJavaCopied(true);
+      setTimeout(() => setJavaCopied(false), 2000);
+    } catch {
+      // clipboard unavailable
     }
-    return codeRef.current;
   }, []);
 
   const resetCode = useCallback(() => {
@@ -784,25 +774,19 @@ export default function ChallengeWorkspace({
         flushCloud?: boolean;
         editorMode?: EditorMode;
         blockXml?: string;
-        generatedCode?: string;
       }
     ) => {
       saveCodeDraft(challenge.id, next, {
         editorMode: options?.editorMode ?? editorModeRef.current,
         blockXml: options?.blockXml ?? blockXmlRef.current,
-        generatedCode: options?.generatedCode ?? blocksGeneratedRef.current,
       });
-      const cloudSnapshot =
-        editorModeRef.current === "blocks" && options?.generatedCode
-          ? options.generatedCode
-          : next;
       clearTimeout(cloudSaveTimer.current);
       if (options?.flushCloud) {
-        void saveCode(cloudSnapshot);
+        void saveCode(next);
         return;
       }
       cloudSaveTimer.current = setTimeout(() => {
-        void saveCode(cloudSnapshot);
+        void saveCode(next);
       }, 2000);
     },
     [challenge.id, saveCode]
@@ -810,15 +794,11 @@ export default function ChallengeWorkspace({
 
   const handleBlocksCodeChange = useCallback(
     (java: string, xml: string) => {
-      blocksGeneratedRef.current = java;
+      setCode(java);
       setBlockXml(xml);
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
-        persistCode(codeRef.current, {
-          editorMode: "blocks",
-          blockXml: xml,
-          generatedCode: java,
-        });
+        persistCode(java, { editorMode: "blocks", blockXml: xml });
       }, 400);
     },
     [persistCode]
@@ -839,38 +819,16 @@ export default function ChallengeWorkspace({
     setPendingEditorMode(null);
     setEditorMode(target);
     if (target === "java") {
-      const draft = readCodeDraft(challenge.id);
-      const java = resolveJavaEditorCode(
-        draft
-          ? {
-              ...draft,
-              blockXml: blockXmlRef.current,
-              generatedCode:
-                blocksGeneratedRef.current || draft.generatedCode,
-            }
-          : null,
-        challenge.starterCode
-      );
-      setCode(java);
-      codeRef.current = java;
-      editorRef.current?.setValue(java);
-      persistCode(java, {
-        editorMode: "java",
-        blockXml: blockXmlRef.current,
-        generatedCode: blocksGeneratedRef.current,
-      });
+      editorRef.current?.setValue(codeRef.current);
+      persistCode(codeRef.current, { editorMode: "java", blockXml: blockXmlRef.current });
     } else {
       const xml =
         blockXmlRef.current || getBlockStarterXml(challenge.id);
       setBlockXml(xml);
       setBlockWorkspaceKey((k) => k + 1);
-      persistCode(codeRef.current, {
-        editorMode: "blocks",
-        blockXml: xml,
-        generatedCode: blocksGeneratedRef.current,
-      });
+      persistCode(codeRef.current, { editorMode: "blocks", blockXml: xml });
     }
-  }, [challenge.id, challenge.starterCode, pendingEditorMode, persistCode]);
+  }, [challenge.id, pendingEditorMode, persistCode]);
 
   useEffect(() => {
     codeRef.current = code;
@@ -895,17 +853,14 @@ export default function ChallengeWorkspace({
     if (needsCloud && !dbHydrated) return;
     if (restoredChallengeRef.current === challenge.id) return;
 
-    const draft = readCodeDraft(challenge.id);
-    const restored = chooseSavedJavaCode(
+    const restored = chooseSavedCode(
       challenge.id,
       challenge.starterCode,
       loadedCode,
       loadedCodeUpdatedAt
     );
+    const draft = readCodeDraft(challenge.id);
     setCode(restored);
-    if (draft?.generatedCode) {
-      blocksGeneratedRef.current = draft.generatedCode;
-    }
     editorRef.current?.setValue(restored);
     setEditorMode(
       resolveEditorModeForChallenge(challenge, draft, challenge.starterCode)
@@ -927,13 +882,7 @@ export default function ChallengeWorkspace({
     const flush = () => {
       clearTimeout(saveTimer.current);
       clearTimeout(cloudSaveTimer.current);
-      persistCode(codeRef.current, {
-        flushCloud: true,
-        generatedCode:
-          editorModeRef.current === "blocks"
-            ? blocksGeneratedRef.current
-            : undefined,
-      });
+      persistCode(codeRef.current, { flushCloud: true });
     };
 
     const onPageHide = () => flush();
@@ -956,7 +905,7 @@ export default function ChallengeWorkspace({
         {
           student_id: studentSession.id,
           challenge_id: challenge.id,
-          code_snapshot: codeForGrading(),
+          code_snapshot: code,
           status: "pending",
           grade: null,
           feedback: null,
@@ -975,7 +924,7 @@ export default function ChallengeWorkspace({
     if (data) setSubmission(data as SubmissionRow);
     setSubmitBanner(true);
     setTimeout(() => setSubmitBanner(false), 4000);
-  }, [studentSession?.id, challenge.id, codeForGrading, submitting]);
+  }, [studentSession?.id, challenge.id, code, submitting]);
 
   // ── Resizable split ─────────────────────────────────────────────────────
   const [leftPct, setLeftPct] = useState(40);
@@ -1071,11 +1020,7 @@ export default function ChallengeWorkspace({
     // ── Real grader call ─────────────────────────────────────────────
     let result: GradedResult;
     try {
-      result = await gradeCode(
-        codeForGrading(),
-        challenge.id,
-        challenge.mentorRules
-      );
+      result = await gradeCode(code, challenge.id, challenge.mentorRules);
     } catch (err) {
       const msg =
         err instanceof GraderTimeoutError
@@ -1264,7 +1209,7 @@ export default function ChallengeWorkspace({
     setFailedImprovements(improveFails);
     setLastGrade(grade);
     setIsRunning(false);
-  }, [codeForGrading, challenge, isRunning, appendEntry, markComplete, homeworkMode, onHomeworkComplete]);
+  }, [code, challenge, isRunning, appendEntry, markComplete, homeworkMode, onHomeworkComplete]);
 
   // ── Left panel section toggles ─────────────────────────────────────────
   const [showObjectives, setShowObjectives] = useState(true);
@@ -1570,9 +1515,10 @@ export default function ChallengeWorkspace({
           {editorMode === "blocks" && !blocksJavaOnly && (
             <div className="flex shrink-0 items-center gap-2 border-b border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5">
               <span className="text-[11px] font-medium text-indigo-300">
-                FTC Blocks — your workspace is translated to Java automatically when
-                you press <span className="text-indigo-200/90">Run</span>. Switch
-                to OnBot Java to write code by hand.
+                FTC Blocks — edit the workspace;{" "}
+                <span className="text-indigo-200/90">Run</span> compiles and
+                grades the <span className="text-indigo-200/90">Generated Java</span>{" "}
+                panel (like FTC Sim → OnBot Java).
               </span>
             </div>
           )}
@@ -1598,6 +1544,19 @@ export default function ChallengeWorkspace({
             </span>
 
             <div className="ml-auto flex items-center gap-1.5">
+              {editorMode === "blocks" && (
+                <button
+                  type="button"
+                  onClick={() => setShowBlocksJava((v) => !v)}
+                  className={`rounded px-2 py-1 text-[11px] transition-all ${
+                    showBlocksJava
+                      ? "bg-slate-700/80 text-slate-200"
+                      : "text-slate-600 hover:text-slate-300 hover:bg-slate-800/60"
+                  }`}
+                >
+                  {showBlocksJava ? "Hide Java" : "Show Java"}
+                </button>
+              )}
               <button
                 onClick={resetCode}
                 title={
@@ -1645,14 +1604,50 @@ export default function ChallengeWorkspace({
           <div className="flex min-w-0 flex-1 overflow-hidden">
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {editorMode === "blocks" ? (
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <BlocklyWorkspacePanel
-                  key={`${challenge.id}-${blockWorkspaceKey}`}
-                  challenge={challenge}
-                  initialXml={blockXml}
-                  onCodeChange={handleBlocksCodeChange}
-                  onMigrated={() => setBlocksMigratedNotice(true)}
-                />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
+                <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                  <BlocklyWorkspacePanel
+                    key={`${challenge.id}-${blockWorkspaceKey}`}
+                    challenge={challenge}
+                    initialXml={blockXml}
+                    onCodeChange={handleBlocksCodeChange}
+                    onMigrated={() => setBlocksMigratedNotice(true)}
+                  />
+                </div>
+                {showBlocksJava && (
+                  <div className="flex min-h-0 w-[min(42%,520px)] min-w-[260px] shrink-0 flex-col overflow-hidden border-l border-slate-800/80">
+                    <div className="flex h-7 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/90 px-3">
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                        Generated Java
+                      </span>
+                      <button
+                        type="button"
+                        onClick={copyGeneratedJava}
+                        className="ml-auto flex items-center gap-1 rounded px-2 py-0.5 text-[10px] text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+                        title="Copy generated Java to clipboard"
+                      >
+                        <Copy className="h-3 w-3" />
+                        {javaCopied ? "Copied" : "Copy Java"}
+                      </button>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                      <MonacoEditor
+                        height="100%"
+                        language="java"
+                        theme={monacoTheme}
+                        value={code}
+                        options={{
+                          readOnly: true,
+                          fontSize: 12,
+                          minimap: { enabled: false },
+                          wordWrap: "on",
+                          scrollBeyondLastLine: false,
+                          lineNumbers: "on",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
             <div className="min-h-0 flex-1 overflow-hidden">

@@ -15,8 +15,12 @@ const STEPS = [
     body: "All robot code lives inside the purple runOpMode block — init first, then waitForStart, then your loop.",
   },
   {
+    title: "Generated Java",
+    body: "Your blocks translate to OnBot Java on the right. Run always grades this Java with the real compiler.",
+  },
+  {
     title: "Run",
-    body: "Press Run to compile your blocks (as Java behind the scenes) and check requirements in the console.",
+    body: "Press Run to compile and check requirements. Fix blocks or Java errors shown in the console.",
   },
 ] as const;
 

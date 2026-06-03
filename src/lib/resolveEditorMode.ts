@@ -19,15 +19,8 @@ export function resolveEditorModeForChallenge(
   }
   if (draft?.editorMode === "blocks") return "blocks";
 
-  const codeMatchesGenerated =
-    !!draft?.generatedCode &&
-    draft.code.trim() === draft.generatedCode.trim();
   const hasJavaEdits =
-    draft?.editorMode === "java" ||
-    (!!draft?.code &&
-      draft.code.trim() !== starterCode.trim() &&
-      !codeMatchesGenerated &&
-      draft.editorMode !== "blocks");
+    !!draft?.code && draft.code.trim() !== starterCode.trim();
 
   if (hasJavaEdits) return "java";
 
