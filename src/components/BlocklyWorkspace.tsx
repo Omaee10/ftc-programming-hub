@@ -132,6 +132,7 @@ export default function BlocklyWorkspace({
     // (needed after a category flyout opens/closes, or its scrollbar gets
     // stranded mid-canvas).
     const recalc = () => {
+      if (!wsRef.current) return;
       try {
         BK.svgResize(ws);
         (ws as Blockly.WorkspaceSvg).resize();
@@ -139,9 +140,15 @@ export default function BlocklyWorkspace({
         /* workspace may be mid-dispose */
       }
     };
-    requestAnimationFrame(recalc);
-    const t1 = setTimeout(recalc, 50);
-    const t2 = setTimeout(recalc, 200);
+    // On the very first mount the container/fonts/CSS may not be fully settled,
+    // and no later size *change* fires the ResizeObserver to self-correct (which
+    // is why toggling Java↔Blocks "fixed" it). Recalc across a longer tail, once
+    // fonts are ready, and via a double rAF to run after the first paint.
+    requestAnimationFrame(() => requestAnimationFrame(recalc));
+    const timers = [50, 150, 350, 700, 1200].map((ms) => setTimeout(recalc, ms));
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      document.fonts.ready.then(recalc).catch(() => {});
+    }
 
     const handleChange = (event: Blockly.Events.Abstract) => {
       if (loadingRef.current) return;
@@ -169,8 +176,7 @@ export default function BlocklyWorkspace({
 
     return () => {
       clearTimeout(saveTimer.current);
-      clearTimeout(t1);
-      clearTimeout(t2);
+      timers.forEach(clearTimeout);
       ro.disconnect();
       ws.removeChangeListener(handleChange);
       ws.dispose();
