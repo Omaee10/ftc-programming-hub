@@ -125,6 +125,15 @@ export default function BlocklyWorkspace({
 
     loadState(initialState);
 
+    // Blockly caches its SVG dimensions at inject time; in a flex/dynamic
+    // container the final size may not be settled yet, which leaves the
+    // scrollbar/canvas only partially sized. Force a few resizes once layout
+    // has settled.
+    const resize = () => BK.svgResize(ws);
+    requestAnimationFrame(resize);
+    const t1 = setTimeout(resize, 50);
+    const t2 = setTimeout(resize, 200);
+
     const handleChange = (event: Blockly.Events.Abstract) => {
       if (loadingRef.current) return;
       if (event.isUiEvent) return;
@@ -140,13 +149,14 @@ export default function BlocklyWorkspace({
     };
     ws.addChangeListener(handleChange);
 
-    // Fit the canvas to its container after layout settles.
-    const ro = new ResizeObserver(() => BK.svgResize(ws));
+    // Fit the canvas to its container whenever it changes size.
+    const ro = new ResizeObserver(resize);
     if (containerRef.current) ro.observe(containerRef.current);
-    requestAnimationFrame(() => BK.svgResize(ws));
 
     return () => {
       clearTimeout(saveTimer.current);
+      clearTimeout(t1);
+      clearTimeout(t2);
       ro.disconnect();
       ws.removeChangeListener(handleChange);
       ws.dispose();
@@ -178,5 +188,12 @@ export default function BlocklyWorkspace({
     }
   }, [resetSignal, starterState, loadState]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  // The injection target is absolutely positioned with a concrete size so
+  // Blockly always measures the full area (a flex `h-full` child can resolve
+  // its width/height too late and leave the canvas/scrollbar half-sized).
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <div ref={containerRef} className="absolute inset-0" />
+    </div>
+  );
 }
