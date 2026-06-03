@@ -20,7 +20,6 @@ import {
   Circle,
   Clock,
   Code2,
-  FileCode,
   Loader2,
   MessageSquare,
   Play,
@@ -57,12 +56,20 @@ import {
 } from "@/lib/challengeCodeDrafts";
 import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
+import EditorModeSwitch, { ModeSwitchDialog } from "./EditorModeSwitch";
+import type { EditorMode } from "@/lib/blockly/types";
+import { getBlockStarterXml } from "@/data/blockStarters";
 
 // ─── Monaco loaded lazily (browser-only) ────────────────────────────────────
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
   loading: () => <EditorSkeleton />,
 });
+
+const BlocklyWorkspacePanel = dynamic(
+  () => import("@/components/BlocklyWorkspace"),
+  { ssr: false, loading: () => <EditorSkeleton /> }
+);
 
 // ─── Custom FTC editor themes ──────────────────────────────────────────────
 function defineThemes(monaco: Monaco) {
@@ -655,10 +662,23 @@ export default function ChallengeWorkspace({
   }, [challenge.id, isMentorChallenge, studentSession?.id]);
 
   // ── Editor state ────────────────────────────────────────────────────────
+  const openingDraft = readCodeDraft(challenge.id);
   const [code, setCode] = useState(() =>
     chooseSavedCode(challenge.id, challenge.starterCode, null, null)
   );
+  const [editorMode, setEditorMode] = useState<EditorMode>(
+    () => openingDraft?.editorMode ?? "java"
+  );
+  const [blockXml, setBlockXml] = useState(
+    () => openingDraft?.blockXml ?? getBlockStarterXml(challenge.id)
+  );
+  const [blockWorkspaceKey, setBlockWorkspaceKey] = useState(0);
+  const [pendingEditorMode, setPendingEditorMode] = useState<EditorMode | null>(
+    null
+  );
   const codeRef = useRef(code);
+  const editorModeRef = useRef(editorMode);
+  const blockXmlRef = useRef(blockXml);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const restoredChallengeRef = useRef<number | null>(null);
@@ -675,15 +695,40 @@ export default function ChallengeWorkspace({
   }, [monacoTheme]);
 
   const resetCode = useCallback(() => {
-    setCode(challenge.starterCode);
-    editorRef.current?.setValue(challenge.starterCode);
-    saveCodeDraft(challenge.id, challenge.starterCode);
-    void saveCode(challenge.starterCode);
-  }, [challenge.id, challenge.starterCode, saveCode]);
+    if (editorMode === "blocks") {
+      const starter = getBlockStarterXml(challenge.id);
+      setBlockXml(starter);
+      setBlockWorkspaceKey((k) => k + 1);
+    } else {
+      setCode(challenge.starterCode);
+      editorRef.current?.setValue(challenge.starterCode);
+      saveCodeDraft(challenge.id, challenge.starterCode, {
+        editorMode: "java",
+        blockXml,
+      });
+      void saveCode(challenge.starterCode);
+    }
+  }, [
+    blockXml,
+    challenge.id,
+    challenge.starterCode,
+    editorMode,
+    saveCode,
+  ]);
 
   const persistCode = useCallback(
-    (next: string, options?: { flushCloud?: boolean }) => {
-      saveCodeDraft(challenge.id, next);
+    (
+      next: string,
+      options?: {
+        flushCloud?: boolean;
+        editorMode?: EditorMode;
+        blockXml?: string;
+      }
+    ) => {
+      saveCodeDraft(challenge.id, next, {
+        editorMode: options?.editorMode ?? editorModeRef.current,
+        blockXml: options?.blockXml ?? blockXmlRef.current,
+      });
       clearTimeout(cloudSaveTimer.current);
       if (options?.flushCloud) {
         void saveCode(next);
@@ -696,9 +741,54 @@ export default function ChallengeWorkspace({
     [challenge.id, saveCode]
   );
 
+  const handleBlocksCodeChange = useCallback(
+    (java: string, xml: string) => {
+      setCode(java);
+      setBlockXml(xml);
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        persistCode(java, { editorMode: "blocks", blockXml: xml });
+      }, 400);
+    },
+    [persistCode]
+  );
+
+  const requestEditorMode = useCallback(
+    (target: EditorMode) => {
+      if (target === editorMode) return;
+      setPendingEditorMode(target);
+    },
+    [editorMode]
+  );
+
+  const confirmEditorModeSwitch = useCallback(() => {
+    const target = pendingEditorMode;
+    if (!target) return;
+    setPendingEditorMode(null);
+    setEditorMode(target);
+    if (target === "java") {
+      editorRef.current?.setValue(codeRef.current);
+      persistCode(codeRef.current, { editorMode: "java", blockXml: blockXmlRef.current });
+    } else {
+      const xml =
+        blockXmlRef.current || getBlockStarterXml(challenge.id);
+      setBlockXml(xml);
+      setBlockWorkspaceKey((k) => k + 1);
+      persistCode(codeRef.current, { editorMode: "blocks", blockXml: xml });
+    }
+  }, [challenge.id, pendingEditorMode, persistCode]);
+
   useEffect(() => {
     codeRef.current = code;
   }, [code]);
+
+  useEffect(() => {
+    editorModeRef.current = editorMode;
+  }, [editorMode]);
+
+  useEffect(() => {
+    blockXmlRef.current = blockXml;
+  }, [blockXml]);
 
   // Restore saved draft / cloud snapshot once when opening a challenge
   useEffect(() => {
@@ -717,8 +807,13 @@ export default function ChallengeWorkspace({
       loadedCode,
       loadedCodeUpdatedAt
     );
+    const draft = readCodeDraft(challenge.id);
     setCode(restored);
     editorRef.current?.setValue(restored);
+    if (draft?.editorMode) setEditorMode(draft.editorMode);
+    if (draft?.blockXml) setBlockXml(draft.blockXml);
+    else setBlockXml(getBlockStarterXml(challenge.id));
+    setBlockWorkspaceKey((k) => k + 1);
     restoredChallengeRef.current = challenge.id;
   }, [
     challenge.id,
@@ -1365,15 +1460,24 @@ export default function ChallengeWorkspace({
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Editor toolbar */}
           <div className="flex h-8 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/80 px-3">
-            <FileCode className="h-3 w-3 text-slate-700 shrink-0" />
-            <span className="font-mono text-[11px] text-slate-600 truncate">
-              Challenge{challenge.id}_{challenge.title.replace(/\s+/g, "")}.java
+            <EditorModeSwitch
+              mode={editorMode}
+              onModeChange={requestEditorMode}
+            />
+            <span className="font-mono text-[11px] text-slate-600 truncate min-w-0">
+              {editorMode === "java"
+                ? `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.java`
+                : "Block workspace"}
             </span>
 
             <div className="ml-auto flex items-center gap-1.5">
               <button
                 onClick={resetCode}
-                title="Reset to starter code"
+                title={
+                  editorMode === "blocks"
+                    ? "Reset blocks to starter"
+                    : "Reset to starter code"
+                }
                 className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
               >
                 <RefreshCcw className="h-3 w-3" />
@@ -1382,8 +1486,23 @@ export default function ChallengeWorkspace({
             </div>
           </div>
 
-          {/* Monaco editor */}
+          <ModeSwitchDialog
+            open={pendingEditorMode !== null}
+            targetMode={pendingEditorMode ?? "java"}
+            onConfirm={confirmEditorModeSwitch}
+            onCancel={() => setPendingEditorMode(null)}
+          />
+
+          {/* Code editor: Java (Monaco) or Blocks (Blockly) */}
           <div className="min-w-0 flex-1 overflow-hidden">
+            {editorMode === "blocks" ? (
+              <BlocklyWorkspacePanel
+                key={`${challenge.id}-${blockWorkspaceKey}`}
+                challenge={challenge}
+                initialXml={blockXml}
+                onCodeChange={handleBlocksCodeChange}
+              />
+            ) : (
             <MonacoEditor
               height="100%"
               language="java"
@@ -1394,7 +1513,7 @@ export default function ChallengeWorkspace({
                 setCode(next);
                 clearTimeout(saveTimer.current);
                 saveTimer.current = setTimeout(() => {
-                  persistCode(next);
+                  persistCode(next, { editorMode: "java", blockXml: blockXmlRef.current });
                 }, 400);
               }}
               onMount={(editor, monaco) => {
@@ -1430,6 +1549,7 @@ export default function ChallengeWorkspace({
                 suggest: { showWords: true },
               }}
             />
+            )}
           </div>
 
           {/* ── Submit error banner ─────────────────────────────────────── */}
