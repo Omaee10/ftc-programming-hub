@@ -127,16 +127,30 @@ export default function BlocklyWorkspace({
 
     // Blockly caches its SVG dimensions at inject time; in a flex/dynamic
     // container the final size may not be settled yet, which leaves the
-    // scrollbar/canvas only partially sized. Force a few resizes once layout
-    // has settled.
-    const resize = () => BK.svgResize(ws);
-    requestAnimationFrame(resize);
-    const t1 = setTimeout(resize, 50);
-    const t2 = setTimeout(resize, 200);
+    // scrollbar/canvas only partially sized. `svgResize` fits the SVG to the
+    // container; `ws.resize()` re-lays-out the toolbox, flyout and scrollbars
+    // (needed after a category flyout opens/closes, or its scrollbar gets
+    // stranded mid-canvas).
+    const recalc = () => {
+      try {
+        BK.svgResize(ws);
+        (ws as Blockly.WorkspaceSvg).resize();
+      } catch {
+        /* workspace may be mid-dispose */
+      }
+    };
+    requestAnimationFrame(recalc);
+    const t1 = setTimeout(recalc, 50);
+    const t2 = setTimeout(recalc, 200);
 
     const handleChange = (event: Blockly.Events.Abstract) => {
       if (loadingRef.current) return;
-      if (event.isUiEvent) return;
+      if (event.isUiEvent) {
+        // Toolbox flyout open/close fires UI events; re-layout afterward so the
+        // scrollbar returns to the canvas edge.
+        requestAnimationFrame(recalc);
+        return;
+      }
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         try {
@@ -150,7 +164,7 @@ export default function BlocklyWorkspace({
     ws.addChangeListener(handleChange);
 
     // Fit the canvas to its container whenever it changes size.
-    const ro = new ResizeObserver(resize);
+    const ro = new ResizeObserver(recalc);
     if (containerRef.current) ro.observe(containerRef.current);
 
     return () => {
