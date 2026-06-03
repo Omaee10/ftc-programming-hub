@@ -57,21 +57,17 @@ function ifIsActiveWithLoop(loopBody: string): string {
   ])}</statement></block>`;
 }
 
-function hwMotor(hw: string): string {
-  return `<block type="ftc_dc_motor_hw_get"><field name="DEVICE">${hw}</field></block>`;
-}
-
-function setPower(hw: string, powerXml: string): string {
-  return `<block type="ftc_dc_motor_set_power">
-    <field name="DEVICE">${hw}</field>
-    <value name="POWER">${powerXml}</value>
+function hwMotor(varName: string, hw: string): string {
+  return `<block type="ftc_dc_motor_hw_get">
+    <field name="VAR">${varName}</field>
+    <field name="HW">${hw}</field>
   </block>`;
 }
 
-function dcDirection(hw: string, dir: string): string {
-  return `<block type="ftc_dc_motor_set_direction">
-    <field name="DEVICE">${hw}</field>
-    <field name="DIR">${dir}</field>
+function setPower(varName: string, powerXml: string): string {
+  return `<block type="ftc_dc_motor_set_power">
+    <field name="VAR">${varName}</field>
+    <value name="POWER">${powerXml}</value>
   </block>`;
 }
 
@@ -150,10 +146,16 @@ const CHALLENGE_HARDWARE_REF: Record<number, string[]> = {
 
 export const BLOCK_STARTERS: Record<number, string> = {
   1: buildRunOpModeXml(
-    [hwMotor("left_motor"), dcDirection("left_motor", "FORWARD")],
+    [
+      hwMotor("leftMotor", "left_motor"),
+      `<block type="ftc_dc_motor_set_direction">
+        <field name="VAR">leftMotor</field>
+        <field name="DIR">FORWARD</field>
+      </block>`,
+    ],
     [
       varSet("tgtPower", negatedStickY()),
-      setPower("left_motor", varGet("tgtPower")),
+      setPower("leftMotor", varGet("tgtPower")),
       `<block type="ftc_call_telemetry_add_data">
         <field name="KEY">Target Power</field>
         <value name="VALUE">${varGet("tgtPower")}</value>
@@ -161,26 +163,26 @@ export const BLOCK_STARTERS: Record<number, string> = {
     ]
   ),
   2: buildRunOpModeXml(
-    [hwMotor("drive_motor")],
+    [hwMotor("driveMotor", "drive_motor")],
     [
       `<block type="ftc_dc_motor_set_mode">
-        <field name="DEVICE">drive_motor</field>
+        <field name="VAR">driveMotor</field>
         <field name="MODE">STOP_AND_RESET_ENCODER</field>
       </block>`,
       `<block type="ftc_dc_motor_set_target_position">
-        <field name="DEVICE">drive_motor</field>
+        <field name="VAR">driveMotor</field>
         <value name="VALUE"><block type="math_number"><field name="NUM">500</field></block></value>
       </block>`,
       `<block type="ftc_dc_motor_set_mode">
-        <field name="DEVICE">drive_motor</field>
+        <field name="VAR">driveMotor</field>
         <field name="MODE">RUN_TO_POSITION</field>
       </block>`,
-      setPower("drive_motor", `<block type="math_number"><field name="NUM">0.6</field></block>`),
+      setPower("driveMotor", `<block type="math_number"><field name="NUM">0.6</field></block>`),
       `<block type="ftc_while_is_busy">
-        <field name="DEVICE">drive_motor</field>
+        <field name="VAR">driveMotor</field>
         <statement name="DO"></statement>
       </block>`,
-      setPower("drive_motor", `<block type="math_number"><field name="NUM">0</field></block>`),
+      setPower("driveMotor", `<block type="math_number"><field name="NUM">0</field></block>`),
     ]
   ),
 };
@@ -189,9 +191,10 @@ for (let id = 3; id <= 56; id++) {
   if (BLOCK_STARTERS[id]) continue;
   const hw = CHALLENGE_HARDWARE_REF[id];
   const motor = hw?.[0] ?? "drive_motor";
+  const varName = motor.includes("left") ? "leftMotor" : "driveMotor";
   BLOCK_STARTERS[id] = buildRunOpModeXml(
-    [hwMotor(motor)],
-    [setPower(motor, negatedStickY())]
+    [hwMotor(varName, motor)],
+    [setPower(varName, negatedStickY())]
   );
 }
 

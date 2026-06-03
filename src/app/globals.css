@@ -719,9 +719,3 @@ body {
 .blockly-root .blocklyTreeSelected .blocklyTreeLabel {
   color: #ffffff !important;
 }
-.blockly-root .blocklyDropdownText {
-  font-size: 12px !important;
-}
-.blockly-root .blocklyEditableText > rect {
-  min-width: 72px;
-}
