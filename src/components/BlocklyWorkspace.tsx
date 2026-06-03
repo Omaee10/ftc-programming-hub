@@ -7,6 +7,10 @@ import { FTC_BLOCKLY_THEME } from "@/lib/blockly/theme/ftcBlocklyTheme";
 import { initBlocklyOnce, generateJavaFromWorkspace } from "@/lib/blockly/generators/javaGenerator";
 import { challengeToBlocklyMeta } from "@/lib/blockly/types";
 import { buildToolbox } from "@/lib/blockly/toolbox/buildToolbox";
+import {
+  configureDeviceFieldsForChallenge,
+  refreshDeviceFieldsInWorkspace,
+} from "@/lib/blockly/blocks/deviceFields";
 import { loadXmlIntoWorkspace, workspaceToXml } from "@/lib/blockly/workspace/serialize";
 
 export interface BlocklyWorkspaceProps {
@@ -55,6 +59,7 @@ export default function BlocklyWorkspace({
 
   useEffect(() => {
     initBlocklyOnce();
+    configureDeviceFieldsForChallenge(challenge.id);
     const container = containerRef.current;
     if (!container) return;
 
@@ -92,6 +97,7 @@ export default function BlocklyWorkspace({
       challenge.id
     );
     if (migrated) onMigratedRef.current?.();
+    refreshDeviceFieldsInWorkspace(workspace);
     emitChange();
     layoutWorkspace(workspace);
 
@@ -119,6 +125,8 @@ export default function BlocklyWorkspace({
   useEffect(() => {
     const ws = workspaceRef.current;
     if (!ws) return;
+    configureDeviceFieldsForChallenge(challenge.id);
+    refreshDeviceFieldsInWorkspace(ws);
     ws.updateToolbox(buildToolbox(challenge));
   }, [challenge]);
 

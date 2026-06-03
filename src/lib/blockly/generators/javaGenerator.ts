@@ -4,6 +4,10 @@ import { Order } from "blockly/javascript";
 import type { Block } from "blockly/core";
 import type { BlocklyChallengeMeta } from "@/lib/blockly/types";
 import { wrapOpModeSkeleton, collectImports } from "@/lib/blockly/generators/opModeSkeleton";
+import {
+  getDeviceHwName,
+  getDeviceVarName,
+} from "@/lib/blockly/blocks/deviceFields";
 import { registerAllBlocks } from "@/lib/blockly/blocks/registerBlocks";
 
 let javaGenerator: JavaGenerator | null = null;
@@ -40,16 +44,6 @@ function sanitizeVar(name: string): string {
   return s && /^[a-zA-Z_]/.test(s) ? s : `v_${s || "x"}`;
 }
 
-function hwToVar(hw: string): string {
-  const parts = hw.split("_").filter(Boolean);
-  if (parts.length === 0) return "device";
-  return parts
-    .map((p, i) =>
-      i === 0 ? p.toLowerCase() : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()
-    )
-    .join("");
-}
-
 function stmt(code: string): string {
   const lines = code.split("\n").filter((l) => l.trim());
   return lines.map((l) => (l.endsWith(";") ? l : `${l};`)).join("\n") + "\n";
@@ -67,8 +61,8 @@ function collectDevices(workspace: Blockly.Workspace): Map<string, DeviceDecl> {
   const all = workspace.getAllBlocks(false);
   for (const block of all) {
     if (block.type === "ftc_dc_motor_hw_get") {
-      const varName = sanitizeVar(block.getFieldValue("VAR") || hwToVar(block.getFieldValue("HW")));
-      const hw = block.getFieldValue("HW");
+      const varName = sanitizeVar(getDeviceVarName(block));
+      const hw = getDeviceHwName(block);
       map.set(varName, {
         javaType: "DcMotor",
         varName,
@@ -77,29 +71,29 @@ function collectDevices(workspace: Blockly.Workspace): Map<string, DeviceDecl> {
       });
     }
     if (block.type === "ftc_dc_motor_ex_hw_get") {
-      const varName = sanitizeVar(block.getFieldValue("VAR") || hwToVar(block.getFieldValue("HW")));
+      const varName = sanitizeVar(getDeviceVarName(block));
       map.set(varName, {
         javaType: "DcMotorEx",
         varName,
-        hwName: block.getFieldValue("HW"),
+        hwName: getDeviceHwName(block),
         kind: "DcMotorEx",
       });
     }
     if (block.type === "ftc_servo_hw_get") {
-      const varName = sanitizeVar(block.getFieldValue("VAR") || hwToVar(block.getFieldValue("HW")));
+      const varName = sanitizeVar(getDeviceVarName(block));
       map.set(varName, {
         javaType: "Servo",
         varName,
-        hwName: block.getFieldValue("HW"),
+        hwName: getDeviceHwName(block),
         kind: "Servo",
       });
     }
     if (block.type === "ftc_cr_servo_hw_get") {
-      const varName = sanitizeVar(block.getFieldValue("VAR") || hwToVar(block.getFieldValue("HW")));
+      const varName = sanitizeVar(getDeviceVarName(block));
       map.set(varName, {
         javaType: "CRServo",
         varName,
-        hwName: block.getFieldValue("HW"),
+        hwName: getDeviceHwName(block),
         kind: "CRServo",
       });
     }
@@ -112,17 +106,27 @@ function collectDevices(workspace: Blockly.Workspace): Map<string, DeviceDecl> {
         kind: "ElapsedTime",
       });
     }
-    for (const field of ["VAR", "MOTOR", "SERVO", "NAME"]) {
-      if (block.getField(field)) {
-        const v = sanitizeVar(block.getFieldValue(field));
-        if (v && !map.has(v) && block.type.startsWith("ftc_dc_motor")) {
-          map.set(v, {
-            javaType: block.type.includes("ex") ? "DcMotorEx" : "DcMotor",
-            varName: v,
-            hwName: v.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, ""),
-            kind: block.type.includes("ex") ? "DcMotorEx" : "DcMotor",
-          });
-        }
+    if (block.getField("DEVICE") && block.type.startsWith("ftc_dc_motor")) {
+      const v = sanitizeVar(getDeviceVarName(block));
+      const hw = getDeviceHwName(block);
+      if (v && !map.has(v)) {
+        map.set(v, {
+          javaType: block.type.includes("ex") ? "DcMotorEx" : "DcMotor",
+          varName: v,
+          hwName: hw,
+          kind: block.type.includes("ex") ? "DcMotorEx" : "DcMotor",
+        });
+      }
+    }
+    if (block.getField("DEVICE") && block.type.startsWith("ftc_servo")) {
+      const v = sanitizeVar(getDeviceVarName(block));
+      if (v && !map.has(v)) {
+        map.set(v, {
+          javaType: block.type.startsWith("ftc_cr") ? "CRServo" : "Servo",
+          varName: v,
+          hwName: getDeviceHwName(block),
+          kind: block.type.startsWith("ftc_cr") ? "CRServo" : "Servo",
+        });
       }
     }
   }
@@ -291,80 +295,78 @@ function registerBlockGenerators(gen: JavaGenerator): void {
   };
 
   gen.forBlock["ftc_dc_motor_set_power"] = (block, generator) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const v = sanitizeVar(getDeviceVarName(block));
     const p = generator.valueToCode(block, "POWER", Order.NONE) || "0";
     return stmt(`${v}.setPower(${p})`);
   };
   gen.forBlock["ftc_dc_motor_get_power"] = (block) => [
-    `${sanitizeVar(block.getFieldValue("VAR"))}.getPower()`,
+    `${sanitizeVar(getDeviceVarName(block))}.getPower()`,
     Order.ATOMIC,
   ];
   gen.forBlock["ftc_dc_motor_set_mode"] = (block) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const v = sanitizeVar(getDeviceVarName(block));
     const mode = block.getFieldValue("MODE");
     return stmt(`${v}.setMode(DcMotor.RunMode.${mode})`);
   };
   gen.forBlock["ftc_dc_motor_set_target_position"] = (block, generator) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const v = sanitizeVar(getDeviceVarName(block));
     const t = generator.valueToCode(block, "TICKS", Order.NONE) || "0";
     return stmt(`${v}.setTargetPosition((int) ${t})`);
   };
   gen.forBlock["ftc_dc_motor_set_direction"] = (block) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const v = sanitizeVar(getDeviceVarName(block));
     return stmt(
       `${v}.setDirection(DcMotorSimple.Direction.${block.getFieldValue("DIR")})`
     );
   };
   gen.forBlock["ftc_dc_motor_set_zero_power"] = (block) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const v = sanitizeVar(getDeviceVarName(block));
     return stmt(
       `${v}.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.${block.getFieldValue("ZPB")})`
     );
   };
   gen.forBlock["ftc_dc_motor_get_position"] = (block) => [
-    `${sanitizeVar(block.getFieldValue("VAR"))}.getCurrentPosition()`,
+    `${sanitizeVar(getDeviceVarName(block))}.getCurrentPosition()`,
     Order.ATOMIC,
   ];
   gen.forBlock["ftc_dc_motor_is_busy"] = (block) => [
-    `${sanitizeVar(block.getFieldValue("VAR"))}.isBusy()`,
+    `${sanitizeVar(getDeviceVarName(block))}.isBusy()`,
     Order.ATOMIC,
   ];
   gen.forBlock["ftc_dc_motor_hw_get"] = (block) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
-    const hw = block.getFieldValue("HW");
+    const v = sanitizeVar(getDeviceVarName(block));
+    const hw = getDeviceHwName(block);
     return stmt(`${v} = hardwareMap.get(DcMotor.class, "${hw}")`);
   };
   gen.forBlock["ftc_dc_motor_ex_hw_get"] = (block) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
-    const hw = block.getFieldValue("HW");
+    const v = sanitizeVar(getDeviceVarName(block));
+    const hw = getDeviceHwName(block);
     return stmt(`${v} = hardwareMap.get(DcMotorEx.class, "${hw}")`);
   };
   gen.forBlock["ftc_dc_motor_ex_set_velocity"] = (block, generator) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const v = sanitizeVar(getDeviceVarName(block));
     const tps = generator.valueToCode(block, "TPS", Order.NONE) || "0";
     return stmt(`${v}.setVelocity(${tps})`);
   };
   gen.forBlock["ftc_servo_set_position"] = (block, generator) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const v = sanitizeVar(getDeviceVarName(block));
     const p = generator.valueToCode(block, "POS", Order.NONE) || "0";
     return stmt(`${v}.setPosition(${p})`);
   };
   gen.forBlock["ftc_servo_hw_get"] = (block) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
-    return stmt(
-      `${v} = hardwareMap.get(Servo.class, "${block.getFieldValue("HW")}")`
-    );
+    const v = sanitizeVar(getDeviceVarName(block));
+    const hw = getDeviceHwName(block);
+    return stmt(`${v} = hardwareMap.get(Servo.class, "${hw}")`);
   };
   gen.forBlock["ftc_cr_servo_set_power"] = (block, generator) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const v = sanitizeVar(getDeviceVarName(block));
     const p = generator.valueToCode(block, "POWER", Order.NONE) || "0";
     return stmt(`${v}.setPower(${p})`);
   };
   gen.forBlock["ftc_cr_servo_hw_get"] = (block) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
-    return stmt(
-      `${v} = hardwareMap.get(CRServo.class, "${block.getFieldValue("HW")}")`
-    );
+    const v = sanitizeVar(getDeviceVarName(block));
+    const hw = getDeviceHwName(block);
+    return stmt(`${v} = hardwareMap.get(CRServo.class, "${hw}")`);
   };
   gen.forBlock["ftc_elapsed_time_new"] = (block) => {
     const n = sanitizeVar(block.getFieldValue("NAME"));
@@ -377,7 +379,7 @@ function registerBlockGenerators(gen: JavaGenerator): void {
     Order.ATOMIC,
   ];
   gen.forBlock["ftc_while_is_busy"] = (block, generator) => {
-    const v = sanitizeVar(block.getFieldValue("VAR"));
+    const v = sanitizeVar(getDeviceVarName(block));
     const body = generator.statementToCode(block, "DO");
     return stmt(
       `while (${v}.isBusy() && opModeIsActive()) {\n${body}            idle();\n        }`

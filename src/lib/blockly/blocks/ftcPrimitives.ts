@@ -9,6 +9,24 @@ const PAD = "ftc_gamepad_blocks";
 const COMMENT = "comment_blocks";
 const LOOP = "loop_blocks";
 
+const DC_DEVICE = {
+  type: "field_dropdown",
+  name: "DEVICE",
+  options: [["driveMotor", "drive_motor"]],
+} as const;
+
+const SERVO_DEVICE = {
+  type: "field_dropdown",
+  name: "DEVICE",
+  options: [["blockerServo", "blocker_servo"]],
+} as const;
+
+const CR_DEVICE = {
+  type: "field_dropdown",
+  name: "DEVICE",
+  options: [["intakeServo", "intake_servo"]],
+} as const;
+
 export function registerFtcPrimitiveBlocks(): void {
   if (registered) return;
   registered = true;
@@ -146,27 +164,26 @@ export function registerFtcPrimitiveBlocks(): void {
     {
       type: "ftc_dc_motor_set_power",
       message0: "set %1.Power to %2",
-      args0: [
-        { type: "field_input", name: "VAR", text: "motor" },
-        { type: "input_value", name: "POWER", check: "Number" },
-      ],
+      args0: [DC_DEVICE, { type: "input_value", name: "POWER", check: "Number" }],
       inputsInline: true,
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_get_power",
       message0: "%1.Power",
-      args0: [{ type: "field_input", name: "VAR", text: "motor" }],
+      args0: [DC_DEVICE],
       output: "Number",
       style: GET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_set_mode",
       message0: "set %1.Mode to %2",
       args0: [
-        { type: "field_input", name: "VAR", text: "motor" },
+        DC_DEVICE,
         {
           type: "field_dropdown",
           name: "MODE",
@@ -180,24 +197,26 @@ export function registerFtcPrimitiveBlocks(): void {
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_set_target_position",
       message0: "set %1.TargetPosition to %2",
       args0: [
-        { type: "field_input", name: "VAR", text: "motor" },
+        DC_DEVICE,
         { type: "input_value", name: "TICKS", check: "Number" },
       ],
       inputsInline: true,
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_set_direction",
       message0: "set %1.Direction to %2",
       args0: [
-        { type: "field_input", name: "VAR", text: "motor" },
+        DC_DEVICE,
         {
           type: "field_dropdown",
           name: "DIR",
@@ -210,12 +229,13 @@ export function registerFtcPrimitiveBlocks(): void {
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_set_zero_power",
       message0: "set %1.ZeroPowerBehavior to %2",
       args0: [
-        { type: "field_input", name: "VAR", text: "motor" },
+        DC_DEVICE,
         {
           type: "field_dropdown",
           name: "ZPB",
@@ -228,100 +248,98 @@ export function registerFtcPrimitiveBlocks(): void {
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_get_position",
       message0: "%1.CurrentPosition",
-      args0: [{ type: "field_input", name: "VAR", text: "motor" }],
+      args0: [DC_DEVICE],
       output: "Number",
       style: GET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_is_busy",
       message0: "%1.isBusy",
-      args0: [{ type: "field_input", name: "VAR", text: "motor" }],
+      args0: [DC_DEVICE],
       output: "Boolean",
       style: GET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_hw_get",
-      message0: "get %1 from hardwareMap DcMotor %2",
-      args0: [
-        { type: "field_input", name: "VAR", text: "leftMotor" },
-        { type: "field_input", name: "HW", text: "left_motor" },
-      ],
+      message0: "get %1 from hardwareMap DcMotor",
+      args0: [{ ...DC_DEVICE, options: [["leftMotor", "left_motor"]] }],
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_ex_hw_get",
-      message0: "get %1 from hardwareMap DcMotorEx %2",
-      args0: [
-        { type: "field_input", name: "VAR", text: "shooterMotor" },
-        { type: "field_input", name: "HW", text: "shooter_motor" },
-      ],
+      message0: "get %1 from hardwareMap DcMotorEx",
+      args0: [{ ...DC_DEVICE, options: [["shooterMotor", "shooter_motor"]] }],
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_dc_motor_ex_set_velocity",
       message0: "set %1.Velocity to %2",
       args0: [
-        { type: "field_input", name: "VAR", text: "shooterMotor" },
+        { ...DC_DEVICE, options: [["shooterMotor", "shooter_motor"]] },
         { type: "input_value", name: "TPS", check: "Number" },
       ],
       inputsInline: true,
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_dc_device_init"],
     },
     {
       type: "ftc_servo_set_position",
       message0: "set %1.Position to %2",
       args0: [
-        { type: "field_input", name: "VAR", text: "servo" },
+        SERVO_DEVICE,
         { type: "input_value", name: "POS", check: "Number" },
       ],
       inputsInline: true,
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_servo_device_init"],
     },
     {
       type: "ftc_servo_hw_get",
-      message0: "get %1 from hardwareMap Servo %2",
-      args0: [
-        { type: "field_input", name: "VAR", text: "blockerServo" },
-        { type: "field_input", name: "HW", text: "blocker_servo" },
-      ],
+      message0: "get %1 from hardwareMap Servo",
+      args0: [SERVO_DEVICE],
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_servo_device_init"],
     },
     {
       type: "ftc_cr_servo_set_power",
       message0: "set %1.Power to %2",
       args0: [
-        { type: "field_input", name: "VAR", text: "intakeServo" },
+        CR_DEVICE,
         { type: "input_value", name: "POWER", check: "Number" },
       ],
       inputsInline: true,
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_cr_servo_device_init"],
     },
     {
       type: "ftc_cr_servo_hw_get",
-      message0: "get %1 from hardwareMap CRServo %2",
-      args0: [
-        { type: "field_input", name: "VAR", text: "intakeServo" },
-        { type: "field_input", name: "HW", text: "intake_servo" },
-      ],
+      message0: "get %1 from hardwareMap CRServo",
+      args0: [CR_DEVICE],
       previousStatement: null,
       nextStatement: null,
       style: SET,
+      extensions: ["ftc_cr_servo_device_init"],
     },
     {
       type: "ftc_elapsed_time_new",
@@ -349,13 +367,11 @@ export function registerFtcPrimitiveBlocks(): void {
     {
       type: "ftc_while_is_busy",
       message0: "while %1.isBusy and opModeIsActive %2",
-      args0: [
-        { type: "field_input", name: "VAR", text: "motor" },
-        { type: "input_statement", name: "DO" },
-      ],
+      args0: [DC_DEVICE, { type: "input_statement", name: "DO" }],
       previousStatement: null,
       nextStatement: null,
       style: LOOP,
+      extensions: ["ftc_dc_device_init"],
     },
   ]);
 }
