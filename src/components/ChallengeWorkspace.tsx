@@ -5,6 +5,7 @@ import {
   useRef,
   useEffect,
   useCallback,
+  useMemo,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { useTheme } from "next-themes";
@@ -55,6 +56,16 @@ import {
   readCodeDraft,
   saveCodeDraft,
 } from "@/lib/challengeCodeDrafts";
+import {
+  getBlockConfig,
+  isBlocksEnabled,
+  type WorkspaceState,
+} from "@/data/blockChallenges";
+import {
+  clearBlockDraft,
+  readBlockDraft,
+  saveBlockDraft,
+} from "@/lib/challengeBlockDrafts";
 import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
 
@@ -63,6 +74,14 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
   loading: () => <EditorSkeleton />,
 });
+
+// ─── Blockly canvas loaded lazily (browser-only) ────────────────────────────
+const BlocklyWorkspace = dynamic(() => import("./BlocklyWorkspace"), {
+  ssr: false,
+  loading: () => <EditorSkeleton />,
+});
+
+type EditorMode = "java" | "blocks";
 
 // ─── Custom FTC editor themes ──────────────────────────────────────────────
 function defineThemes(monaco: Monaco) {
@@ -669,6 +688,41 @@ export default function ChallengeWorkspace({
   >(null);
   const monacoRef = useRef<Monaco | null>(null);
 
+  // ── FTC Blocks mode ───────────────────────────────────────────────────────
+  const blocksEnabled = isBlocksEnabled(challenge.id);
+  const blocksConfig = useMemo(
+    () => (blocksEnabled ? getBlockConfig(challenge.id) : null),
+    [blocksEnabled, challenge.id]
+  );
+  const [editorMode, setEditorMode] = useState<EditorMode>("java");
+  const [blockResetSignal, setBlockResetSignal] = useState(0);
+  const blockStateRef = useRef<WorkspaceState | null>(null);
+
+  // Initial Blockly state: saved draft (client) or the challenge starter layout.
+  const blocksInitialState = useMemo<WorkspaceState | null>(() => {
+    if (!blocksConfig) return null;
+    const draft = readBlockDraft(challenge.id);
+    return draft?.state ?? blocksConfig.starter;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocksConfig, challenge.id]);
+
+  useEffect(() => {
+    blockStateRef.current = blocksInitialState;
+  }, [blocksInitialState]);
+
+  // Java is always the default mode; only offer blocks where supported.
+  useEffect(() => {
+    if (!blocksEnabled) setEditorMode("java");
+  }, [blocksEnabled, challenge.id]);
+
+  const handleBlocksChange = useCallback(
+    (state: WorkspaceState) => {
+      blockStateRef.current = state;
+      saveBlockDraft(challenge.id, state);
+    },
+    [challenge.id]
+  );
+
   // Sync Monaco theme whenever the app theme changes
   useEffect(() => {
     monacoRef.current?.editor.setTheme(monacoTheme);
@@ -680,6 +734,18 @@ export default function ChallengeWorkspace({
     saveCodeDraft(challenge.id, challenge.starterCode);
     void saveCode(challenge.starterCode);
   }, [challenge.id, challenge.starterCode, saveCode]);
+
+  // Reset resets the *active* editor: starter Java in Java mode, starter blocks
+  // in Blocks mode. The two modes keep independent drafts.
+  const handleReset = useCallback(() => {
+    if (editorMode === "blocks" && blocksConfig) {
+      clearBlockDraft(challenge.id);
+      blockStateRef.current = blocksConfig.starter;
+      setBlockResetSignal((n) => n + 1);
+    } else {
+      resetCode();
+    }
+  }, [editorMode, blocksConfig, challenge.id, resetCode]);
 
   const persistCode = useCallback(
     (next: string, options?: { flushCloud?: boolean }) => {
@@ -860,18 +926,35 @@ export default function ChallengeWorkspace({
     appendEntry({ type: "init", message: "FTC Hub Analyzer v3.0" });
     appendEntry({ type: "separator", message: "" });
 
-    const clearModel = editorRef.current?.getModel();
-    if (clearModel && monacoRef.current) {
-      monacoRef.current.editor.setModelMarkers(clearModel, "ftc-grader", []);
+    if (editorMode === "java") {
+      const clearModel = editorRef.current?.getModel();
+      if (clearModel && monacoRef.current) {
+        monacoRef.current.editor.setModelMarkers(clearModel, "ftc-grader", []);
+      }
     }
 
     await delay(180);
     appendEntry({ type: "running", message: `Compiling ${filename} with javac…` });
 
+    // In Blocks mode the visual workspace is compiled to hidden Java that the
+    // grader sees; the student/mentor never view this generated source.
+    let submissionCode = code;
+    if (editorMode === "blocks" && blocksConfig) {
+      try {
+        const { generateJava } = await import("@/lib/blockly/javaGenerator");
+        submissionCode = generateJava(
+          blockStateRef.current ?? blocksConfig.starter,
+          blocksConfig.frame
+        );
+      } catch {
+        submissionCode = "";
+      }
+    }
+
     // ── Real grader call ─────────────────────────────────────────────
     let result: GradedResult;
     try {
-      result = await gradeCode(code, challenge.id, challenge.mentorRules);
+      result = await gradeCode(submissionCode, challenge.id, challenge.mentorRules);
     } catch (err) {
       const msg =
         err instanceof GraderTimeoutError
@@ -893,14 +976,16 @@ export default function ChallengeWorkspace({
     await delay(120);
     appendEntry({ type: "info", message: "Compilation complete — running rubric checks…" });
 
-    const firstErrorLine = applyGraderMarkers(
-      result,
-      editorRef.current,
-      monacoRef.current
-    );
-    if (firstErrorLine !== null && editorRef.current) {
-      editorRef.current.revealLineInCenter(firstErrorLine);
-      editorRef.current.setPosition({ lineNumber: firstErrorLine, column: 1 });
+    if (editorMode === "java") {
+      const firstErrorLine = applyGraderMarkers(
+        result,
+        editorRef.current,
+        monacoRef.current
+      );
+      if (firstErrorLine !== null && editorRef.current) {
+        editorRef.current.revealLineInCenter(firstErrorLine);
+        editorRef.current.setPosition({ lineNumber: firstErrorLine, column: 1 });
+      }
     }
 
     await delay(180);
@@ -1060,7 +1145,17 @@ export default function ChallengeWorkspace({
     setFailedImprovements(improveFails);
     setLastGrade(grade);
     setIsRunning(false);
-  }, [code, challenge, isRunning, appendEntry, markComplete, homeworkMode, onHomeworkComplete]);
+  }, [
+    code,
+    challenge,
+    isRunning,
+    appendEntry,
+    markComplete,
+    homeworkMode,
+    onHomeworkComplete,
+    editorMode,
+    blocksConfig,
+  ]);
 
   // ── Left panel section toggles ─────────────────────────────────────────
   const [showObjectives, setShowObjectives] = useState(true);
@@ -1365,15 +1460,47 @@ export default function ChallengeWorkspace({
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Editor toolbar */}
           <div className="flex h-8 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/80 px-3">
+            {blocksEnabled && (
+              <div className="flex items-center rounded-md border border-slate-800 bg-slate-900/70 p-0.5">
+                <button
+                  onClick={() => setEditorMode("java")}
+                  title="Type Java in the OnBot editor"
+                  className={
+                    editorMode === "java"
+                      ? "rounded bg-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-100"
+                      : "rounded px-2 py-0.5 text-[11px] text-slate-500 hover:text-slate-300"
+                  }
+                >
+                  OnBot Java
+                </button>
+                <button
+                  onClick={() => setEditorMode("blocks")}
+                  title="Build with FTC Blocks"
+                  className={
+                    editorMode === "blocks"
+                      ? "rounded bg-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-100"
+                      : "rounded px-2 py-0.5 text-[11px] text-slate-500 hover:text-slate-300"
+                  }
+                >
+                  FTC Blocks
+                </button>
+              </div>
+            )}
             <FileCode className="h-3 w-3 text-slate-700 shrink-0" />
             <span className="font-mono text-[11px] text-slate-600 truncate">
-              Challenge{challenge.id}_{challenge.title.replace(/\s+/g, "")}.java
+              {editorMode === "blocks"
+                ? `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.blocks`
+                : `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.java`}
             </span>
 
             <div className="ml-auto flex items-center gap-1.5">
               <button
-                onClick={resetCode}
-                title="Reset to starter code"
+                onClick={handleReset}
+                title={
+                  editorMode === "blocks"
+                    ? "Reset to starter blocks"
+                    : "Reset to starter code"
+                }
                 className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
               >
                 <RefreshCcw className="h-3 w-3" />
@@ -1382,54 +1509,66 @@ export default function ChallengeWorkspace({
             </div>
           </div>
 
-          {/* Monaco editor */}
+          {/* Editor surface: Monaco (Java) or Blockly (FTC Blocks) */}
           <div className="min-w-0 flex-1 overflow-hidden">
-            <MonacoEditor
-              height="100%"
-              language="java"
-              theme={monacoTheme}
-              value={code}
-              onChange={(val) => {
-                const next = val ?? "";
-                setCode(next);
-                clearTimeout(saveTimer.current);
-                saveTimer.current = setTimeout(() => {
-                  persistCode(next);
-                }, 400);
-              }}
-              onMount={(editor, monaco) => {
-                editorRef.current = editor;
-                monacoRef.current = monaco;
-                defineThemes(monaco);
-                monaco.editor.setTheme(monacoTheme);
-              }}
-              options={{
-                fontSize: 13,
-                fontFamily:
-                  "'Geist Mono', 'Fira Code', 'JetBrains Mono', ui-monospace, monospace",
-                fontLigatures: true,
-                lineNumbers: "on",
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                wordWrap: "on",
-                tabSize: 4,
-                insertSpaces: true,
-                folding: true,
-                bracketPairColorization: { enabled: true },
-                smoothScrolling: true,
-                cursorBlinking: "smooth",
-                cursorSmoothCaretAnimation: "on",
-                renderLineHighlight: "gutter",
-                padding: { top: 12, bottom: 12 },
-                overviewRulerLanes: 0,
-                scrollbar: {
-                  verticalScrollbarSize: 6,
-                  horizontalScrollbarSize: 6,
-                },
-                lineDecorationsWidth: 4,
-                suggest: { showWords: true },
-              }}
-            />
+            {editorMode === "blocks" && blocksConfig && blocksInitialState ? (
+              <BlocklyWorkspace
+                key={challenge.id}
+                toolbox={blocksConfig.toolbox}
+                initialState={blocksInitialState}
+                starterState={blocksConfig.starter}
+                resetSignal={blockResetSignal}
+                dark={monacoTheme === "ftc-dark"}
+                onChange={handleBlocksChange}
+              />
+            ) : (
+              <MonacoEditor
+                height="100%"
+                language="java"
+                theme={monacoTheme}
+                value={code}
+                onChange={(val) => {
+                  const next = val ?? "";
+                  setCode(next);
+                  clearTimeout(saveTimer.current);
+                  saveTimer.current = setTimeout(() => {
+                    persistCode(next);
+                  }, 400);
+                }}
+                onMount={(editor, monaco) => {
+                  editorRef.current = editor;
+                  monacoRef.current = monaco;
+                  defineThemes(monaco);
+                  monaco.editor.setTheme(monacoTheme);
+                }}
+                options={{
+                  fontSize: 13,
+                  fontFamily:
+                    "'Geist Mono', 'Fira Code', 'JetBrains Mono', ui-monospace, monospace",
+                  fontLigatures: true,
+                  lineNumbers: "on",
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  wordWrap: "on",
+                  tabSize: 4,
+                  insertSpaces: true,
+                  folding: true,
+                  bracketPairColorization: { enabled: true },
+                  smoothScrolling: true,
+                  cursorBlinking: "smooth",
+                  cursorSmoothCaretAnimation: "on",
+                  renderLineHighlight: "gutter",
+                  padding: { top: 12, bottom: 12 },
+                  overviewRulerLanes: 0,
+                  scrollbar: {
+                    verticalScrollbarSize: 6,
+                    horizontalScrollbarSize: 6,
+                  },
+                  lineDecorationsWidth: 4,
+                  suggest: { showWords: true },
+                }}
+              />
+            )}
           </div>
 
           {/* ── Submit error banner ─────────────────────────────────────── */}
