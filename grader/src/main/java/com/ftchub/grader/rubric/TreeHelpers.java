@@ -1,14 +1,17 @@
 package com.ftchub.grader.rubric;
 
 import com.sun.source.tree.AnnotationTree;
+import com.sun.source.tree.BlockTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.tree.EmptyStatementTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewClassTree;
+import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.tree.WhileLoopTree;
@@ -188,6 +191,47 @@ public final class TreeHelpers {
             }
         }.scan(ctx.tree(), null);
         return seen[0];
+    }
+
+    /**
+     * 1-based source lines of {@code while (...)} loops whose body is empty —
+     * e.g. {@code while (opModeIsActive()) {;}} or {@code while (...);}.
+     */
+    public static List<Integer> emptyWhileLoopBodyLines(RubricContext ctx) {
+        if (ctx.astAvailable()) {
+            List<Integer> lines = new ArrayList<>();
+            new TreeScanner<Void, Void>() {
+                @Override public Void visitWhileLoop(WhileLoopTree node, Void p) {
+                    if (isEmptyLoopBody(node.getStatement())) {
+                        long start = ctx.trees().getSourcePositions().getStartPosition(ctx.tree(), node);
+                        if (start >= 0) {
+                            lines.add((int) ctx.tree().getLineMap().getLineNumber(start));
+                        }
+                    }
+                    return super.visitWhileLoop(node, p);
+                }
+            }.scan(ctx.tree(), null);
+            return lines;
+        }
+        // Syntactic fallback when the AST isn't available (compile failed early).
+        return lineNumbersMatching(ctx, EMPTY_WHILE_BODY_RX);
+    }
+
+    private static final Pattern EMPTY_WHILE_BODY_RX =
+            Pattern.compile("while\\s*\\([^)]*\\)\\s*(?:\\{[\\s;]*\\}|;)");
+
+    private static boolean isEmptyLoopBody(StatementTree stmt) {
+        if (stmt == null) return true;
+        if (stmt instanceof EmptyStatementTree) return true;
+        if (stmt instanceof BlockTree block) {
+            List<? extends StatementTree> stmts = block.getStatements();
+            if (stmts.isEmpty()) return true;
+            for (StatementTree s : stmts) {
+                if (!(s instanceof EmptyStatementTree)) return false;
+            }
+            return true;
+        }
+        return false;
     }
 
     /** Returns true if a {@code new Type()} call appears inside any while loop body. */

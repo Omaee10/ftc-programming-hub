@@ -125,6 +125,36 @@ class FunctionalRubricTest {
     }
 
     @Test
+    void emptyWhileLoopBody_gradesWrong() {
+        String code = """
+                package org.firstinspires.ftc.teamcode;
+
+                import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+                import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+                import com.qualcomm.robotcore.hardware.DcMotor;
+
+                @TeleOp(name = "Empty Loop", group = "Test")
+                public class EmptyLoopTeleOp extends LinearOpMode {
+
+                    private DcMotor leftMotor;
+
+                    @Override
+                    public void runOpMode() {
+                        leftMotor = hardwareMap.get(DcMotor.class, "left_motor");
+                        waitForStart();
+                        while (opModeIsActive()) {;}
+                        leftMotor.setPower(-gamepad1.left_stick_y);
+                    }
+                }
+                """;
+        GradedResultJson result = grader.grade(new CompileRequest(code, 1, List.of()));
+        assertEquals("wrong", result.grade());
+        assertTrue(
+                failedLabels(result, "required").contains("No empty while-loop body"),
+                "Expected empty-loop failure, got: " + allFailed(result));
+    }
+
+    @Test
     void goodChallenge1Solution_gradesGood() {
         GradedResultJson result = grader.grade(new CompileRequest(GOOD_CHALLENGE_1, 1, List.of()));
         assertEquals("good", result.grade(), "Unexpected failures: " + allFailed(result));
