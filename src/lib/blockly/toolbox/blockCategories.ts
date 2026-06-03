@@ -10,6 +10,7 @@ export const FTC_BLOCK_TYPES = {
     "ftc_reporter_op_mode_is_active",
     "ftc_reporter_is_active",
     "ftc_if_is_active",
+    "ftc_repeat_while_op_mode",
     "ftc_elapsed_time_new",
     "ftc_elapsed_time_reset",
     "ftc_elapsed_time_seconds",
@@ -39,7 +40,12 @@ export const FTC_BLOCK_TYPES = {
     "ftc_cr_servo_hw_get",
     "ftc_cr_servo_set_power",
   ],
-  loops: ["controls_whileUntil", "controls_repeat_ext", "controls_if"],
+  loops: [
+    "ftc_repeat_while_op_mode",
+    "controls_whileUntil",
+    "controls_repeat_ext",
+    "controls_if",
+  ],
   logic: ["logic_compare", "logic_operation", "logic_negate", "logic_boolean"],
   math: ["math_number", "math_arithmetic", "math_single"],
 } as const;

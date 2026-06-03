@@ -78,11 +78,12 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_call_telemetry_add_data",
-      message0: "call telemetry.addData %1 %2",
+      message0: "call telemetry.addData  key %1  value %2",
       args0: [
         { type: "field_input", name: "KEY", text: "Status" },
         { type: "input_value", name: "VALUE", check: ["Number", "String"] },
       ],
+      inputsInline: false,
       previousStatement: null,
       nextStatement: null,
       style: CALL,
@@ -101,15 +102,23 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_if_is_active",
-      message0: "if call isActive %1",
+      message0: "if call isActive  %1",
       args0: [{ type: "input_statement", name: "DO" }],
       previousStatement: null,
       nextStatement: null,
       style: CALL,
     },
     {
+      type: "ftc_repeat_while_op_mode",
+      message0: "repeat while call opModeIsActive  %1",
+      args0: [{ type: "input_statement", name: "DO" }],
+      previousStatement: null,
+      nextStatement: null,
+      style: LOOP,
+    },
+    {
       type: "ftc_gamepad_stick_y",
-      message0: "gamepad1.%1",
+      message0: "gamepad1 %1",
       args0: [
         {
           type: "field_dropdown",
@@ -163,9 +172,9 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_dc_motor_set_power",
-      message0: "set %1.Power to %2",
+      message0: "set %1 power to %2",
       args0: [DC_DEVICE, { type: "input_value", name: "POWER", check: "Number" }],
-      inputsInline: true,
+      inputsInline: false,
       previousStatement: null,
       nextStatement: null,
       style: SET,
@@ -173,7 +182,7 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_dc_motor_get_power",
-      message0: "%1.Power",
+      message0: "%1 power",
       args0: [DC_DEVICE],
       output: "Number",
       style: GET,
@@ -181,7 +190,7 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_dc_motor_set_mode",
-      message0: "set %1.Mode to %2",
+      message0: "set %1 mode to %2",
       args0: [
         DC_DEVICE,
         {
@@ -201,12 +210,12 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_dc_motor_set_target_position",
-      message0: "set %1.TargetPosition to %2",
+      message0: "set %1 target position to %2",
       args0: [
         DC_DEVICE,
         { type: "input_value", name: "TICKS", check: "Number" },
       ],
-      inputsInline: true,
+      inputsInline: false,
       previousStatement: null,
       nextStatement: null,
       style: SET,
@@ -214,7 +223,7 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_dc_motor_set_direction",
-      message0: "set %1.Direction to %2",
+      message0: "set %1 direction to %2",
       args0: [
         DC_DEVICE,
         {
@@ -233,7 +242,7 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_dc_motor_set_zero_power",
-      message0: "set %1.ZeroPowerBehavior to %2",
+      message0: "set %1 zero power behavior to %2",
       args0: [
         DC_DEVICE,
         {
@@ -252,7 +261,7 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_dc_motor_get_position",
-      message0: "%1.CurrentPosition",
+      message0: "%1 current position",
       args0: [DC_DEVICE],
       output: "Number",
       style: GET,
@@ -260,7 +269,7 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_dc_motor_is_busy",
-      message0: "%1.isBusy",
+      message0: "%1 isBusy",
       args0: [DC_DEVICE],
       output: "Boolean",
       style: GET,
@@ -286,12 +295,12 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_dc_motor_ex_set_velocity",
-      message0: "set %1.Velocity to %2",
+      message0: "set %1 velocity to %2",
       args0: [
         { ...DC_DEVICE, options: [["shooterMotor", "shooter_motor"]] },
         { type: "input_value", name: "TPS", check: "Number" },
       ],
-      inputsInline: true,
+      inputsInline: false,
       previousStatement: null,
       nextStatement: null,
       style: SET,
@@ -299,12 +308,12 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_servo_set_position",
-      message0: "set %1.Position to %2",
+      message0: "set %1 position to %2",
       args0: [
         SERVO_DEVICE,
         { type: "input_value", name: "POS", check: "Number" },
       ],
-      inputsInline: true,
+      inputsInline: false,
       previousStatement: null,
       nextStatement: null,
       style: SET,
@@ -321,12 +330,12 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_cr_servo_set_power",
-      message0: "set %1.Power to %2",
+      message0: "set %1 power to %2",
       args0: [
         CR_DEVICE,
         { type: "input_value", name: "POWER", check: "Number" },
       ],
-      inputsInline: true,
+      inputsInline: false,
       previousStatement: null,
       nextStatement: null,
       style: SET,
@@ -366,7 +375,7 @@ export function registerFtcPrimitiveBlocks(): void {
     },
     {
       type: "ftc_while_is_busy",
-      message0: "while %1.isBusy and opModeIsActive %2",
+      message0: "while %1 isBusy and opModeIsActive  %2",
       args0: [DC_DEVICE, { type: "input_statement", name: "DO" }],
       previousStatement: null,
       nextStatement: null,

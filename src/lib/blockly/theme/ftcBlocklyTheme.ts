@@ -20,7 +20,7 @@ export const FTC_BLOCKLY_THEME = Blockly.Theme.defineTheme("ftc_blocks", {
   fontStyle: {
     family: "var(--font-geist-sans), system-ui, sans-serif",
     weight: "500",
-    size: 11,
+    size: 12,
   },
   blockStyles: {
     procedure_blocks: {
