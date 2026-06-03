@@ -53,16 +53,7 @@ interface DeviceDecl {
   javaType: string;
   varName: string;
   hwName: string;
-  kind:
-    | "DcMotor"
-    | "DcMotorEx"
-    | "Servo"
-    | "CRServo"
-    | "ElapsedTime"
-    | "TouchSensor"
-    | "DistanceSensor"
-    | "ColorSensor"
-    | "IMU";
+  kind: "DcMotor" | "DcMotorEx" | "Servo" | "CRServo" | "ElapsedTime";
 }
 
 function collectDevices(workspace: Blockly.Workspace): Map<string, DeviceDecl> {
@@ -113,43 +104,6 @@ function collectDevices(workspace: Blockly.Workspace): Map<string, DeviceDecl> {
         varName,
         hwName: "",
         kind: "ElapsedTime",
-      });
-    }
-    if (block.type === "ftc_touch_sensor_hw_get") {
-      const varName = sanitizeVar(getDeviceVarName(block));
-      const hw = getDeviceHwName(block);
-      map.set(varName, {
-        javaType: "TouchSensor",
-        varName,
-        hwName: hw,
-        kind: "TouchSensor",
-      });
-    }
-    if (block.type === "ftc_distance_sensor_hw_get") {
-      const varName = sanitizeVar(getDeviceVarName(block));
-      map.set(varName, {
-        javaType: "DistanceSensor",
-        varName,
-        hwName: getDeviceHwName(block),
-        kind: "DistanceSensor",
-      });
-    }
-    if (block.type === "ftc_color_sensor_hw_get") {
-      const varName = sanitizeVar(getDeviceVarName(block));
-      map.set(varName, {
-        javaType: "ColorSensor",
-        varName,
-        hwName: getDeviceHwName(block),
-        kind: "ColorSensor",
-      });
-    }
-    if (block.type === "ftc_imu_hw_get") {
-      const varName = sanitizeVar(getDeviceVarName(block));
-      map.set(varName, {
-        javaType: "IMU",
-        varName,
-        hwName: getDeviceHwName(block),
-        kind: "IMU",
       });
     }
     if (block.getField("DEVICE") && block.type.startsWith("ftc_dc_motor")) {
@@ -435,43 +389,6 @@ function registerBlockGenerators(gen: JavaGenerator): void {
       `while (${v}.isBusy() && opModeIsActive()) {\n${body}            idle();\n        }`
     );
   };
-
-  gen.forBlock["ftc_touch_sensor_hw_get"] = (block) => {
-    const v = sanitizeVar(getDeviceVarName(block));
-    const hw = getDeviceHwName(block);
-    return stmt(`${v} = hardwareMap.get(TouchSensor.class, "${hw}")`);
-  };
-  gen.forBlock["ftc_touch_sensor_is_pressed"] = (block) => [
-    `${sanitizeVar(getDeviceVarName(block))}.isPressed()`,
-    Order.ATOMIC,
-  ];
-  gen.forBlock["ftc_distance_sensor_hw_get"] = (block) => {
-    const v = sanitizeVar(getDeviceVarName(block));
-    const hw = getDeviceHwName(block);
-    return stmt(`${v} = hardwareMap.get(DistanceSensor.class, "${hw}")`);
-  };
-  gen.forBlock["ftc_distance_sensor_cm"] = (block) => [
-    `${sanitizeVar(getDeviceVarName(block))}.getDistance(DistanceUnit.CM)`,
-    Order.ATOMIC,
-  ];
-  gen.forBlock["ftc_color_sensor_hw_get"] = (block) => {
-    const v = sanitizeVar(getDeviceVarName(block));
-    const hw = getDeviceHwName(block);
-    return stmt(`${v} = hardwareMap.get(ColorSensor.class, "${hw}")`);
-  };
-  gen.forBlock["ftc_color_sensor_red"] = (block) => [
-    `${sanitizeVar(getDeviceVarName(block))}.red()`,
-    Order.ATOMIC,
-  ];
-  gen.forBlock["ftc_imu_hw_get"] = (block) => {
-    const v = sanitizeVar(getDeviceVarName(block));
-    const hw = getDeviceHwName(block);
-    return stmt(`${v} = hardwareMap.get(IMU.class, "${hw}")`);
-  };
-  gen.forBlock["ftc_imu_yaw_degrees"] = (block) => [
-    `${sanitizeVar(getDeviceVarName(block))}.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES)`,
-    Order.ATOMIC,
-  ];
 }
 
 export function getJavaGenerator(): JavaGenerator {

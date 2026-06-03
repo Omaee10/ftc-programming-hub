@@ -57,7 +57,6 @@ import {
 import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
 import EditorModeSwitch, { ModeSwitchDialog } from "./EditorModeSwitch";
-import BlocksGuideRail from "./BlocksGuideRail";
 import type { EditorMode } from "@/lib/blockly/types";
 import {
   getBlockStarterXml,
@@ -666,31 +665,13 @@ export default function ChallengeWorkspace({
   }, [challenge.id, isMentorChallenge, studentSession?.id]);
 
   // ── Editor state ────────────────────────────────────────────────────────
-  const blocksJavaOnly = challenge.blocksSupport === "java-only";
-  const blocksGuideSteps =
-    challenge.blocksGuideSteps ??
-    challenge.objectives.slice(0, 5);
-
-  const defaultEditorModeForChallenge = (): EditorMode => {
-    if (blocksJavaOnly) return "java";
-    if (
-      challenge.blocksSupport === "full" &&
-      challenge.difficulty === "Beginner"
-    ) {
-      return "blocks";
-    }
-    return "java";
-  };
-
   const openingDraft = readCodeDraft(challenge.id);
   const [code, setCode] = useState(() =>
     chooseSavedCode(challenge.id, challenge.starterCode, null, null)
   );
-  const [editorMode, setEditorMode] = useState<EditorMode>(() => {
-    const draftMode = openingDraft?.editorMode;
-    if (draftMode === "blocks" && blocksJavaOnly) return "java";
-    return draftMode ?? defaultEditorModeForChallenge();
-  });
+  const [editorMode, setEditorMode] = useState<EditorMode>(
+    () => openingDraft?.editorMode ?? "java"
+  );
   const [blockXml, setBlockXml] = useState(() => {
     const draft = openingDraft?.blockXml;
     if (draft && !isLegacyBlockXml(draft)) return draft;
@@ -784,10 +765,9 @@ export default function ChallengeWorkspace({
   const requestEditorMode = useCallback(
     (target: EditorMode) => {
       if (target === editorMode) return;
-      if (target === "blocks" && blocksJavaOnly) return;
       setPendingEditorMode(target);
     },
-    [editorMode, blocksJavaOnly]
+    [editorMode]
   );
 
   const confirmEditorModeSwitch = useCallback(() => {
@@ -839,13 +819,7 @@ export default function ChallengeWorkspace({
     const draft = readCodeDraft(challenge.id);
     setCode(restored);
     editorRef.current?.setValue(restored);
-    if (draft?.editorMode) {
-      setEditorMode(
-        draft.editorMode === "blocks" && blocksJavaOnly ? "java" : draft.editorMode
-      );
-    } else {
-      setEditorMode(defaultEditorModeForChallenge());
-    }
+    if (draft?.editorMode) setEditorMode(draft.editorMode);
     if (draft?.blockXml) setBlockXml(draft.blockXml);
     else setBlockXml(getBlockStarterXml(challenge.id));
     setBlockWorkspaceKey((k) => k + 1);
@@ -1498,16 +1472,13 @@ export default function ChallengeWorkspace({
             <EditorModeSwitch
               mode={editorMode}
               onModeChange={requestEditorMode}
-              blocksDisabled={blocksJavaOnly}
             />
-            {blocksJavaOnly && (
-              <span
-                className="shrink-0 text-[10px] text-slate-500"
-                title="Road Runner, vision, and similar APIs require Java."
-              >
-                Java only
-              </span>
-            )}
+            <span
+              className="shrink-0 text-[10px] font-medium text-amber-400/90"
+              title="Blocks editor is still in testing"
+            >
+              (DO NOT CLICK BLOCK STILL TESTING)
+            </span>
             <span className="font-mono text-[11px] text-slate-600 truncate min-w-0">
               {editorMode === "java"
                 ? `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.java`
@@ -1532,7 +1503,7 @@ export default function ChallengeWorkspace({
                 onClick={resetCode}
                 title={
                   editorMode === "blocks"
-                    ? "Reset to lesson starter"
+                    ? "Reset blocks to starter"
                     : "Reset to starter code"
                 }
                 className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
@@ -1567,8 +1538,7 @@ export default function ChallengeWorkspace({
           )}
 
           {/* Code editor: Java (Monaco) or Blocks (Blockly) */}
-          <div className="flex min-w-0 flex-1 overflow-hidden">
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {editorMode === "blocks" ? (
               <>
                 <div
@@ -1661,15 +1631,6 @@ export default function ChallengeWorkspace({
               }}
             />
             </div>
-            )}
-            </div>
-            {editorMode === "blocks" && blocksGuideSteps.length > 0 && (
-              <BlocksGuideRail
-                steps={blocksGuideSteps}
-                completedStepIndex={
-                  lastGrade === "good" ? blocksGuideSteps.length - 1 : -1
-                }
-              />
             )}
           </div>
 

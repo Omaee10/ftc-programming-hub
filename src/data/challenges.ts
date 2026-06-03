@@ -1,10 +1,3 @@
-import {
-  enrichChallengeWithBlocksMeta,
-  type BlocksSupport,
-  type CourseTrack,
-  type StarterArchetype,
-} from "@/data/challengeBlocksMeta";
-
 export type Difficulty = "Beginner" | "Intermediate" | "Advanced";
 
 /** Mentor-authored grader rule (mirrors {@link MentorRuleSpec} in graderClient). */
@@ -42,17 +35,9 @@ export interface Challenge {
    * undefined and rely on the per-challenge rules baked into the grader.
    */
   mentorRules?: ChallengeMentorRule[];
-  /** Blockly mode: full palette or Java-only (Road Runner, vision, etc.). */
-  blocksSupport?: BlocksSupport;
-  /** FTC Sim–style course bucket for catalog filters. */
-  courseTrack?: CourseTrack;
-  /** Blockly starter template key (see challengeBlocksMeta). */
-  starterArchetype?: StarterArchetype;
-  /** Short in-workspace steps for Blocks mode. */
-  blocksGuideSteps?: string[];
 }
 
-const rawChallenges: Challenge[] = [
+export const challenges: Challenge[] = [
   // ─────────────────────────────────────────────────────────────────────────
   // Challenge 1 — Basic TeleOp
   // ─────────────────────────────────────────────────────────────────────────
@@ -4900,9 +4885,6 @@ public class BlockScope extends LinearOpMode {
     ],
   },
 ];
-
-/** Built-in challenges with blocks metadata applied. */
-export const challenges: Challenge[] = rawChallenges.map(enrichChallengeWithBlocksMeta);
 
 /** Lookup helpers */
 export const getChallengeById = (id: number) =>

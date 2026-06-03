@@ -12,15 +12,6 @@ const BASE_IMPORTS = [
   "com.qualcomm.robotcore.util.ElapsedTime",
 ];
 
-const SENSOR_IMPORTS: Record<string, string> = {
-  touch: "com.qualcomm.robotcore.hardware.TouchSensor",
-  distance: "com.qualcomm.robotcore.hardware.DistanceSensor",
-  color: "com.qualcomm.robotcore.hardware.ColorSensor",
-  imu: "com.qualcomm.robotcore.hardware.IMU",
-  angleUnit: "org.firstinspires.ftc.robotcore.external.navigation.AngleUnit",
-  distanceUnit: "org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit",
-};
-
 const EXTRA_IMPORTS: Record<string, string[]> = {
   limelight: [
     "com.qualcomm.hardware.limelightvision.Limelight3A",
@@ -37,20 +28,6 @@ export function collectImports(
   const hint = sourceHints.toLowerCase();
   if (tagStr.includes("limelight") || tagStr.includes("vision") || hint.includes("limelight")) {
     EXTRA_IMPORTS.limelight.forEach((i) => imports.add(i));
-  }
-  if (hint.includes("touchsensor") || hint.includes("touch_sensor")) {
-    imports.add(SENSOR_IMPORTS.touch);
-  }
-  if (hint.includes("distancesensor") || hint.includes("distance_sensor")) {
-    imports.add(SENSOR_IMPORTS.distance);
-    imports.add(SENSOR_IMPORTS.distanceUnit);
-  }
-  if (hint.includes("colorsensor") || hint.includes("color_sensor")) {
-    imports.add(SENSOR_IMPORTS.color);
-  }
-  if (hint.includes("imu") || tagStr.includes("imu")) {
-    imports.add(SENSOR_IMPORTS.imu);
-    imports.add(SENSOR_IMPORTS.angleUnit);
   }
   return Array.from(imports).sort();
 }

@@ -23,10 +23,6 @@ import {
   type Difficulty,
 } from "@/data/challenges";
 import {
-  COURSE_TRACK_LABELS,
-  type CourseTrack,
-} from "@/data/challengeBlocksMeta";
-import {
   rowToChallenge,
   mergeChallenges,
   filterOutAssigned,
@@ -103,23 +99,11 @@ function ChallengeCard({
 
       {/* Footer: difficulty + time */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1">
-          <span
-            className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${diff.badgeClass}`}
-          >
-            {isCustom ? "Class challenge" : diff.label}
-          </span>
-          {!isCustom && challenge.blocksSupport === "java-only" && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-slate-800/80 text-slate-500 border border-slate-700/60">
-              Java only
-            </span>
-          )}
-          {!isCustom && challenge.blocksSupport === "full" && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              Blocks
-            </span>
-          )}
-        </div>
+        <span
+          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${diff.badgeClass}`}
+        >
+          {isCustom ? "Class challenge" : diff.label}
+        </span>
 
         <div className="flex items-center gap-2">
           {!hydrated ? (
@@ -203,29 +187,10 @@ export default function ChallengesClient() {
   const customChallenges = challenges.filter((c) => isCustomChallengeId(c.id));
   const catalogChallenges = challenges.filter((c) => !isCustomChallengeId(c.id));
 
-  const [courseTrackFilter, setCourseTrackFilter] = useState<CourseTrack | "all">(
-    "all"
-  );
-
-  const filteredCatalog =
-    courseTrackFilter === "all"
-      ? catalogChallenges
-      : catalogChallenges.filter((c) => c.courseTrack === courseTrackFilter);
-
-  const courseTrackOptions: (CourseTrack | "all")[] = [
-    "all",
-    "intro",
-    "movement",
-    "sensors",
-    "teleop",
-    "autonomous",
-    "advanced",
-  ];
-
   const byDifficulty: Record<Difficulty, Challenge[]> = {
-    Beginner: filteredCatalog.filter((c) => c.difficulty === "Beginner"),
-    Intermediate: filteredCatalog.filter((c) => c.difficulty === "Intermediate"),
-    Advanced: filteredCatalog.filter((c) => c.difficulty === "Advanced"),
+    Beginner: catalogChallenges.filter((c) => c.difficulty === "Beginner"),
+    Intermediate: catalogChallenges.filter((c) => c.difficulty === "Intermediate"),
+    Advanced: catalogChallenges.filter((c) => c.difficulty === "Advanced"),
   };
 
   const { displayNumbers, orderedChallenges: orderedCatalog } =
@@ -368,24 +333,6 @@ export default function ChallengesClient() {
           </div>
         </div>
       )}
-
-      {/* ── FTC Sim–style course tracks ───────────────────────────────────── */}
-      <div className="mb-8 flex flex-wrap gap-2">
-        {courseTrackOptions.map((track) => (
-          <button
-            key={track}
-            type="button"
-            onClick={() => setCourseTrackFilter(track)}
-            className={`rounded-full px-3 py-1 text-[11px] font-medium transition-all ${
-              courseTrackFilter === track
-                ? "bg-slate-700/90 text-slate-100 border border-slate-600/80"
-                : "bg-slate-900/60 text-slate-500 border border-slate-800/80 hover:text-slate-300"
-            }`}
-          >
-            {track === "all" ? "All tracks" : COURSE_TRACK_LABELS[track]}
-          </button>
-        ))}
-      </div>
 
       {/* ── Challenge grid by difficulty ──────────────────────────────────── */}
       {difficultyOrder.map((difficulty) => {

@@ -1,13 +1,9 @@
 import * as Blockly from "blockly/core";
 import {
   deviceDropdownOptions,
-  getColorSensorHardware,
   getCrServoHardware,
   getDcMotorHardware,
-  getDistanceSensorHardware,
-  getImuHardware,
   getServoHardware,
-  getTouchSensorHardware,
   hwToVar,
 } from "@/lib/blockly/deviceNames";
 
@@ -15,20 +11,12 @@ let challengeId = 1;
 let dcOptions: [string, string][] = deviceDropdownOptions(["drive_motor"]);
 let servoOptions: [string, string][] = deviceDropdownOptions(["blocker_servo"]);
 let crServoOptions: [string, string][] = deviceDropdownOptions(["intake_servo"]);
-let touchOptions: [string, string][] = deviceDropdownOptions(["touch_sensor"]);
-let distanceOptions: [string, string][] = deviceDropdownOptions(["distance_sensor"]);
-let colorOptions: [string, string][] = deviceDropdownOptions(["color_sensor"]);
-let imuOptions: [string, string][] = deviceDropdownOptions(["imu"]);
 
 export function configureDeviceFieldsForChallenge(id: number): void {
   challengeId = id;
   dcOptions = deviceDropdownOptions(getDcMotorHardware(id));
   servoOptions = deviceDropdownOptions(getServoHardware(id));
   crServoOptions = deviceDropdownOptions(getCrServoHardware(id));
-  touchOptions = deviceDropdownOptions(getTouchSensorHardware(id));
-  distanceOptions = deviceDropdownOptions(getDistanceSensorHardware(id));
-  colorOptions = deviceDropdownOptions(getColorSensorHardware(id));
-  imuOptions = deviceDropdownOptions(getImuHardware(id));
   if (servoOptions.length === 0 && crServoOptions.length === 0) {
     servoOptions = deviceDropdownOptions(["blocker_servo"]);
   }
@@ -40,15 +28,11 @@ export function configureDeviceFieldsForChallenge(id: number): void {
 function optionsForBlockType(type: string): [string, string][] {
   if (type.startsWith("ftc_cr_servo")) return crServoOptions;
   if (type.startsWith("ftc_servo")) return servoOptions;
-  if (type.startsWith("ftc_touch")) return touchOptions;
-  if (type.startsWith("ftc_distance")) return distanceOptions;
-  if (type.startsWith("ftc_color")) return colorOptions;
-  if (type.startsWith("ftc_imu")) return imuOptions;
   return dcOptions;
 }
 
 function applyDeviceField(block: Blockly.Block): void {
-  const deviceField = block.getField("DEVICE") ?? block.getField("HW");
+  const deviceField = block.getField("DEVICE");
   if (!(deviceField instanceof Blockly.FieldDropdown)) return;
 
   const opts = optionsForBlockType(block.type);
@@ -68,12 +52,9 @@ export function refreshDeviceFieldsInWorkspace(workspace: Blockly.Workspace): vo
   for (const block of workspace.getAllBlocks(false)) {
     if (
       block.type.startsWith("ftc_dc_motor") ||
+      block.type.startsWith("ftc_dc_motor_ex") ||
       block.type.startsWith("ftc_servo") ||
-      block.type.startsWith("ftc_cr_servo") ||
-      block.type.startsWith("ftc_touch") ||
-      block.type.startsWith("ftc_distance") ||
-      block.type.startsWith("ftc_color") ||
-      block.type.startsWith("ftc_imu")
+      block.type.startsWith("ftc_cr_servo")
     ) {
       applyDeviceField(block);
     }
@@ -102,12 +83,6 @@ export function registerDeviceFieldExtensions(): void {
   registerDeviceExtension("ftc_cr_servo_device_init", (t) =>
     t.startsWith("ftc_cr_servo")
   );
-  registerDeviceExtension("ftc_touch_device_init", (t) => t.startsWith("ftc_touch"));
-  registerDeviceExtension("ftc_distance_device_init", (t) =>
-    t.startsWith("ftc_distance")
-  );
-  registerDeviceExtension("ftc_color_device_init", (t) => t.startsWith("ftc_color"));
-  registerDeviceExtension("ftc_imu_device_init", (t) => t.startsWith("ftc_imu"));
 }
 
 /** Resolve Java variable name from a block's device field(s). */

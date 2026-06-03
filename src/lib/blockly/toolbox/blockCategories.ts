@@ -48,14 +48,4 @@ export const FTC_BLOCK_TYPES = {
   ],
   logic: ["logic_compare", "logic_operation", "logic_negate", "logic_boolean"],
   math: ["math_number", "math_arithmetic", "math_single"],
-  sensors: [
-    "ftc_touch_sensor_hw_get",
-    "ftc_touch_sensor_is_pressed",
-    "ftc_distance_sensor_hw_get",
-    "ftc_distance_sensor_cm",
-    "ftc_color_sensor_hw_get",
-    "ftc_color_sensor_red",
-    "ftc_imu_hw_get",
-    "ftc_imu_yaw_degrees",
-  ],
 } as const;
