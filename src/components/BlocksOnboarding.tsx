@@ -16,7 +16,7 @@ const STEPS = [
   },
   {
     title: "Generated Java",
-    body: "Your blocks translate to OnBot Java below. Run always grades this Java with the real compiler.",
+    body: "Your blocks translate to OnBot Java on the right. Run always grades this Java with the real compiler.",
   },
   {
     title: "Run",

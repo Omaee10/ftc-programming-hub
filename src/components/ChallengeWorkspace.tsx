@@ -1604,14 +1604,8 @@ export default function ChallengeWorkspace({
           <div className="flex min-w-0 flex-1 overflow-hidden">
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {editorMode === "blocks" ? (
-              <>
-                <div
-                  className={
-                    showBlocksJava
-                      ? "min-h-0 flex-[3] overflow-hidden"
-                      : "min-h-0 flex-1 overflow-hidden"
-                  }
-                >
+              <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
+                <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
                   <BlocklyWorkspacePanel
                     key={`${challenge.id}-${blockWorkspaceKey}`}
                     challenge={challenge}
@@ -1621,7 +1615,7 @@ export default function ChallengeWorkspace({
                   />
                 </div>
                 {showBlocksJava && (
-                  <div className="flex min-h-0 flex-[2] flex-col overflow-hidden border-t border-slate-800/80">
+                  <div className="flex min-h-0 w-[min(42%,520px)] min-w-[260px] shrink-0 flex-col overflow-hidden border-l border-slate-800/80">
                     <div className="flex h-7 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/90 px-3">
                       <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
                         Generated Java
@@ -1654,7 +1648,7 @@ export default function ChallengeWorkspace({
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             ) : (
             <div className="min-h-0 flex-1 overflow-hidden">
             <MonacoEditor
