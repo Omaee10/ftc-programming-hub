@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { EditorMode } from "@/lib/blockly/types";
+
+/** Above Blockly flyout/widget layers (Blockly uses up to ~100000). */
+const MODE_SWITCH_DIALOG_Z = 100_001;
 
 interface EditorModeSwitchProps {
   mode: EditorMode;
@@ -60,11 +64,12 @@ export function ModeSwitchDialog({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onCancel]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 flex items-center justify-center bg-black/60 p-4"
+      style={{ zIndex: MODE_SWITCH_DIALOG_Z }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="mode-switch-title"
@@ -99,6 +104,7 @@ export function ModeSwitchDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

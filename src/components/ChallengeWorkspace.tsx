@@ -1473,6 +1473,12 @@ export default function ChallengeWorkspace({
               mode={editorMode}
               onModeChange={requestEditorMode}
             />
+            <span
+              className="shrink-0 text-[10px] font-medium text-amber-400/90"
+              title="Blocks editor is still in testing"
+            >
+              (DO NOT CLICK BLOCK STILL TESTING)
+            </span>
             <span className="font-mono text-[11px] text-slate-600 truncate min-w-0">
               {editorMode === "java"
                 ? `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.java`
