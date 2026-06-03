@@ -63,7 +63,6 @@ import {
   getBlockStarterXml,
   isLegacyBlockXml,
 } from "@/data/blockStarters";
-import { resolveEditorModeForChallenge } from "@/lib/resolveEditorMode";
 
 // ─── Monaco loaded lazily (browser-only) ────────────────────────────────────
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -672,17 +671,26 @@ export default function ChallengeWorkspace({
     challenge.blocksGuideSteps ??
     challenge.objectives.slice(0, 5);
 
+  const defaultEditorModeForChallenge = (): EditorMode => {
+    if (blocksJavaOnly) return "java";
+    if (
+      challenge.blocksSupport === "full" &&
+      challenge.difficulty === "Beginner"
+    ) {
+      return "blocks";
+    }
+    return "java";
+  };
+
   const openingDraft = readCodeDraft(challenge.id);
   const [code, setCode] = useState(() =>
     chooseSavedCode(challenge.id, challenge.starterCode, null, null)
   );
-  const [editorMode, setEditorMode] = useState<EditorMode>(() =>
-    resolveEditorModeForChallenge(
-      challenge,
-      openingDraft,
-      challenge.starterCode
-    )
-  );
+  const [editorMode, setEditorMode] = useState<EditorMode>(() => {
+    const draftMode = openingDraft?.editorMode;
+    if (draftMode === "blocks" && blocksJavaOnly) return "java";
+    return draftMode ?? defaultEditorModeForChallenge();
+  });
   const [blockXml, setBlockXml] = useState(() => {
     const draft = openingDraft?.blockXml;
     if (draft && !isLegacyBlockXml(draft)) return draft;
@@ -831,9 +839,13 @@ export default function ChallengeWorkspace({
     const draft = readCodeDraft(challenge.id);
     setCode(restored);
     editorRef.current?.setValue(restored);
-    setEditorMode(
-      resolveEditorModeForChallenge(challenge, draft, challenge.starterCode)
-    );
+    if (draft?.editorMode) {
+      setEditorMode(
+        draft.editorMode === "blocks" && blocksJavaOnly ? "java" : draft.editorMode
+      );
+    } else {
+      setEditorMode(defaultEditorModeForChallenge());
+    }
     if (draft?.blockXml) setBlockXml(draft.blockXml);
     else setBlockXml(getBlockStarterXml(challenge.id));
     setBlockWorkspaceKey((k) => k + 1);
@@ -1481,13 +1493,6 @@ export default function ChallengeWorkspace({
 
         {/* ── RIGHT: Editor + Console ───────────────────────────────────── */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {editorMode === "blocks" && !blocksJavaOnly && (
-            <div className="flex shrink-0 items-center gap-2 border-b border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5">
-              <span className="text-[11px] font-medium text-indigo-300">
-                FTC Blocks — drag blocks from the toolbox; Java is generated for grading.
-              </span>
-            </div>
-          )}
           {/* Editor toolbar */}
           <div className="flex h-8 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/80 px-3">
             <EditorModeSwitch
@@ -1667,16 +1672,6 @@ export default function ChallengeWorkspace({
               />
             )}
           </div>
-          {editorMode === "blocks" && blocksGuideSteps.length > 0 && (
-            <div className="shrink-0 border-t border-indigo-500/20 bg-indigo-950/30 px-3 py-2 md:hidden">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-indigo-400/90 mb-1">
-                Blocks guide
-              </p>
-              <p className="text-[11px] text-slate-300 leading-snug">
-                {blocksGuideSteps[0]}
-              </p>
-            </div>
-          )}
 
           {/* ── Submit error banner ─────────────────────────────────────── */}
           {submitError && (

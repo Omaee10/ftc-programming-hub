@@ -14,7 +14,7 @@ export default function BlocksGuideRail({
   if (steps.length === 0) return null;
 
   return (
-    <div className="shrink-0 w-44 sm:w-52 border-l border-indigo-500/20 bg-indigo-950/20 p-3 overflow-y-auto hidden md:block">
+    <div className="shrink-0 w-52 border-l border-slate-800/80 bg-slate-900/40 p-3 overflow-y-auto hidden lg:block">
       <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500 mb-2">
         Blocks guide
       </p>
