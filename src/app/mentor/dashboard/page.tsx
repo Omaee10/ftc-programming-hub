@@ -30,6 +30,7 @@ import {
   fetchClassChallenges,
 } from "@/lib/classChallenges";
 import { challenges as staticChallenges } from "@/data/challenges";
+import { computeDisplayNumbers, rowToChallenge } from "@/lib/homeworkUtils";
 import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
@@ -348,7 +349,7 @@ function ChallengeMultiPicker({
   onSelectAll,
   onClear,
 }: {
-  options: { id: number; title: string }[];
+  options: { id: number; title: string; number?: number }[];
   selected: Set<number>;
   onToggle: (id: number) => void;
   onSelectAll: (ids: number[]) => void;
@@ -372,7 +373,10 @@ function ChallengeMultiPicker({
   const q = query.trim().toLowerCase();
   const filtered = q
     ? options.filter(
-        (c) => c.title.toLowerCase().includes(q) || String(c.id).includes(q)
+        (c) =>
+          c.title.toLowerCase().includes(q) ||
+          (c.number != null && String(c.number).includes(q)) ||
+          String(c.id).includes(q)
       )
     : options;
 
@@ -464,7 +468,7 @@ function ChallengeMultiPicker({
                         {isSel && <Check className="h-3 w-3" strokeWidth={3} />}
                       </span>
                       <span className="truncate">
-                        #{c.id} — {c.title}
+                        #{c.number ?? c.id} — {c.title}
                       </span>
                     </button>
                   </li>
@@ -489,18 +493,30 @@ function AssignHomeworkTab() {
   >([]);
   const [selectedChallenges, setSelectedChallenges] = useState<Set<number>>(new Set());
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [selectedAssignments, setSelectedAssignments] = useState<Set<string>>(new Set());
+  const [unassigning, setUnassigning] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  // Order the picker to match the public catalog: built-in challenges grouped
+  // by difficulty with their sequential display numbers, then any custom
+  // class challenges (by id) after.
+  const { displayNumbers, orderedChallenges } = computeDisplayNumbers(staticChallenges);
   const allChallengeOptions = [
-    ...staticChallenges.map((c) => ({ id: c.id, title: c.title })),
+    ...orderedChallenges.map((c) => ({
+      id: c.id,
+      title: c.title,
+      number: displayNumbers[c.id],
+    })),
     ...dbChallenges
       .filter((c) => !staticChallenges.find((s) => s.id === c.id))
-      .map((c) => ({ id: c.id, title: c.title })),
-  ].sort((a, b) => a.id - b.id);
+      .map(rowToChallenge)
+      .sort((a, b) => a.id - b.id)
+      .map((c) => ({ id: c.id, title: c.title, number: undefined as number | undefined })),
+  ];
 
   const load = useCallback(async () => {
     if (!session?.id) return;
@@ -622,16 +638,42 @@ function AssignHomeworkTab() {
     await load();
   };
 
-  const handleUnassign = async (assignmentId: string) => {
+  const toggleAssignment = (id: string) => {
+    setSelectedAssignments((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllAssignments = (ids: string[]) => {
+    setSelectedAssignments((prev) => {
+      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
+      return allSelected ? new Set() : new Set(ids);
+    });
+  };
+
+  const handleUnassign = async (assignmentIds: string[]) => {
+    if (assignmentIds.length === 0) return;
+    setUnassigning(true);
+    setError("");
+    setMessage("");
+
     const { error: delError } = await supabase
       .from("homework_assignments")
       .delete()
-      .eq("id", assignmentId);
+      .in("id", assignmentIds);
+
+    setUnassigning(false);
 
     if (delError) {
       setError(delError.message);
       return;
     }
+    const n = assignmentIds.length;
+    setMessage(`Unassigned ${n} assignment${n === 1 ? "" : "s"}.`);
+    setSelectedAssignments(new Set());
     await load();
   };
 
@@ -678,11 +720,11 @@ function AssignHomeworkTab() {
                       key={c.id}
                       className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800/70 py-0.5 pl-2 pr-1 text-[11px] text-slate-300"
                     >
-                      #{c.id}
+                      #{c.number ?? c.id}
                       <button
                         type="button"
                         onClick={() => toggleChallenge(c.id)}
-                        aria-label={`Remove challenge ${c.id}`}
+                        aria-label={`Remove challenge ${c.number ?? c.id}`}
                         className="flex h-3.5 w-3.5 items-center justify-center rounded-full text-slate-500 hover:bg-slate-700 hover:text-slate-200 transition-colors"
                       >
                         <X className="h-2.5 w-2.5" strokeWidth={3} />
@@ -777,9 +819,34 @@ function AssignHomeworkTab() {
 
       {/* Current assignments */}
       <div>
-        <h3 className="text-sm font-semibold text-slate-200 mb-3">
-          Current Assignments ({assignments.length})
-        </h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-200">
+            Current Assignments ({assignments.length})
+          </h3>
+          {selectedAssignments.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">
+                {selectedAssignments.size} selected
+              </span>
+              <button
+                type="button"
+                disabled={unassigning}
+                onClick={() => void handleUnassign(Array.from(selectedAssignments))}
+                className="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {unassigning ? "Unassigning…" : "Unassign selected"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedAssignments(new Set())}
+                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
         {assignments.length === 0 ? (
           <p className="text-sm text-slate-500 py-6 text-center rounded-lg border border-slate-800/60 bg-slate-900/40">
             No homework assigned yet.
@@ -790,6 +857,20 @@ function AssignHomeworkTab() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-800 bg-slate-900/60 text-left text-[11px] uppercase tracking-wider text-slate-500">
+                    <th className="px-4 py-3 font-medium w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all assignments"
+                        checked={
+                          assignments.length > 0 &&
+                          assignments.every((a) => selectedAssignments.has(a.id))
+                        }
+                        onChange={() =>
+                          toggleAllAssignments(assignments.map((a) => a.id))
+                        }
+                        className="rounded border-slate-600 align-middle"
+                      />
+                    </th>
                     <th className="px-4 py-3 font-medium">Student</th>
                     <th className="px-4 py-3 font-medium">Challenge</th>
                     <th className="px-4 py-3 font-medium">Due</th>
@@ -806,8 +887,21 @@ function AssignHomeworkTab() {
                           year: "numeric",
                         })
                       : "—";
+                    const isSel = selectedAssignments.has(a.id);
                     return (
-                      <tr key={a.id} className="bg-slate-900/20 hover:bg-slate-900/40">
+                      <tr
+                        key={a.id}
+                        className={isSel ? "bg-slate-800/40" : "bg-slate-900/20 hover:bg-slate-900/40"}
+                      >
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${a.studentName} — ${a.challengeTitle}`}
+                            checked={isSel}
+                            onChange={() => toggleAssignment(a.id)}
+                            className="rounded border-slate-600 align-middle"
+                          />
+                        </td>
                         <td className="px-4 py-3 text-slate-300">{a.studentName}</td>
                         <td className="px-4 py-3 text-slate-400">{a.challengeTitle}</td>
                         <td className="px-4 py-3 text-slate-500 text-xs">{dueLabel}</td>
@@ -824,8 +918,9 @@ function AssignHomeworkTab() {
                         <td className="px-4 py-3 text-right">
                           <button
                             type="button"
-                            onClick={() => void handleUnassign(a.id)}
-                            className="text-xs text-slate-600 hover:text-red-400 transition-colors"
+                            disabled={unassigning}
+                            onClick={() => void handleUnassign([a.id])}
+                            className="text-xs text-slate-600 hover:text-red-400 transition-colors disabled:opacity-50"
                           >
                             Unassign
                           </button>
