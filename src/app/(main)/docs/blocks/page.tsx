@@ -23,7 +23,7 @@ const BlocklyWorkspace = dynamic(() => import("@/components/BlocklyWorkspace"), 
 });
 
 // ── Category metadata ────────────────────────────────────────────────────────
-type CategoryId = "motors" | "servos" | "gamepad" | "telemetry" | "sensors" | "math";
+type CategoryId = "motors" | "servos" | "gamepad" | "telemetry" | "sensors" | "math" | "logic";
 
 const CATEGORIES: { id: CategoryId; label: string; intro: string }[] = [
   {
@@ -31,6 +31,12 @@ const CATEGORIES: { id: CategoryId; label: string; intro: string }[] = [
     label: "Math",
     intro:
       "Math blocks produce numeric values — plug them into any slot that expects a number. Use Negate on joystick Y-axes, Deadzone to eliminate stick drift, and max/min to clamp motor power to [−1, 1].",
+  },
+  {
+    id: "logic",
+    label: "Logic",
+    intro:
+      "Logic blocks control the flow of your program. Use If/Else to branch on conditions, Compare to check values, While (Custom Condition) to wait for events like encoder targets or sensor readings, and And/Not to combine conditions.",
   },
   {
     id: "motors",

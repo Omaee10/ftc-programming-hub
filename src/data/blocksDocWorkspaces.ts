@@ -601,6 +601,119 @@ export const DOC_WORKSPACES: Record<string, WorkspaceState> = {
     },
   },
 
+  // ── Logic ─────────────────────────────────────────────────────────────────
+  // if/else based on button + while_condition waiting for encoder move
+  logic: {
+    blocks: {
+      languageVersion: 0,
+      blocks: [
+        {
+          type: "ftc_runopmode",
+          x: 24,
+          y: 24,
+          deletable: false,
+          inputs: {
+            BODY: {
+              block: {
+                type: "ftc_get_hardware",
+                fields: { TYPE: "DcMotorEx", CONFIG: "arm", VAR: "arm" },
+                next: {
+                  block: {
+                    type: "ftc_init_telemetry",
+                    fields: { MSG: "Logic Example Ready" },
+                    next: {
+                      block: {
+                        type: "ftc_wait_for_start",
+                        next: {
+                          block: {
+                            type: "ftc_run_to_position",
+                            fields: { VAR: "arm" },
+                            inputs: {
+                              VALUE: { block: { type: "ftc_number", fields: { NUM: "600" } } },
+                              POWER: { block: { type: "ftc_number", fields: { NUM: "0.5" } } },
+                            },
+                            next: {
+                              block: {
+                                type: "ftc_while_condition",
+                                inputs: {
+                                  COND: { block: { type: "ftc_motor_isbusy", fields: { VAR: "arm" } } },
+                                  DO: {
+                                    block: {
+                                      type: "ftc_telemetry_add",
+                                      fields: { CAPTION: "Ticks" },
+                                      inputs: {
+                                        VALUE: { block: { type: "ftc_motor_position", fields: { VAR: "arm" } } },
+                                      },
+                                      next: { block: { type: "ftc_telemetry_update" } },
+                                    },
+                                  },
+                                },
+                                next: {
+                                  block: {
+                                    type: "ftc_set_power",
+                                    fields: { VAR: "arm" },
+                                    inputs: { VALUE: { block: { type: "ftc_number", fields: { NUM: "0" } } } },
+                                    next: {
+                                      block: {
+                                        type: "ftc_while_active",
+                                        inputs: {
+                                          DO: {
+                                            block: {
+                                              type: "ftc_if",
+                                              inputs: {
+                                                COND: {
+                                                  block: {
+                                                    type: "ftc_compare",
+                                                    fields: { OP: ">" },
+                                                    inputs: {
+                                                      A: { block: { type: "ftc_motor_position", fields: { VAR: "arm" } } },
+                                                      B: { block: { type: "ftc_number", fields: { NUM: "500" } } },
+                                                    },
+                                                  },
+                                                },
+                                                DO: {
+                                                  block: {
+                                                    type: "ftc_telemetry_add",
+                                                    fields: { CAPTION: "Status" },
+                                                    inputs: {
+                                                      VALUE: { block: { type: "ftc_boolean", fields: { BOOL: "true" } } },
+                                                    },
+                                                  },
+                                                },
+                                                ELSE: {
+                                                  block: {
+                                                    type: "ftc_telemetry_add",
+                                                    fields: { CAPTION: "Status" },
+                                                    inputs: {
+                                                      VALUE: { block: { type: "ftc_boolean", fields: { BOOL: "false" } } },
+                                                    },
+                                                  },
+                                                },
+                                              },
+                                              next: { block: { type: "ftc_telemetry_update" } },
+                                            },
+                                          },
+                                        },
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
+  },
+
   // ── Math ──────────────────────────────────────────────────────────────────
   // Deadzone on both axes + clamp via max/min + ternary for slow mode
   math: {

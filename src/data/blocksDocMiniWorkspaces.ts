@@ -203,4 +203,47 @@ export const MINI_WORKSPACES: Record<string, WorkspaceState> = {
       B: { block: { type: "ftc_number", fields: { NUM: "0.0" } } },
     },
   }),
+
+  // ── Logic ────────────────────────────────────────────────────────────────
+
+  logic_if: ws({
+    type: "ftc_if",
+    inputs: {
+      COND: { block: { type: "ftc_gamepad_button", fields: { PAD: "gamepad1", BTN: "a" } } },
+      DO: { block: { type: "ftc_set_power", fields: { VAR: "motor" }, inputs: { VALUE: { block: { type: "ftc_number", fields: { NUM: "0.5" } } } } } },
+      ELSE: { block: { type: "ftc_set_power", fields: { VAR: "motor" }, inputs: { VALUE: { block: { type: "ftc_number", fields: { NUM: "0.0" } } } } } },
+    },
+  }),
+
+  logic_while: ws({
+    type: "ftc_while_condition",
+    inputs: {
+      COND: { block: { type: "ftc_motor_isbusy", fields: { VAR: "motor" } } },
+      DO: { block: { type: "ftc_idle" } },
+    },
+  }),
+
+  logic_compare: ws({
+    type: "ftc_compare",
+    fields: { OP: "<" },
+    inputs: {
+      A: { block: { type: "ftc_motor_position", fields: { VAR: "motor" } } },
+      B: { block: { type: "ftc_number", fields: { NUM: "500" } } },
+    },
+  }),
+
+  logic_and: ws({
+    type: "ftc_and",
+    inputs: {
+      A: { block: { type: "ftc_gamepad_button", fields: { PAD: "gamepad1", BTN: "a" } } },
+      B: { block: { type: "ftc_touch_pressed", fields: { VAR: "limitSwitch" } } },
+    },
+  }),
+
+  logic_not: ws({
+    type: "ftc_not",
+    inputs: {
+      VALUE: { block: { type: "ftc_motor_isbusy", fields: { VAR: "motor" } } },
+    },
+  }),
 };

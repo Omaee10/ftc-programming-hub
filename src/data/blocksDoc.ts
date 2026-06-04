@@ -192,6 +192,126 @@ export const BLOCKS_DOC: DocCategory[] = [
     ],
   },
   {
+    id: "logic",
+    label: "Logic",
+    colour: "#5b80a5",
+    blocks: [
+      {
+        name: "If / Else",
+        description:
+          "Runs the DO branch when the condition is true, and the ELSE branch when it is false. Leave the else branch empty if you only need one path.",
+        example: "if (gamepad1.a) {\n  motor.setPower(0.5);\n} else {\n  motor.setPower(0.0);\n}",
+        miniWorkspaceKey: "logic_if",
+      },
+      {
+        name: "While (Custom Condition)",
+        description:
+          "Repeats a block of code as long as a condition AND opModeIsActive() are both true. Use this to wait for an encoder move to finish or a sensor threshold to be reached.",
+        example: "while (motor.isBusy() && opModeIsActive()) {\n  idle();\n}",
+        miniWorkspaceKey: "logic_while",
+      },
+      {
+        name: "Compare",
+        description:
+          "Compares two values and returns true or false. Operators: < (less than), > (greater than), ≤, ≥, = (equal), ≠ (not equal). Use inside If conditions or While loops.",
+        example: "if (motor.getCurrentPosition() > 500) { ... }",
+        miniWorkspaceKey: "logic_compare",
+      },
+      {
+        name: "And",
+        description:
+          "Returns true only when both connected conditions are true. Useful for requiring multiple buttons pressed simultaneously or combining a sensor check with a button.",
+        example: "if (gamepad1.a && touchSensor.isPressed()) { ... }",
+        miniWorkspaceKey: "logic_and",
+      },
+      {
+        name: "Not",
+        description:
+          "Inverts a boolean — true becomes false and false becomes true. Use to wait until a condition is no longer true, e.g. while the motor is NOT busy.",
+        example: "if (!motor.isBusy()) { motor.setPower(0); }",
+        miniWorkspaceKey: "logic_not",
+      },
+    ],
+    challenges: [
+      {
+        prompt:
+          "Use an If/Else block to set the arm motor to 0.6 power when button A is pressed and 0.0 otherwise. Run this inside the main loop.",
+        hint: "If block: condition = Gamepad Button A, DO = Set Power 0.6, ELSE = Set Power 0.0. Nest everything inside while active.",
+        starterWorkspace: {
+          blocks: {
+            languageVersion: 0,
+            blocks: [
+              {
+                type: "ftc_runopmode",
+                x: 24, y: 24, deletable: false,
+                inputs: {
+                  BODY: {
+                    block: {
+                      type: "ftc_get_hardware",
+                      fields: { TYPE: "DcMotorEx", CONFIG: "arm", VAR: "arm" },
+                      next: {
+                        block: {
+                          type: "ftc_init_telemetry",
+                          fields: { MSG: "Ready" },
+                          next: {
+                            block: {
+                              type: "ftc_wait_for_start",
+                              next: {
+                                block: {
+                                  type: "ftc_while_active",
+                                  inputs: {
+                                    DO: { block: { type: "ftc_if" } },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        prompt:
+          "Drive the arm motor to position 800 using Run to Position, then use a While (Custom Condition) loop with isBusy to wait until it arrives. Cut power to 0 after.",
+        hint: "Run to Position → While Condition (isBusy in the condition, idle inside) → Set Power 0.",
+        starterWorkspace: {
+          blocks: {
+            languageVersion: 0,
+            blocks: [
+              {
+                type: "ftc_runopmode",
+                x: 24, y: 24, deletable: false,
+                inputs: {
+                  BODY: {
+                    block: {
+                      type: "ftc_get_hardware",
+                      fields: { TYPE: "DcMotorEx", CONFIG: "arm", VAR: "arm" },
+                      next: {
+                        block: {
+                          type: "ftc_init_telemetry",
+                          fields: { MSG: "Ready" },
+                          next: {
+                            block: { type: "ftc_wait_for_start" },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ],
+  },
+  {
     id: "motors",
     label: "Motors",
     colour: "#5ba55b",
