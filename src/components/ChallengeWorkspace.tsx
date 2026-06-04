@@ -719,6 +719,29 @@ export default function ChallengeWorkspace({
     });
   }, []);
 
+  // Switching Blocks → Java with conversion: compile the current block layout to
+  // Java (the same generator the grader uses) and load it into the Java editor,
+  // replacing whatever was there before.
+  const convertBlocksToJava = useCallback(async () => {
+    if (blocksConfig) {
+      try {
+        const { generateJava } = await import("@/lib/blockly/javaGenerator");
+        const generated = generateJava(
+          blockStateRef.current ?? blocksConfig.starter,
+          blocksConfig.frame
+        );
+        setCode(generated);
+        editorRef.current?.setValue(generated);
+        saveCodeDraft(challenge.id, generated);
+        void saveCode(generated);
+      } catch {
+        // If generation fails, fall back to keeping the existing Java code.
+      }
+    }
+    setPendingMode(null);
+    setEditorMode("java");
+  }, [blocksConfig, challenge.id, saveCode]);
+
   // Initial Blockly state: saved draft (client) or the challenge starter layout.
   const blocksInitialState = useMemo<WorkspaceState | null>(() => {
     if (!blocksConfig) return null;
@@ -1614,26 +1637,56 @@ export default function ChallengeWorkspace({
                   <h3 className="text-sm font-semibold text-slate-100">
                     Switch to {pendingMode === "blocks" ? "FTC Blocks" : "OnBot Java"}?
                   </h3>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                    Your{" "}
-                    {pendingMode === "blocks" ? "OnBot Java code" : "block layout"} is
-                    saved separately and will still be here when you switch back. The
-                    two modes do not share or convert each other&apos;s work.
-                  </p>
-                  <div className="mt-4 flex justify-end gap-2">
-                    <button
-                      onClick={() => setPendingMode(null)}
-                      className="rounded-md px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={confirmModeSwitch}
-                      className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-amber-400"
-                    >
-                      Switch
-                    </button>
-                  </div>
+                  {pendingMode === "blocks" ? (
+                    <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                      Your OnBot Java code is saved separately and will still be
+                      here when you switch back. The two modes do not share or
+                      convert each other&apos;s work.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                      You can convert your block layout into Java code, or keep
+                      the Java code you already have. Your block layout is saved
+                      separately and will still be here when you switch back.
+                    </p>
+                  )}
+                  {pendingMode === "java" ? (
+                    <div className="mt-4 flex flex-col gap-2">
+                      <button
+                        onClick={convertBlocksToJava}
+                        className="rounded-md bg-amber-500 px-3 py-2 text-xs font-medium text-slate-950 hover:bg-amber-400"
+                      >
+                        Convert blocks to Java
+                      </button>
+                      <button
+                        onClick={confirmModeSwitch}
+                        className="rounded-md border border-slate-700 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800"
+                      >
+                        Keep my Java code
+                      </button>
+                      <button
+                        onClick={() => setPendingMode(null)}
+                        className="rounded-md px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex justify-end gap-2">
+                      <button
+                        onClick={() => setPendingMode(null)}
+                        className="rounded-md px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={confirmModeSwitch}
+                        className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-amber-400"
+                      >
+                        Switch
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>,
               document.body
