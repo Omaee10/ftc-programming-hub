@@ -17,15 +17,100 @@ export interface BlockDoc {
   miniWorkspaceKey?: string;
 }
 
+export interface DocQuestion {
+  prompt: string;
+  options: string[];
+  /** Zero-based index of the correct option. */
+  correctIndex: number;
+  /** Short explanation shown after an answer is selected. */
+  explanation: string;
+}
+
 export interface DocCategory {
   id: string;
   label: string;
   /** Hex colour used for the left-border accent. */
   colour: string;
   blocks: BlockDoc[];
+  /** Two review questions shown at the bottom of the category panel. */
+  questions: DocQuestion[];
 }
 
 export const BLOCKS_DOC: DocCategory[] = [
+  {
+    id: "math",
+    label: "Math",
+    colour: "#a55b5b",
+    blocks: [
+      {
+        name: "Number",
+        description:
+          "A literal numeric value used as an input to other blocks. You can type any integer or decimal.",
+        example: "double speed = 0.8;",
+        miniWorkspaceKey: "math_number",
+      },
+      {
+        name: "Arithmetic",
+        description:
+          "Adds, subtracts, multiplies, or divides two numbers. Choose the operator from the dropdown on the block.",
+        example: "double result = a + b;\ndouble product = a * b;",
+        miniWorkspaceKey: "math_arith",
+      },
+      {
+        name: "Negate",
+        description:
+          "Flips the sign of a number — positive becomes negative and vice versa. Use this to reverse a gamepad axis or motor direction.",
+        example: "double power = -gamepad1.left_stick_y;",
+        miniWorkspaceKey: "math_negate",
+      },
+      {
+        name: "Math Function (Unary)",
+        description:
+          "Applies a single-input math function to a value. Available functions: abs (absolute value), sqrt (square root), floor, ceil, round.",
+        example: "double a = Math.abs(-0.5);  // → 0.5\ndouble b = Math.sqrt(9.0); // → 3.0",
+        miniWorkspaceKey: "math_unary",
+      },
+      {
+        name: "Math Function (Binary)",
+        description:
+          "Applies a two-input math function. Available functions: max (larger of two), min (smaller of two), pow (raise to a power).",
+        example: "double clamped = Math.max(-1.0, Math.min(1.0, power));",
+        miniWorkspaceKey: "math_binary",
+      },
+      {
+        name: "Deadzone",
+        description:
+          "Returns 0 if the input is within ±threshold of zero, otherwise passes the value through unchanged. Prevents motors from creeping when a joystick is resting at a non-zero idle position.",
+        example: "double out = Math.abs(x) > 0.05 ? x : 0.0;",
+        miniWorkspaceKey: "math_deadzone",
+      },
+      {
+        name: "Ternary",
+        description:
+          "Returns one of two values based on a condition — a compact single-line if/else. If the condition is true the first value is used; otherwise the second.",
+        example: "double power = triggered ? 0.8 : 0.0;",
+        miniWorkspaceKey: "math_ternary",
+      },
+    ],
+    questions: [
+      {
+        prompt:
+          "The left stick Y axis returns −0.9 when pushed forward. What block fixes this so the motor drives forward?",
+        options: ["Arithmetic", "Negate", "Deadzone", "Ternary"],
+        correctIndex: 1,
+        explanation:
+          "Negate flips the sign: −(−0.9) = 0.9, giving positive (forward) power. FTC inverts all Y-axes, so Negate is always needed on stick Y values.",
+      },
+      {
+        prompt:
+          "A joystick sitting at rest reads 0.03 instead of 0.0, causing the motor to creep. Which block eliminates this?",
+        options: ["Negate", "Arithmetic", "Ternary", "Deadzone"],
+        correctIndex: 3,
+        explanation:
+          "Deadzone returns 0 when the input is within ±threshold of zero. Setting the threshold to 0.05 means tiny resting drift values are treated as zero, stopping the creep.",
+      },
+    ],
+  },
   {
     id: "motors",
     label: "Motors",
@@ -95,6 +180,34 @@ export const BLOCKS_DOC: DocCategory[] = [
         miniWorkspaceKey: "motor_set_velocity",
       },
     ],
+    questions: [
+      {
+        prompt:
+          "A student puts hardwareMap.get() inside the while(opModeIsActive()) loop. What is wrong?",
+        options: [
+          "Nothing — it works fine anywhere",
+          "It wastes time re-mapping hardware every frame instead of once during init",
+          "hardwareMap only works after waitForStart()",
+          "The motor name must be uppercase",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Hardware should be mapped once during initialization (before waitForStart). Doing it every loop wastes time and is not how the FTC SDK is designed — map it once, then use it throughout the match.",
+      },
+      {
+        prompt:
+          "After a Run to Position move finishes (isBusy returns false), what must you do next?",
+        options: [
+          "Call resetEncoder() immediately",
+          "Call waitForStart() again",
+          "Set motor power to 0",
+          "Nothing — the motor stops itself",
+        ],
+        correctIndex: 2,
+        explanation:
+          "After the motor reaches its target, you must call setPower(0). Without it the motor stays energized against the end stop, drawing excess current and potentially overheating.",
+      },
+    ],
   },
   {
     id: "servos",
@@ -114,6 +227,32 @@ export const BLOCKS_DOC: DocCategory[] = [
           "Spins a continuous-rotation servo like a motor. Use 1.0 for full forward, −1.0 for full reverse, and 0.0 to stop. CRServos do not have position control.",
         example: "crServo.setPower(1.0);",
         miniWorkspaceKey: "servo_set_power",
+      },
+    ],
+    questions: [
+      {
+        prompt: "A student calls servo.setPosition(180) expecting 180°. What actually happens?",
+        options: [
+          "The servo moves to 180 degrees",
+          "The SDK clamps it to 1.0 (full range end) silently",
+          "A runtime error is thrown",
+          "The servo moves to the midpoint (0.5)",
+        ],
+        correctIndex: 1,
+        explanation:
+          "setPosition() accepts values from 0.0 to 1.0 — not degrees. Values above 1.0 are silently clamped to 1.0, so the servo moves to its maximum position rather than 180° of rotation.",
+      },
+      {
+        prompt: "You want to spin an intake continuously. Which servo type and method is correct?",
+        options: [
+          "Servo — setPosition(0.5)",
+          "Servo — setPower(1.0)",
+          "CRServo — setPosition(0.5)",
+          "CRServo — setPower(1.0)",
+        ],
+        correctIndex: 3,
+        explanation:
+          "CRServo (continuous rotation servo) spins like a motor and is controlled with setPower(). Standard Servo uses setPosition() for fixed angles. Using the wrong type or method will cause a compile error.",
       },
     ],
   },
@@ -179,6 +318,34 @@ export const BLOCKS_DOC: DocCategory[] = [
         miniWorkspaceKey: "gamepad_dpad",
       },
     ],
+    questions: [
+      {
+        prompt:
+          "A student checks `if (gamepad1.a)` to toggle an intake on/off. The intake flickers rapidly when A is held. What is missing?",
+        options: [
+          "The button should use gamepad2 instead",
+          "Edge detection — toggle only when A is newly pressed, not every frame",
+          "A sleep(500) call after the toggle",
+          "The intake variable should be declared inside the loop",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Without edge detection, the toggle fires ~50 times per second while the button is held. Fix: check `gamepad1.a && !lastA` (rising edge only) and update `lastA = gamepad1.a` at the end of each loop.",
+      },
+      {
+        prompt:
+          "A student writes `if (gamepad1.right_trigger == 1.0)` to run the intake. The intake almost never activates. Why?",
+        options: [
+          "Triggers are boolean, not float",
+          "Triggers return a float 0.0–1.0; == 1.0 rarely matches due to floating-point imprecision",
+          "right_trigger is spelled wrong",
+          "Triggers only work on gamepad2",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Analog triggers return a float between 0.0 and 1.0. Comparing with == 1.0 requires an exact full press with no floating-point tolerance. Use > 0.05 (or similar threshold) to detect any meaningful press.",
+      },
+    ],
   },
   {
     id: "telemetry",
@@ -205,6 +372,33 @@ export const BLOCKS_DOC: DocCategory[] = [
           "Flushes all queued lines to the Driver Station screen. Call once at the end of every loop iteration. Without this, addData has no visible effect.",
         example: "telemetry.update();",
         miniWorkspaceKey: "telemetry_update",
+      },
+    ],
+    questions: [
+      {
+        prompt:
+          "A student calls telemetry.addData(\"Speed\", power) inside the loop but the Driver Station screen stays blank. What is missing?",
+        options: [
+          "The label \"Speed\" must be uppercase",
+          "telemetry.update() is never called, so the buffer is never flushed",
+          "addData must be called before waitForStart()",
+          "power must be cast to String first",
+        ],
+        correctIndex: 1,
+        explanation:
+          "addData() only buffers lines — nothing appears on the Driver Station until telemetry.update() is called. Always end each loop iteration with telemetry.update().",
+      },
+      {
+        prompt: "Where should telemetry.update() be placed for live match data?",
+        options: [
+          "Once after the while loop ends",
+          "Before waitForStart()",
+          "At the end of every while(opModeIsActive()) iteration",
+          "At the very top of runOpMode()",
+        ],
+        correctIndex: 2,
+        explanation:
+          "Calling update() inside the loop refreshes the Driver Station screen every frame. Calling it after the loop means the screen only updates once — after the match is already over.",
       },
     ],
   },
@@ -240,60 +434,32 @@ export const BLOCKS_DOC: DocCategory[] = [
           "YawPitchRollAngles angles = imu.getRobotYawPitchRollAngles();\ndouble heading = angles.getYaw(AngleUnit.DEGREES);",
       },
     ],
-  },
-  {
-    id: "math",
-    label: "Math",
-    colour: "#a55b5b",
-    blocks: [
+    questions: [
       {
-        name: "Number",
-        description:
-          "A literal numeric value used as an input to other blocks. You can type any integer or decimal.",
-        example: "double speed = 0.8;",
-        miniWorkspaceKey: "math_number",
+        prompt:
+          "A student checks `if (touchSensor.isPressed())` once outside the loop. It works once but never updates. What is wrong?",
+        options: [
+          "isPressed() can only be called during init",
+          "Sensor reads must be inside the while(opModeIsActive()) loop to update every frame",
+          "The sensor variable must be re-initialized each loop",
+          "touchSensor requires DcMotorEx to work",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Sensor reads are live values — they must be inside the loop to reflect the current state every frame. Reading outside the loop captures a single snapshot that never changes.",
       },
       {
-        name: "Arithmetic",
-        description:
-          "Adds, subtracts, multiplies, or divides two numbers. Choose the operator from the dropdown on the block.",
-        example: "double result = a + b;\ndouble product = a * b;",
-        miniWorkspaceKey: "math_arith",
-      },
-      {
-        name: "Negate",
-        description:
-          "Flips the sign of a number — positive becomes negative and vice versa. Use this to reverse a gamepad axis or motor direction.",
-        example: "double power = -gamepad1.left_stick_y;",
-        miniWorkspaceKey: "math_negate",
-      },
-      {
-        name: "Math Function (Unary)",
-        description:
-          "Applies a single-input math function to a value. Available functions: abs (absolute value), sqrt (square root), floor, ceil, round.",
-        example: "double a = Math.abs(-0.5);  // → 0.5\ndouble b = Math.sqrt(9.0); // → 3.0",
-        miniWorkspaceKey: "math_unary",
-      },
-      {
-        name: "Math Function (Binary)",
-        description:
-          "Applies a two-input math function. Available functions: max (larger of two), min (smaller of two), pow (raise to a power).",
-        example: "double clamped = Math.max(-1.0, Math.min(1.0, power));",
-        miniWorkspaceKey: "math_binary",
-      },
-      {
-        name: "Deadzone",
-        description:
-          "Returns 0 if the input is within ±threshold of zero, otherwise passes the value through unchanged. Prevents motors from creeping when a joystick is resting at a non-zero idle position.",
-        example: "double out = Math.abs(x) > 0.05 ? x : 0.0;",
-        miniWorkspaceKey: "math_deadzone",
-      },
-      {
-        name: "Ternary",
-        description:
-          "Returns one of two values based on a condition — a compact single-line if/else. If the condition is true the first value is used; otherwise the second.",
-        example: "double power = triggered ? 0.8 : 0.0;",
-        miniWorkspaceKey: "math_ternary",
+        prompt:
+          "The color sensor returns wrong values even though it is wired correctly. What should you check first?",
+        options: [
+          "Whether the sensor's LED is enabled",
+          "Whether the motor is braking",
+          "Whether waitForStart() was called twice",
+          "Whether telemetry.update() is missing",
+        ],
+        correctIndex: 0,
+        explanation:
+          "The REV color sensor measures reflected light. If the built-in LED is off, the sensor has no light source and will return inaccurate or near-zero readings. Call colorSensor.enableLed(true) during initialization.",
       },
     ],
   },

@@ -4,6 +4,7 @@ import {
   useState,
   useRef,
   useEffect,
+  useCallback,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import dynamic from "next/dynamic";
@@ -26,6 +27,12 @@ const BlocklyWorkspace = dynamic(() => import("@/components/BlocklyWorkspace"), 
 type CategoryId = "motors" | "servos" | "gamepad" | "telemetry" | "sensors" | "math";
 
 const CATEGORIES: { id: CategoryId; label: string; intro: string }[] = [
+  {
+    id: "math",
+    label: "Math",
+    intro:
+      "Math blocks produce numeric values — plug them into any slot that expects a number. Use Negate on joystick Y-axes, Deadzone to eliminate stick drift, and max/min to clamp motor power to [−1, 1].",
+  },
   {
     id: "motors",
     label: "Motors",
@@ -56,17 +63,11 @@ const CATEGORIES: { id: CategoryId; label: string; intro: string }[] = [
     intro:
       "Sensor blocks read physical hardware attached to the Control Hub. Retrieve each sensor with a Get Hardware block during init, then read it inside the loop. Hardware names must exactly match the Driver Station robot configuration.",
   },
-  {
-    id: "math",
-    label: "Math",
-    intro:
-      "Math blocks produce numeric values — plug them into any slot that expects a number. Use Negate on joystick Y-axes, Deadzone to eliminate stick drift, and max/min to clamp motor power to [−1, 1].",
-  },
 ];
 
 // ── Page component ────────────────────────────────────────────────────────────
 export default function BlocksDocsPage() {
-  const [activeCategory, setActiveCategory] = useState<CategoryId>("motors");
+  const [activeCategory, setActiveCategory] = useState<CategoryId>("math");
 
   // ── Resizable split (mirrors ChallengeWorkspace) ─────────────────────────
   const [leftPct, setLeftPct] = useState(42);
@@ -99,6 +100,17 @@ export default function BlocksDocsPage() {
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
   };
+
+  // ── Question answer state: "catId_qIdx" → selected option index ──────────
+  const [answers, setAnswers] = useState<Record<string, number>>({});
+
+  const answerQuestion = useCallback((catId: string, qIdx: number, optIdx: number) => {
+    setAnswers((prev) => {
+      const key = `${catId}_${qIdx}`;
+      if (key in prev) return prev; // already answered — lock it
+      return { ...prev, [key]: optIdx };
+    });
+  }, []);
 
   const category = CATEGORIES.find((c) => c.id === activeCategory)!;
   const docData = BLOCKS_DOC.find((d) => d.id === activeCategory);
@@ -212,6 +224,71 @@ export default function BlocksDocsPage() {
                               onChange={() => {}}
                             />
                           </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── Quick check questions ────────────────────────────────── */}
+            {docData?.questions && docData.questions.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                  Quick check
+                </p>
+                {docData.questions.map((q, qIdx) => {
+                  const key = `${activeCategory}_${qIdx}`;
+                  const selected = answers[key];
+                  const answered = selected !== undefined;
+                  const correct = q.correctIndex;
+                  return (
+                    <div
+                      key={key}
+                      className="rounded-lg border border-slate-800/60 bg-slate-900/30 overflow-hidden"
+                    >
+                      <div className="px-3 py-2.5 space-y-2">
+                        <p className="text-[11px] font-medium text-slate-300 leading-relaxed">
+                          {q.prompt}
+                        </p>
+                        <div className="space-y-1.5">
+                          {q.options.map((opt, oIdx) => {
+                            let optStyle =
+                              "w-full text-left rounded px-2.5 py-1.5 text-[10px] leading-snug border transition-colors ";
+                            if (!answered) {
+                              optStyle +=
+                                "border-slate-700/60 bg-slate-800/40 text-slate-400 hover:border-slate-600 hover:text-slate-300 cursor-pointer";
+                            } else if (oIdx === correct) {
+                              optStyle +=
+                                "border-emerald-700/60 bg-emerald-950/40 text-emerald-300 cursor-default";
+                            } else if (oIdx === selected) {
+                              optStyle +=
+                                "border-red-700/60 bg-red-950/40 text-red-400 cursor-default";
+                            } else {
+                              optStyle +=
+                                "border-slate-800/40 bg-slate-900/20 text-slate-600 cursor-default";
+                            }
+                            return (
+                              <button
+                                key={oIdx}
+                                className={optStyle}
+                                onClick={() => answerQuestion(activeCategory, qIdx, oIdx)}
+                                disabled={answered}
+                              >
+                                <span className="mr-2 font-mono text-[9px] opacity-60">
+                                  {String.fromCharCode(65 + oIdx)}.
+                                </span>
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {answered && (
+                          <p className="text-[10px] leading-relaxed text-slate-500 border-t border-slate-800/60 pt-2">
+                            <span className="font-semibold text-slate-400">Explanation: </span>
+                            {q.explanation}
+                          </p>
                         )}
                       </div>
                     </div>
