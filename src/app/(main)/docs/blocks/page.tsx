@@ -108,9 +108,20 @@ export default function BlocksDocsPage() {
     setHintOpen((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // ── Expanded challenge in the right panel ─────────────────────────────────
+  const [expandedChallenge, setExpandedChallenge] = useState<{
+    catId: string;
+    cIdx: number;
+  } | null>(null);
+
   const category = CATEGORIES.find((c) => c.id === activeCategory)!;
   const docData = BLOCKS_DOC.find((d) => d.id === activeCategory);
   const workspace = DOC_WORKSPACES[activeCategory];
+
+  const expandedDoc = expandedChallenge
+    ? BLOCKS_DOC.find((d) => d.id === expandedChallenge.catId)
+    : null;
+  const expandedChallengeData = expandedDoc?.challenges[expandedChallenge?.cIdx ?? 0];
 
   return (
     <div
@@ -236,22 +247,49 @@ export default function BlocksDocsPage() {
                 </p>
                 {docData.challenges.map((challenge, cIdx) => {
                   const hintKey = `${activeCategory}_${cIdx}`;
+                  const isExpanded =
+                    expandedChallenge?.catId === activeCategory &&
+                    expandedChallenge.cIdx === cIdx;
                   return (
                     <div
                       key={hintKey}
-                      className="rounded-lg border border-slate-800/60 overflow-hidden"
+                      className={`rounded-lg border overflow-hidden transition-colors ${
+                        isExpanded
+                          ? "border-zinc-500/60 bg-slate-900/60"
+                          : "border-slate-800/60"
+                      }`}
                     >
                       {/* Challenge header */}
                       <div
                         className="px-3 py-2 border-b border-slate-800/60 bg-slate-900/50"
                         style={{ borderLeftColor: docData.colour, borderLeftWidth: 3 }}
                       >
-                        <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-1">
-                          Challenge {cIdx + 1}
-                        </p>
-                        <p className="text-[11px] leading-relaxed text-slate-300">
-                          {challenge.prompt}
-                        </p>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-1">
+                              Challenge {cIdx + 1}
+                            </p>
+                            <p className="text-[11px] leading-relaxed text-slate-300">
+                              {challenge.prompt}
+                            </p>
+                          </div>
+                          {/* Open in right panel button */}
+                          <button
+                            onClick={() =>
+                              setExpandedChallenge(
+                                isExpanded ? null : { catId: activeCategory, cIdx }
+                              )
+                            }
+                            className={`shrink-0 mt-0.5 rounded px-2 py-1 text-[10px] font-medium border transition-colors ${
+                              isExpanded
+                                ? "border-zinc-600 bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60"
+                                : "border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-500 hover:text-slate-300"
+                            }`}
+                            title={isExpanded ? "Collapse" : "Open full workspace on the right"}
+                          >
+                            {isExpanded ? "↙ Close" : "↗ Open"}
+                          </button>
+                        </div>
                         {challenge.hint && (
                           <div className="mt-1.5">
                             <button
@@ -267,22 +305,6 @@ export default function BlocksDocsPage() {
                             )}
                           </div>
                         )}
-                      </div>
-                      {/* Editable Blockly workspace */}
-                      <div style={{ height: 260 }}>
-                        <BlocklyWorkspace
-                          key={`challenge_${activeCategory}_${cIdx}`}
-                          toolbox={FULL_TOOLBOX}
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          initialState={challenge.starterWorkspace as any}
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          starterState={challenge.starterWorkspace as any}
-                          resetSignal={0}
-                          dark={true}
-                          visible={true}
-                          readOnly={false}
-                          onChange={() => {}}
-                        />
                       </div>
                     </div>
                   );
@@ -302,34 +324,71 @@ export default function BlocksDocsPage() {
           <div className="h-8 w-0.5 rounded-full bg-slate-700 group-hover:bg-zinc-200/60 transition-colors" />
         </div>
 
-        {/* ── RIGHT: Blockly workspace ───────────────────────────────────── */}
+        {/* ── RIGHT: example or expanded challenge workspace ─────────────── */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {/* Toolbar */}
-          <div className="flex h-8 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/80 px-3">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
-              Example — read only
-            </span>
-            <span className="ml-auto text-[10px] text-slate-700">
-              Switch category on the left to see different blocks
-            </span>
-          </div>
-
-          {/* Blockly canvas */}
-          <div className="min-h-0 flex-1">
-            {workspace && (
-              <BlocklyWorkspace
-                key={activeCategory}
-                toolbox={FULL_TOOLBOX}
-                initialState={workspace}
-                starterState={workspace}
-                resetSignal={0}
-                dark={true}
-                visible={true}
-                readOnly={true}
-                onChange={() => {}}
-              />
-            )}
-          </div>
+          {expandedChallengeData ? (
+            <>
+              {/* Challenge mode toolbar */}
+              <div className="flex h-8 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/80 px-3">
+                <span className="text-[10px] font-medium uppercase tracking-widest text-zinc-400">
+                  Challenge {(expandedChallenge?.cIdx ?? 0) + 1} — {expandedDoc?.label}
+                </span>
+                <span className="ml-auto text-[10px] text-slate-600 italic truncate max-w-xs">
+                  {expandedChallengeData.prompt.slice(0, 60)}…
+                </span>
+                <button
+                  onClick={() => setExpandedChallenge(null)}
+                  className="shrink-0 ml-2 rounded px-2 py-0.5 text-[10px] border border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 transition-colors"
+                >
+                  ← Example
+                </button>
+              </div>
+              {/* Editable challenge workspace */}
+              <div className="min-h-0 flex-1">
+                <BlocklyWorkspace
+                  key={`right_${expandedChallenge?.catId}_${expandedChallenge?.cIdx}`}
+                  toolbox={FULL_TOOLBOX}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  initialState={expandedChallengeData.starterWorkspace as any}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  starterState={expandedChallengeData.starterWorkspace as any}
+                  resetSignal={0}
+                  dark={true}
+                  visible={true}
+                  readOnly={false}
+                  onChange={() => {}}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Example mode toolbar */}
+              <div className="flex h-8 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/80 px-3">
+                <span className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                  Example — read only
+                </span>
+                <span className="ml-auto text-[10px] text-slate-700">
+                  Press ↗ Open on a challenge to use this panel
+                </span>
+              </div>
+              {/* Static example workspace */}
+              <div className="min-h-0 flex-1">
+                {workspace && (
+                  <BlocklyWorkspace
+                    key={activeCategory}
+                    toolbox={FULL_TOOLBOX}
+                    initialState={workspace}
+                    starterState={workspace}
+                    resetSignal={0}
+                    dark={true}
+                    visible={true}
+                    readOnly={true}
+                    onChange={() => {}}
+                  />
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
