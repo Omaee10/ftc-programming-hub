@@ -392,7 +392,8 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     previousStatement: null,
     nextStatement: null,
     colour: C.Motors,
-    tooltip: "Set the encoder target (call before RUN_TO_POSITION).",
+    tooltip:
+      "Set the target, switch to RUN_TO_POSITION, and apply power (0.6) — all in one step.",
   },
   {
     type: "ftc_set_velocity",
@@ -987,7 +988,8 @@ export const FIELD_TOOLTIPS: Record<string, Record<string, string>> = {
   },
   ftc_set_target: {
     VAR: "Which motor to move.",
-    VALUE: "Target position in encoder ticks.",
+    VALUE:
+      "Target position in encoder ticks — also switches to RUN_TO_POSITION and applies power.",
   },
   ftc_set_velocity: {
     VAR: "Which DcMotorEx motor to drive.",

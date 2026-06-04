@@ -186,12 +186,15 @@ F["ftc_run_to_position"] = (block) => {
   );
 };
 
-F["ftc_set_target"] = (block) =>
-  `${safeId(block.getFieldValue("VAR"), "motor")}.setTargetPosition((int)(${val(
-    block,
-    "VALUE",
-    "0"
-  )}));`;
+F["ftc_set_target"] = (block) => {
+  const v = safeId(block.getFieldValue("VAR"), "motor");
+  const target = val(block, "VALUE", "0");
+  return (
+    `${v}.setTargetPosition((int)(${target}));\n` +
+    `${v}.setMode(DcMotor.RunMode.RUN_TO_POSITION);\n` +
+    `${v}.setPower(0.6);`
+  );
+};
 
 F["ftc_set_velocity"] = (block) =>
   `${safeId(block.getFieldValue("VAR"), "motor")}.setVelocity(${val(
