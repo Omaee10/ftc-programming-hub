@@ -4,7 +4,6 @@ import {
   useState,
   useRef,
   useEffect,
-  useCallback,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import dynamic from "next/dynamic";
@@ -101,16 +100,13 @@ export default function BlocksDocsPage() {
     document.body.style.userSelect = "none";
   };
 
-  // ── Question answer state: "catId_qIdx" → selected option index ──────────
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  // ── Hint visibility: "catId_cIdx" → boolean ──────────────────────────────
+  const [hintOpen, setHintOpen] = useState<Record<string, boolean>>({});
 
-  const answerQuestion = useCallback((catId: string, qIdx: number, optIdx: number) => {
-    setAnswers((prev) => {
-      const key = `${catId}_${qIdx}`;
-      if (key in prev) return prev; // already answered — lock it
-      return { ...prev, [key]: optIdx };
-    });
-  }, []);
+  const toggleHint = (catId: string, cIdx: number) => {
+    const key = `${catId}_${cIdx}`;
+    setHintOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const category = CATEGORIES.find((c) => c.id === activeCategory)!;
   const docData = BLOCKS_DOC.find((d) => d.id === activeCategory);
@@ -232,64 +228,61 @@ export default function BlocksDocsPage() {
               </div>
             )}
 
-            {/* ── Quick check questions ────────────────────────────────── */}
-            {docData?.questions && docData.questions.length > 0 && (
-              <div className="space-y-3">
+            {/* ── Mini coding challenges ───────────────────────────────── */}
+            {docData?.challenges && docData.challenges.length > 0 && (
+              <div className="space-y-4">
                 <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
-                  Quick check
+                  Practice challenges
                 </p>
-                {docData.questions.map((q, qIdx) => {
-                  const key = `${activeCategory}_${qIdx}`;
-                  const selected = answers[key];
-                  const answered = selected !== undefined;
-                  const correct = q.correctIndex;
+                {docData.challenges.map((challenge, cIdx) => {
+                  const hintKey = `${activeCategory}_${cIdx}`;
                   return (
                     <div
-                      key={key}
-                      className="rounded-lg border border-slate-800/60 bg-slate-900/30 overflow-hidden"
+                      key={hintKey}
+                      className="rounded-lg border border-slate-800/60 overflow-hidden"
                     >
-                      <div className="px-3 py-2.5 space-y-2">
-                        <p className="text-[11px] font-medium text-slate-300 leading-relaxed">
-                          {q.prompt}
+                      {/* Challenge header */}
+                      <div
+                        className="px-3 py-2 border-b border-slate-800/60 bg-slate-900/50"
+                        style={{ borderLeftColor: docData.colour, borderLeftWidth: 3 }}
+                      >
+                        <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-1">
+                          Challenge {cIdx + 1}
                         </p>
-                        <div className="space-y-1.5">
-                          {q.options.map((opt, oIdx) => {
-                            let optStyle =
-                              "w-full text-left rounded px-2.5 py-1.5 text-[10px] leading-snug border transition-colors ";
-                            if (!answered) {
-                              optStyle +=
-                                "border-slate-700/60 bg-slate-800/40 text-slate-400 hover:border-slate-600 hover:text-slate-300 cursor-pointer";
-                            } else if (oIdx === correct) {
-                              optStyle +=
-                                "border-emerald-700/60 bg-emerald-950/40 text-emerald-300 cursor-default";
-                            } else if (oIdx === selected) {
-                              optStyle +=
-                                "border-red-700/60 bg-red-950/40 text-red-400 cursor-default";
-                            } else {
-                              optStyle +=
-                                "border-slate-800/40 bg-slate-900/20 text-slate-600 cursor-default";
-                            }
-                            return (
-                              <button
-                                key={oIdx}
-                                className={optStyle}
-                                onClick={() => answerQuestion(activeCategory, qIdx, oIdx)}
-                                disabled={answered}
-                              >
-                                <span className="mr-2 font-mono text-[9px] opacity-60">
-                                  {String.fromCharCode(65 + oIdx)}.
-                                </span>
-                                {opt}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {answered && (
-                          <p className="text-[10px] leading-relaxed text-slate-500 border-t border-slate-800/60 pt-2">
-                            <span className="font-semibold text-slate-400">Explanation: </span>
-                            {q.explanation}
-                          </p>
+                        <p className="text-[11px] leading-relaxed text-slate-300">
+                          {challenge.prompt}
+                        </p>
+                        {challenge.hint && (
+                          <div className="mt-1.5">
+                            <button
+                              onClick={() => toggleHint(activeCategory, cIdx)}
+                              className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
+                            >
+                              {hintOpen[hintKey] ? "▾ Hide hint" : "▸ Show hint"}
+                            </button>
+                            {hintOpen[hintKey] && (
+                              <p className="mt-1 text-[10px] leading-relaxed text-slate-500 italic">
+                                {challenge.hint}
+                              </p>
+                            )}
+                          </div>
                         )}
+                      </div>
+                      {/* Editable Blockly workspace */}
+                      <div style={{ height: 260 }}>
+                        <BlocklyWorkspace
+                          key={`challenge_${activeCategory}_${cIdx}`}
+                          toolbox={FULL_TOOLBOX}
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          initialState={challenge.starterWorkspace as any}
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          starterState={challenge.starterWorkspace as any}
+                          resetSignal={0}
+                          dark={true}
+                          visible={true}
+                          readOnly={false}
+                          onChange={() => {}}
+                        />
                       </div>
                     </div>
                   );
