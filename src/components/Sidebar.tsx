@@ -25,6 +25,7 @@ import {
   MoveRight,
   ActivitySquare,
   KeyRound,
+  LayoutGrid,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 interface NavChild {
@@ -72,6 +73,7 @@ const navigation: NavSection[] = [
           { label: "Motors & Servos", href: "/docs/motors-servos", icon: Cpu },
           { label: "Mecanum Drive", href: "/docs/mecanum-drive", icon: MoveRight },
           { label: "Gamepad & Telemetry", href: "/docs/gamepad", icon: Gamepad2 },
+          { label: "FTC Blocks", href: "/docs/blocks", icon: LayoutGrid },
           { label: "PID & Control Loops", href: "/docs/pid-control", icon: ActivitySquare },
           { label: "goBILDA", href: "/docs/gobilda", icon: Cpu },
           { label: "REV Robotics", href: "/docs/rev-robotics", icon: Zap },

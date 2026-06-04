@@ -216,4 +216,53 @@ export const BLOCKS_DOC: DocCategory[] = [
       },
     ],
   },
+  {
+    id: "math",
+    label: "Math",
+    colour: "#a55b5b",
+    blocks: [
+      {
+        name: "Number",
+        description:
+          "A literal numeric value used as an input to other blocks. You can type any integer or decimal.",
+        example: "double speed = 0.8;",
+      },
+      {
+        name: "Arithmetic",
+        description:
+          "Adds, subtracts, multiplies, or divides two numbers. Choose the operator from the dropdown on the block.",
+        example: "double result = a + b;\ndouble product = a * b;",
+      },
+      {
+        name: "Negate",
+        description:
+          "Flips the sign of a number — positive becomes negative and vice versa. Use this to reverse a gamepad axis or motor direction.",
+        example: "double power = -gamepad1.left_stick_y;",
+      },
+      {
+        name: "Math Function (Unary)",
+        description:
+          "Applies a single-input math function to a value. Available functions: abs (absolute value), sqrt (square root), floor, ceil, round.",
+        example: "double a = Math.abs(-0.5);  // → 0.5\ndouble b = Math.sqrt(9.0); // → 3.0",
+      },
+      {
+        name: "Math Function (Binary)",
+        description:
+          "Applies a two-input math function. Available functions: max (larger of two), min (smaller of two), pow (raise to a power).",
+        example: "double clamped = Math.max(-1.0, Math.min(1.0, power));",
+      },
+      {
+        name: "Deadzone",
+        description:
+          "Returns 0 if the input is within ±threshold of zero, otherwise passes the value through unchanged. Prevents motors from creeping when a joystick is resting at a non-zero idle position.",
+        example: "double out = Math.abs(x) > 0.05 ? x : 0.0;",
+      },
+      {
+        name: "Ternary",
+        description:
+          "Returns one of two values based on a condition — a compact single-line if/else. If the condition is true the first value is used; otherwise the second.",
+        example: "double power = triggered ? 0.8 : 0.0;",
+      },
+    ],
+  },
 ];

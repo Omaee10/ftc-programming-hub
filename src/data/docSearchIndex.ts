@@ -198,6 +198,49 @@ const DOC_DEFS: DocDef[] = [
       { id: "cr-servos", title: "Continuous Rotation Servos", snippet: "CRServo intake control with Swyft", terms: ["crservo", "continuous rotation", "intake"] },
     ],
   },
+  {
+    slug: "blocks",
+    title: "FTC Blocks Reference",
+    description: "Visual block reference for Motors, Servos, Sensors, Gamepad, Telemetry, and Math",
+    sections: [
+      {
+        id: "motors",
+        title: "Motors",
+        snippet: "Set Power, Set Direction, Reset Encoder, Set Target Position, Run to Position, Is Busy, Get Position, Set Velocity",
+        terms: ["blocks", "motors", "setpower", "set power", "direction", "encoder", "run to position", "isbusy", "is busy", "get position", "velocity", "dcmotor", "dc motor"],
+      },
+      {
+        id: "servos",
+        title: "Servos",
+        snippet: "Set Position for standard servos, Set Power for CRServo continuous rotation servos",
+        terms: ["blocks", "servos", "servo", "setposition", "set position", "crservo", "continuous rotation", "setPower"],
+      },
+      {
+        id: "sensors",
+        title: "Sensors",
+        snippet: "Touch sensor, color sensor ARGB, LED enable, IMU heading yaw",
+        terms: ["blocks", "sensors", "touch sensor", "is pressed", "color sensor", "argb", "red", "blue", "imu", "heading", "yaw", "gyro"],
+      },
+      {
+        id: "gamepad",
+        title: "Gamepad",
+        snippet: "Left stick, right stick, triggers, buttons A B X Y, bumpers, dpad",
+        terms: ["blocks", "gamepad", "joystick", "left stick", "right stick", "trigger", "button", "bumper", "dpad", "gamepad1", "gamepad2"],
+      },
+      {
+        id: "telemetry",
+        title: "Telemetry",
+        snippet: "Add Data, Add Line, Update — send live data to the Driver Station screen",
+        terms: ["blocks", "telemetry", "adddata", "add data", "addline", "update", "driver station", "display"],
+      },
+      {
+        id: "math",
+        title: "Math",
+        snippet: "Number, Arithmetic, Negate, Math functions abs sqrt max min pow, Deadzone, Ternary",
+        terms: ["blocks", "math", "number", "arithmetic", "negate", "abs", "absolute value", "sqrt", "max", "min", "pow", "deadzone", "ternary", "clamp"],
+      },
+    ],
+  },
 ];
 
 export const DOC_SECTION_INDEX: DocSectionIndex[] = DOC_DEFS.flatMap((doc) =>

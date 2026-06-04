@@ -7,6 +7,7 @@ const BASE_URL =
 
 const DOC_PATHS = [
   "android-studio",
+  "blocks",
   "gamepad",
   "gobilda",
   "java-basics",
