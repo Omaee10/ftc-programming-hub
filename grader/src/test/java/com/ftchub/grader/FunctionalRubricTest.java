@@ -257,13 +257,16 @@ class FunctionalRubricTest {
             """;
 
     @Test
-    void setAndForgetPower_flaggedAsImprovementFailure() {
+    void setAndForgetPower_gradesWrong_asRequiredFailure() {
         GradedResultJson result = grader.grade(new CompileRequest(SET_AND_FORGET_POWER, 1, List.of()));
 
-        Set<String> failedImprovement = failedLabels(result, "improvement");
+        assertEquals("wrong", result.grade(),
+                "Set-and-forget power is a functional bug and must grade wrong, not: " + result.grade());
+
+        Set<String> failedRequired = failedLabels(result, "required");
         assertTrue(
-                failedImprovement.contains("Gamepad axis re-read every frame"),
-                "Set-and-forget power should fail 'Gamepad axis re-read every frame', got: " + failedImprovement);
+                failedRequired.contains("Gamepad axis re-read every frame"),
+                "Set-and-forget power should fail required 'Gamepad axis re-read every frame', got: " + failedRequired);
     }
 
     @Test

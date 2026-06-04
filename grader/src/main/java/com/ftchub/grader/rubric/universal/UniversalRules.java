@@ -98,6 +98,14 @@ public final class UniversalRules {
             UPPERCASE_HW_NAME
         ),
 
+        Rules.required(
+            "Gamepad axis re-read every frame",
+            "A gamepad axis captured before the loop never updates — the motor is stuck at its start-of-match value.",
+            "Move the gamepad read (e.g. `double power = -gamepad1.left_stick_y;`) inside `while (opModeIsActive())`. "
+                + "Reading it once before the loop captures a single snapshot, so moving the joystick during the match has no effect.",
+            ctx -> !TreeHelpers.hasSetAndForgetPower(ctx)
+        ),
+
         // ── Improvement ───────────────────────────────────────────────────
         Rules.improvement(
             "@TeleOp or @Autonomous annotation",
@@ -133,14 +141,6 @@ public final class UniversalRules {
                 if (!callsMethod(ctx, "setPower")) return true;
                 return TreeHelpers.negatesStickAxis(ctx, "left_stick_y");
             }
-        ),
-
-        Rules.improvement(
-            "Gamepad axis re-read every frame",
-            "Gamepad axis (stick / trigger) must be read inside the main loop so the motor responds to each new input.",
-            "Move the gamepad read (e.g. `double power = -gamepad1.left_stick_y;`) inside `while (opModeIsActive())`. "
-                + "Reading it before the loop captures one snapshot — moving the joystick afterwards has no effect.",
-            ctx -> !TreeHelpers.hasSetAndForgetPower(ctx)
         ),
 
         Rules.improvement(
