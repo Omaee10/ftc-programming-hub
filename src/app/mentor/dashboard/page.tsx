@@ -38,6 +38,16 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 
 type Tab = "progress" | "mentors" | "students" | "create" | "challenges" | "grade" | "homework";
 
+const TABS: Tab[] = [
+  "progress",
+  "mentors",
+  "students",
+  "create",
+  "challenges",
+  "grade",
+  "homework",
+];
+
 interface StudentProgress {
   student: StudentRow;
   records: ProgressRow[];
@@ -1898,8 +1908,25 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MentorDashboardPage() {
-  const [tab, setTab] = useState<Tab>("progress");
+  const [tab, setTabState] = useState<Tab>("progress");
   const [pendingCount, setPendingCount] = useState(0);
+
+  // Restore the active tab from the URL (?tab=…) so refreshing keeps you on the
+  // same tab instead of bouncing back to "progress".
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && (TABS as string[]).includes(t)) {
+      setTabState(t as Tab);
+    }
+  }, []);
+
+  // Update state and reflect the choice in the URL (no history entry / no scroll).
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", next);
+    window.history.replaceState(null, "", url.toString());
+  };
 
   // Fetch pending submission count on mount for the tab badge
   useEffect(() => {

@@ -24,8 +24,10 @@ class FunctionalRubricTest {
     private static Grader grader;
 
     @BeforeAll
-    static void setUp() {
-        grader = new Grader(new InMemoryCompiler(new StubLoader()));
+    static void setUp() throws Exception {
+        StubLoader stubs = new StubLoader();
+        stubs.compile();
+        grader = new Grader(new InMemoryCompiler(stubs));
     }
 
     private static final String BROKEN_MOTOR_TELEOP = """
@@ -91,6 +93,7 @@ class FunctionalRubricTest {
                         telemetry.addData("Power", power);
                         telemetry.update();
                     }
+                    leftMotor.setPower(0);
                 }
             }
             """;
@@ -221,6 +224,59 @@ class FunctionalRubricTest {
                         .anyMatch(r -> "Y-axis negated".equals(r.label()) && !r.pass()),
                 "Plain subtraction must not satisfy 'Y-axis negated'");
     }
+
+    // ── Set-and-forget power tests ─────────────────────────────────────────
+
+    private static final String SET_AND_FORGET_POWER = """
+            package org.firstinspires.ftc.teamcode;
+
+            import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+            import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+            import com.qualcomm.robotcore.hardware.DcMotor;
+
+            @TeleOp(name = "Basic TeleOp", group = "Challenge 1")
+            public class BasicTeleOp extends LinearOpMode {
+                private DcMotor left_motor;
+                @Override
+                public void runOpMode() {
+                    left_motor = hardwareMap.get(DcMotor.class, "left_motor");
+                    left_motor.setDirection(DcMotor.Direction.FORWARD);
+                    telemetry.addData("Status", "Initialized");
+                    telemetry.update();
+
+                    waitForStart();
+                    double power = -gamepad1.left_stick_y;
+
+                    while (opModeIsActive()) {
+                        left_motor.setPower(power);
+                        telemetry.update();
+                    }
+                    left_motor.setPower(0);
+                }
+            }
+            """;
+
+    @Test
+    void setAndForgetPower_flaggedAsImprovementFailure() {
+        GradedResultJson result = grader.grade(new CompileRequest(SET_AND_FORGET_POWER, 1, List.of()));
+
+        Set<String> failedImprovement = failedLabels(result, "improvement");
+        assertTrue(
+                failedImprovement.contains("Gamepad axis re-read every frame"),
+                "Set-and-forget power should fail 'Gamepad axis re-read every frame', got: " + failedImprovement);
+    }
+
+    @Test
+    void goodChallenge1Solution_passesSetAndForgetCheck() {
+        GradedResultJson result = grader.grade(new CompileRequest(GOOD_CHALLENGE_1, 1, List.of()));
+
+        assertTrue(
+                result.universalResults().stream()
+                        .anyMatch(r -> "Gamepad axis re-read every frame".equals(r.label()) && r.pass()),
+                "Correct solution should pass 'Gamepad axis re-read every frame', failures: " + allFailed(result));
+    }
+
+    // ── Encoder auto tests ─────────────────────────────────────────────────
 
     @Test
     void encoderAuto_withoutSetPowerZero_passesRequiredChecks() {

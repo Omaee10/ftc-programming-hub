@@ -284,6 +284,56 @@ public final class TreeHelpers {
         return line[0];
     }
 
+    // ── Gamepad / drive helpers ────────────────────────────────────────────
+
+    private static final Pattern GAMEPAD_AXIS_PATTERN =
+            Pattern.compile("gamepad[12]\\.(?:left|right)_stick_[xy]|gamepad[12]\\.(?:left|right)_trigger");
+
+    /**
+     * Returns {@code true} when the "set-and-forget power" bug is present:
+     * <ol>
+     *   <li>{@code setPower()} is called inside a while loop (motor is driven in the loop)</li>
+     *   <li>At least one gamepad axis field (stick / trigger) is read somewhere in the source</li>
+     *   <li>No gamepad axis field is read <em>inside</em> any while loop — meaning the
+     *       driver captured the stick value before the loop started and the motor
+     *       never responds to subsequent input.</li>
+     * </ol>
+     */
+    public static boolean hasSetAndForgetPower(RubricContext ctx) {
+        if (!ctx.astAvailable()) return false;
+
+        // If setPower isn't called inside the loop there's nothing to flag.
+        if (countMethodCallsInsideWhileLoop(ctx, "setPower") == 0) return false;
+
+        // If no gamepad axis appears anywhere, the check doesn't apply.
+        if (!sourceContains(ctx, GAMEPAD_AXIS_PATTERN)) return false;
+
+        boolean[] insideLoop  = {false};
+        boolean[] outsideLoop = {false};
+
+        new TreeScanner<Void, Boolean>() {
+            @Override public Void visitWhileLoop(WhileLoopTree node, Boolean inside) {
+                return super.visitWhileLoop(node, true);
+            }
+            @Override public Void visitMemberSelect(MemberSelectTree node, Boolean inside) {
+                if (isStickOrTriggerAxis(node.getIdentifier().toString())) {
+                    if (Boolean.TRUE.equals(inside)) insideLoop[0]  = true;
+                    else                             outsideLoop[0] = true;
+                }
+                return super.visitMemberSelect(node, inside);
+            }
+        }.scan(ctx.tree(), null);
+
+        // Bug only present when the axis is captured outside but never refreshed inside.
+        return outsideLoop[0] && !insideLoop[0];
+    }
+
+    private static boolean isStickOrTriggerAxis(String fieldName) {
+        return fieldName.equals("left_stick_y")  || fieldName.equals("right_stick_y")
+            || fieldName.equals("left_stick_x")  || fieldName.equals("right_stick_x")
+            || fieldName.equals("left_trigger")  || fieldName.equals("right_trigger");
+    }
+
     // ── Regex fallbacks ────────────────────────────────────────────────────
 
     public static boolean sourceContains(RubricContext ctx, Pattern p) {

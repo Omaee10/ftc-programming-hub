@@ -31,7 +31,7 @@ public final class UniversalRules {
     private static final Pattern STICK_INPUT =
             Pattern.compile("gamepad1\\.(?:left|right)_stick_[xy]");
     private static final Pattern STICK_DEADZONE =
-            Pattern.compile("(?i)deadband|deadzone|stickdeadzone|Math\\.abs\\s*\\([^)]+\\)\\s*<\\s*0\\.|Range\\.clip");
+            Pattern.compile("(?i)deadband|deadzone|stickdeadzone|Math\\.abs\\s*\\([^)]+\\)\\s*[<>]=?\\s*0\\.|Range\\.clip");
 
     public static final List<RubricRule> ALL = List.of(
 
@@ -133,6 +133,14 @@ public final class UniversalRules {
                 if (!callsMethod(ctx, "setPower")) return true;
                 return TreeHelpers.negatesStickAxis(ctx, "left_stick_y");
             }
+        ),
+
+        Rules.improvement(
+            "Gamepad axis re-read every frame",
+            "Gamepad axis (stick / trigger) must be read inside the main loop so the motor responds to each new input.",
+            "Move the gamepad read (e.g. `double power = -gamepad1.left_stick_y;`) inside `while (opModeIsActive())`. "
+                + "Reading it before the loop captures one snapshot — moving the joystick afterwards has no effect.",
+            ctx -> !TreeHelpers.hasSetAndForgetPower(ctx)
         ),
 
         Rules.improvement(

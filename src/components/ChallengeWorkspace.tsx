@@ -64,6 +64,7 @@ import {
   type WorkspaceState,
 } from "@/data/blockChallenges";
 import type { ChallengeSolution } from "@/data/challengeSolutions";
+import { BLOCKS_DOC } from "@/data/blocksDoc";
 import { FULL_TOOLBOX } from "@/lib/blockly/ftcBlocks";
 import {
   clearBlockDraft,
@@ -1226,7 +1227,10 @@ export default function ChallengeWorkspace({
   const [showObjectives, setShowObjectives] = useState(true);
 
   // ── LEFT PANEL TABS — delete `leftTab` state + the tab bar JSX below to revert ──
-  const [leftTab, setLeftTab] = useState<"task" | "checks" | "hints">("task");
+  const [leftTab, setLeftTab] = useState<"task" | "checks" | "hints" | "docs">("task");
+  const [openDocSections, setOpenDocSections] = useState<Set<string>>(
+    () => new Set([BLOCKS_DOC[0]?.id ?? ""])
+  );
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -1319,8 +1323,8 @@ export default function ChallengeWorkspace({
         >
           {/* ── TAB BAR ─────────────────────────────────────────────────── */}
           <div className="flex shrink-0 items-center gap-0.5 border-b border-slate-800/60 bg-slate-950/80 px-2 h-9">
-            {(["task", "checks", "hints"] as const).map((tab) => {
-              const labels = { task: "Task", checks: "Checks", hints: "Hints" };
+            {(["task", "checks", "hints", "docs"] as const).map((tab) => {
+              const labels = { task: "Task", checks: "Checks", hints: "Hints", docs: "Docs" };
               const isActive = leftTab === tab;
               const errorBadge = tab === "checks" && failedErrors.length > 0;
               const warnBadge  = tab === "checks" && failedErrors.length === 0 && failedImprovements.length > 0;
@@ -1517,6 +1521,77 @@ export default function ChallengeWorkspace({
                   </div>
                 )}
               </>
+            )}
+
+            {/* ── DOCS TAB ───────────────────────────────────────────────── */}
+            {leftTab === "docs" && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-3">
+                  Blocks Reference
+                </p>
+                {BLOCKS_DOC.map((category) => {
+                  const isOpen = openDocSections.has(category.id);
+                  return (
+                    <div
+                      key={category.id}
+                      className="overflow-hidden rounded-md border border-slate-800/60 bg-slate-900/30"
+                    >
+                      {/* Section header */}
+                      <button
+                        onClick={() =>
+                          setOpenDocSections((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(category.id)) {
+                              next.delete(category.id);
+                            } else {
+                              next.add(category.id);
+                            }
+                            return next;
+                          })
+                        }
+                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-slate-800/40"
+                      >
+                        <span
+                          className="h-3 w-1 shrink-0 rounded-full"
+                          style={{ backgroundColor: category.colour }}
+                        />
+                        <span className="flex-1 text-xs font-semibold text-slate-300">
+                          {category.label}
+                        </span>
+                        <span className="text-[10px] text-slate-600 mr-1">
+                          {category.blocks.length}
+                        </span>
+                        {isOpen ? (
+                          <ChevronUp className="h-3 w-3 text-slate-600 shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3 text-slate-600 shrink-0" />
+                        )}
+                      </button>
+
+                      {/* Block entries */}
+                      {isOpen && (
+                        <div className="divide-y divide-slate-800/40 border-t border-slate-800/60">
+                          {category.blocks.map((doc) => (
+                            <div key={doc.name} className="px-3 py-3 space-y-1.5">
+                              <p className="text-[11px] font-semibold text-slate-200">
+                                {doc.name}
+                              </p>
+                              <p className="text-[11px] leading-relaxed text-slate-500">
+                                {doc.description}
+                              </p>
+                              {doc.example && (
+                                <pre className="mt-1.5 overflow-x-auto rounded bg-slate-950/70 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-slate-400 border border-slate-800/60 whitespace-pre-wrap break-all">
+                                  {doc.example}
+                                </pre>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
           </div>
