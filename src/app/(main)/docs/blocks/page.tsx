@@ -9,6 +9,7 @@ import {
 import dynamic from "next/dynamic";
 import { BLOCKS_DOC } from "@/data/blocksDoc";
 import { DOC_WORKSPACES } from "@/data/blocksDocWorkspaces";
+import { MINI_WORKSPACES } from "@/data/blocksDocMiniWorkspaces";
 import { FULL_TOOLBOX } from "@/lib/blockly/ftcBlocks";
 
 // ── Blockly loaded lazily (browser-only) ────────────────────────────────────
@@ -156,42 +157,66 @@ export default function BlocksDocsPage() {
             </div>
 
             {/* Block entries */}
-            {docData && (
+                {docData && (
               <div className="space-y-4">
                 <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
                   Blocks in this category
                 </p>
-                {docData.blocks.map((block) => (
-                  <div
-                    key={block.name}
-                    className="rounded-lg border border-slate-800/60 bg-slate-900/30 overflow-hidden"
-                  >
-                    {/* Block name header */}
+                {docData.blocks.map((block) => {
+                  const miniWs = block.miniWorkspaceKey
+                    ? MINI_WORKSPACES[block.miniWorkspaceKey]
+                    : undefined;
+                  return (
                     <div
-                      className="px-3 py-2 border-b border-slate-800/60"
-                      style={{
-                        borderLeftColor: docData.colour,
-                        borderLeftWidth: 3,
-                      }}
+                      key={block.name}
+                      className="rounded-lg border border-slate-800/60 bg-slate-900/30 overflow-hidden"
                     >
-                      <p className="text-[11px] font-semibold text-slate-200">
-                        {block.name}
-                      </p>
-                    </div>
+                      {/* Block name header */}
+                      <div
+                        className="px-3 py-2 border-b border-slate-800/60"
+                        style={{
+                          borderLeftColor: docData.colour,
+                          borderLeftWidth: 3,
+                        }}
+                      >
+                        <p className="text-[11px] font-semibold text-slate-200">
+                          {block.name}
+                        </p>
+                      </div>
 
-                    {/* Description + example */}
-                    <div className="px-3 py-2.5 space-y-2">
-                      <p className="text-[11px] leading-relaxed text-slate-500">
-                        {block.description}
-                      </p>
-                      {block.example && (
-                        <pre className="overflow-x-auto rounded bg-slate-950/70 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-slate-400 border border-slate-800/50 whitespace-pre-wrap">
-                          {block.example}
-                        </pre>
-                      )}
+                      {/* Description + Java example + inline block visual */}
+                      <div className="px-3 py-2.5 space-y-2">
+                        <p className="text-[11px] leading-relaxed text-slate-500">
+                          {block.description}
+                        </p>
+                        {block.example && (
+                          <pre className="overflow-x-auto rounded bg-slate-950/70 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-slate-400 border border-slate-800/50 whitespace-pre-wrap">
+                            {block.example}
+                          </pre>
+                        )}
+                        {/* Inline Blockly block visual */}
+                        {miniWs && (
+                          <div
+                            className="overflow-hidden rounded border border-slate-800/50"
+                            style={{ height: 110 }}
+                          >
+                            <BlocklyWorkspace
+                              key={`${activeCategory}_${block.name}`}
+                              toolbox={FULL_TOOLBOX}
+                              initialState={miniWs}
+                              starterState={miniWs}
+                              resetSignal={0}
+                              dark={true}
+                              visible={true}
+                              readOnly={true}
+                              onChange={() => {}}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
