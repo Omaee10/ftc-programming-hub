@@ -130,6 +130,98 @@ class FunctionalRubricTest {
         assertEquals("good", result.grade(), "Unexpected failures: " + allFailed(result));
     }
 
+    /**
+     * The FTC Blocks generator emits a negated deadzone wrapper, e.g.
+     * {@code -(Math.abs(gamepad1.left_stick_y) < 0.05 ? 0 : gamepad1.left_stick_y)}.
+     * The Y-axis value IS negated, so both the required and improvement
+     * negation checks must recognise it rather than demanding the literal
+     * {@code -gamepad1.left_stick_y} form.
+     */
+    private static final String BLOCKS_NEGATED_DEADZONE = """
+            package org.firstinspires.ftc.teamcode;
+
+            import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+            import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+            import com.qualcomm.robotcore.hardware.DcMotor;
+            import com.qualcomm.robotcore.hardware.DcMotorEx;
+            import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
+            @TeleOp(name = "Blocks TeleOp", group = "Challenge 1")
+            public class BlocksTeleOp extends LinearOpMode {
+
+                private DcMotorEx leftMotor;
+
+                @Override
+                public void runOpMode() {
+                    leftMotor = hardwareMap.get(DcMotorEx.class, "left_motor");
+                    leftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                    leftMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+
+                    telemetry.addData("Status", "Initialized");
+                    telemetry.update();
+
+                    waitForStart();
+
+                    while (opModeIsActive()) {
+                        double value = -(Math.abs(gamepad1.left_stick_y) < 0.05 ? 0 : gamepad1.left_stick_y);
+                        leftMotor.setPower(value);
+                        telemetry.update();
+                    }
+                    leftMotor.setPower(0);
+                }
+            }
+            """;
+
+    @Test
+    void blocksNegatedDeadzone_passesYAxisNegationChecks() {
+        GradedResultJson result = grader.grade(new CompileRequest(BLOCKS_NEGATED_DEADZONE, 1, List.of()));
+
+        assertTrue(
+                result.requiredResults().stream()
+                        .anyMatch(r -> "Y-axis negated".equals(r.label()) && r.pass()),
+                "Negated deadzone wrapper should satisfy 'Y-axis negated', failures: " + allFailed(result));
+        assertTrue(
+                result.universalResults().stream()
+                        .anyMatch(r -> "Y-axis negated for drive".equals(r.label()) && r.pass()),
+                "Negated deadzone wrapper should satisfy 'Y-axis negated for drive', failures: " + allFailed(result));
+    }
+
+    @Test
+    void plainSubtraction_doesNotCountAsNegation() {
+        String code = """
+                package org.firstinspires.ftc.teamcode;
+
+                import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+                import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+                import com.qualcomm.robotcore.hardware.DcMotor;
+
+                @TeleOp(name = "Subtraction TeleOp", group = "Challenge 1")
+                public class SubtractionTeleOp extends LinearOpMode {
+
+                    private DcMotor leftMotor;
+
+                    @Override
+                    public void runOpMode() {
+                        leftMotor = hardwareMap.get(DcMotor.class, "left_motor");
+                        telemetry.addData("Status", "Ready");
+                        telemetry.update();
+                        waitForStart();
+                        while (opModeIsActive()) {
+                            double bias = 1.0;
+                            double power = bias - 0.5 * gamepad1.left_stick_y;
+                            leftMotor.setPower(power);
+                            telemetry.update();
+                        }
+                    }
+                }
+                """;
+        GradedResultJson result = grader.grade(new CompileRequest(code, 1, List.of()));
+        assertTrue(
+                result.requiredResults().stream()
+                        .anyMatch(r -> "Y-axis negated".equals(r.label()) && !r.pass()),
+                "Plain subtraction must not satisfy 'Y-axis negated'");
+    }
+
     @Test
     void encoderAuto_withoutSetPowerZero_passesRequiredChecks() {
         String code = """

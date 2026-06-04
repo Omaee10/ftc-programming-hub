@@ -21,6 +21,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.JavaFileObject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -292,6 +293,41 @@ public final class TreeHelpers {
     /** True when the source contains the exact quoted hardware config name. */
     public static boolean usesHardwareLiteral(RubricContext ctx, String literal) {
         return sourceContains(ctx, Pattern.compile(Pattern.quote("\"" + literal + "\"")));
+    }
+
+    /**
+     * True when a gamepad stick axis (e.g. {@code left_stick_y}) is negated
+     * before use. Recognises the three forms students actually write:
+     * <ul>
+     *   <li>Direct: {@code -gamepad1.left_stick_y}</li>
+     *   <li>Wrapped: {@code -(deadzone... gamepad1.left_stick_y ...)} — the
+     *       shape the FTC Blocks generator emits for a negated deadzone.</li>
+     *   <li>Variable alias: {@code double s = gamepad1.left_stick_y; ... -s}</li>
+     * </ul>
+     * Requiring a {@code (} immediately after the minus for the wrapped form
+     * keeps plain subtraction (e.g. {@code a - k * stick}) from counting.
+     *
+     * @param axis the unqualified axis field, e.g. {@code "left_stick_y"}.
+     */
+    public static boolean negatesStickAxis(RubricContext ctx, String axis) {
+        String src = ctx.sourceNoComments;
+        String field = "gamepad1\\." + Pattern.quote(axis);
+
+        // Direct or parenthesized-wrapper negation.
+        if (Pattern.compile("-\\s*(?:" + field + "|\\([^;]*" + field + ")").matcher(src).find()) {
+            return true;
+        }
+
+        // Variable-alias negation: capture a name assigned from an expression
+        // that reads the axis, then look for a unary negation of that name.
+        Matcher assign = Pattern.compile("(\\w+)\\s*=\\s*[^;=]*" + field).matcher(src);
+        while (assign.find()) {
+            String var = assign.group(1);
+            if (Pattern.compile("-\\s*" + Pattern.quote(var) + "\\b").matcher(src).find()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static List<Integer> lineNumbersMatching(RubricContext ctx, Pattern p) {

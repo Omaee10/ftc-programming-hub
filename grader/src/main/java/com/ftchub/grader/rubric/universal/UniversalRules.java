@@ -28,8 +28,6 @@ public final class UniversalRules {
     private static final Pattern TODO_RX      = Pattern.compile("//\\s*TODO", Pattern.CASE_INSENSITIVE);
     private static final Pattern UPPERCASE_HW_NAME =
             Pattern.compile("hardwareMap\\.get\\(\\s*\\w+\\.class\\s*,\\s*\"[^\"]*[A-Z][^\"]*\"");
-    private static final Pattern NEGATED_LEFT_STICK_Y =
-            Pattern.compile("-\\s*gamepad1\\.left_stick_y");
     private static final Pattern STICK_INPUT =
             Pattern.compile("gamepad1\\.(?:left|right)_stick_[xy]");
     private static final Pattern STICK_DEADZONE =
@@ -133,7 +131,7 @@ public final class UniversalRules {
             ctx -> {
                 if (!TreeHelpers.sourceContains(ctx, Pattern.compile("gamepad1\\.left_stick_y"))) return true;
                 if (!callsMethod(ctx, "setPower")) return true;
-                return TreeHelpers.sourceContains(ctx, NEGATED_LEFT_STICK_Y);
+                return TreeHelpers.negatesStickAxis(ctx, "left_stick_y");
             }
         ),
 

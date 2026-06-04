@@ -16,6 +16,7 @@ import static com.ftchub.grader.rubric.TreeHelpers.declaresMethod;
 import static com.ftchub.grader.rubric.TreeHelpers.firstCallLine;
 import static com.ftchub.grader.rubric.TreeHelpers.instantiates;
 import static com.ftchub.grader.rubric.TreeHelpers.instantiatesInsideWhileLoop;
+import static com.ftchub.grader.rubric.TreeHelpers.negatesStickAxis;
 import static com.ftchub.grader.rubric.TreeHelpers.sourceContains;
 
 /**
@@ -34,7 +35,6 @@ public final class ChallengeRubrics {
 
     private ChallengeRubrics() {}
 
-    private static final Pattern NEGATED_LEFT_STICK_Y = Pattern.compile("-\\s*gamepad1\\.left_stick_y");
     private static final Pattern NON_ZERO_POWER       = Pattern.compile("\\.setPower\\(\\s*(?!0(?:\\.0*)?\\s*\\))[^)]+\\)");
     private static final Pattern ZERO_POWER           = Pattern.compile("\\.setPower\\(\\s*0(?:\\.0*)?\\s*\\)");
     private static final Pattern IS_BUSY_WHILE        = Pattern.compile("while\\s*\\([^{]*\\.isBusy\\s*\\(\\s*\\)[^{]*opModeIsActive|while\\s*\\([^{]*opModeIsActive[^{]*\\.isBusy\\s*\\(\\s*\\)");
@@ -189,7 +189,7 @@ public final class ChallengeRubrics {
             Rules.required("Y-axis negated",
                 "Stick value negated so pushing forward gives positive power.",
                 "FTC gamepads invert Y — use `double power = -gamepad1.left_stick_y;`.",
-                ctx -> sourceContains(ctx, NEGATED_LEFT_STICK_Y)),
+                ctx -> negatesStickAxis(ctx, "left_stick_y")),
             Rules.required("setPower() called",
                 "Motor power applied via motor.setPower(value).",
                 "Call leftMotor.setPower(power) to drive the motor.",
@@ -363,8 +363,8 @@ public final class ChallengeRubrics {
             Rules.required("Both stick values negated",
                 "FTC Y-axes are inverted; negate both.",
                 "double leftPower = -gamepad1.left_stick_y; double rightPower = -gamepad1.right_stick_y;",
-                ctx -> sourceContains(ctx, Pattern.compile("-\\s*gamepad1\\.left_stick_y"))
-                       && sourceContains(ctx, Pattern.compile("-\\s*gamepad1\\.right_stick_y"))),
+                ctx -> negatesStickAxis(ctx, "left_stick_y")
+                       && negatesStickAxis(ctx, "right_stick_y")),
             Rules.required("setPower() called",
                 "Both motors must be powered each loop.",
                 "leftMotor.setPower(leftPower); rightMotor.setPower(rightPower);",
@@ -1441,7 +1441,7 @@ public final class ChallengeRubrics {
             Rules.improvement("Motor driven from stick",
                 "Read negated left_stick_y and set motor power each iteration.",
                 "driveMotor.setPower(-gamepad1.left_stick_y);",
-                ctx -> sourceContains(ctx, NEGATED_LEFT_STICK_Y) && callsMethodInsideWhileLoop(ctx, "setPower"))
+                ctx -> negatesStickAxis(ctx, "left_stick_y") && callsMethodInsideWhileLoop(ctx, "setPower"))
         );
     }
 
@@ -1461,7 +1461,7 @@ public final class ChallengeRubrics {
             Rules.required("Negated Y-axis in helper",
                 "Forward stick push must produce positive power.",
                 "return -gamepad1.left_stick_y;",
-                ctx -> sourceContains(ctx, NEGATED_LEFT_STICK_Y)),
+                ctx -> negatesStickAxis(ctx, "left_stick_y")),
             Rules.required("Helper called from loop",
                 "setPower() must use the helper method each iteration.",
                 "driveMotor.setPower(getForwardPower());",
@@ -1491,7 +1491,7 @@ public final class ChallengeRubrics {
             Rules.required("Power uses boost multiplier",
                 "Multiply negated stick input by boost and call setPower().",
                 "double power = -gamepad1.left_stick_y * boostMultiplier;",
-                ctx -> sourceContains(ctx, NEGATED_LEFT_STICK_Y)
+                ctx -> negatesStickAxis(ctx, "left_stick_y")
                        && sourceContains(ctx, boostVar)
                        && callsMethodInsideWhileLoop(ctx, "setPower")),
             Rules.improvement("Boost shown in telemetry",
