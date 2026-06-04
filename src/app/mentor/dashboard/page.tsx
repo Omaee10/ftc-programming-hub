@@ -18,6 +18,9 @@ import {
   EyeOff,
   BarChart3,
   BookOpen,
+  Search,
+  Check,
+  X,
 } from "lucide-react";
 import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow, type HomeworkAssignmentRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
@@ -338,16 +341,21 @@ function ProgressTab() {
 
 // ─── Challenge picker (custom dropdown — avoids native select page scroll) ───
 
-function ChallengePicker({
+function ChallengeMultiPicker({
   options,
-  value,
-  onChange,
+  selected,
+  onToggle,
+  onSelectAll,
+  onClear,
 }: {
   options: { id: number; title: string }[];
-  value: number | "";
-  onChange: (id: number | "") => void;
+  selected: Set<number>;
+  onToggle: (id: number) => void;
+  onSelectAll: (ids: number[]) => void;
+  onClear: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -361,7 +369,18 @@ function ChallengePicker({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  const selected = options.find((c) => c.id === value);
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? options.filter(
+        (c) => c.title.toLowerCase().includes(q) || String(c.id).includes(q)
+      )
+    : options;
+
+  const count = selected.size;
+  const summary =
+    count === 0
+      ? "Select challenges…"
+      : `${count} challenge${count === 1 ? "" : "s"} selected`;
 
   return (
     <div ref={containerRef} className="relative">
@@ -372,8 +391,8 @@ function ChallengePicker({
         aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
       >
-        <span className={`truncate text-left ${selected ? "text-slate-200" : "text-slate-500"}`}>
-          {selected ? `#${selected.id} — ${selected.title}` : "Select a challenge…"}
+        <span className={`truncate text-left ${count > 0 ? "text-slate-200" : "text-slate-500"}`}>
+          {summary}
         </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}
@@ -381,31 +400,79 @@ function ChallengePicker({
       </button>
 
       {open && (
-        <ul
-          role="listbox"
-          className="absolute left-0 right-0 z-50 mt-1 max-h-56 overscroll-contain overflow-y-auto rounded-md border border-slate-700 bg-slate-950 py-1 shadow-lg shadow-black/40 sidebar-scroll"
-        >
-          {options.map((c) => (
-            <li key={c.id} role="presentation">
+        <div className="absolute left-0 right-0 z-50 mt-1 rounded-md border border-slate-700 bg-slate-950 shadow-lg shadow-black/40">
+          <div className="border-b border-slate-800 p-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-600" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search challenges…"
+                className="w-full rounded-md border border-slate-800 bg-slate-900 py-1.5 pl-8 pr-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between px-0.5">
               <button
                 type="button"
-                role="option"
-                aria-selected={value === c.id}
-                onClick={() => {
-                  onChange(c.id);
-                  setOpen(false);
-                }}
-                className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                  value === c.id
-                    ? "bg-slate-800 text-slate-100"
-                    : "text-slate-300 hover:bg-slate-800/80"
-                }`}
+                onClick={() => onSelectAll(filtered.map((c) => c.id))}
+                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
               >
-                #{c.id} — {c.title}
+                Select all{q ? " (filtered)" : ""}
               </button>
-            </li>
-          ))}
-        </ul>
+              <button
+                type="button"
+                onClick={onClear}
+                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <ul
+            role="listbox"
+            aria-multiselectable="true"
+            className="max-h-56 overscroll-contain overflow-y-auto py-1 sidebar-scroll"
+          >
+            {filtered.length === 0 ? (
+              <li className="px-3 py-3 text-center text-xs text-slate-600">
+                No challenges match &quot;{query}&quot;.
+              </li>
+            ) : (
+              filtered.map((c) => {
+                const isSel = selected.has(c.id);
+                return (
+                  <li key={c.id} role="presentation">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={isSel}
+                      onClick={() => onToggle(c.id)}
+                      className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors ${
+                        isSel
+                          ? "bg-slate-800/70 text-slate-100"
+                          : "text-slate-300 hover:bg-slate-800/80"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                          isSel
+                            ? "border-zinc-300 bg-zinc-200 text-slate-950"
+                            : "border-slate-600 bg-transparent"
+                        }`}
+                      >
+                        {isSel && <Check className="h-3 w-3" strokeWidth={3} />}
+                      </span>
+                      <span className="truncate">
+                        #{c.id} — {c.title}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        </div>
       )}
     </div>
   );
@@ -420,7 +487,7 @@ function AssignHomeworkTab() {
   const [assignments, setAssignments] = useState<
     (HomeworkAssignmentRow & { studentName: string; challengeTitle: string })[]
   >([]);
-  const [selectedChallenge, setSelectedChallenge] = useState<number | "">("");
+  const [selectedChallenges, setSelectedChallenges] = useState<Set<number>>(new Set());
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [dueDate, setDueDate] = useState("");
   const [loading, setLoading] = useState(true);
@@ -490,9 +557,28 @@ function AssignHomeworkTab() {
 
   const clearStudents = () => setSelectedStudents(new Set());
 
+  const toggleChallenge = (id: number) => {
+    setSelectedChallenges((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllChallenges = (ids: number[]) => {
+    setSelectedChallenges((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const clearChallenges = () => setSelectedChallenges(new Set());
+
   const handleAssign = async (studentIds: string[]) => {
-    if (!session?.id || selectedChallenge === "") {
-      setError("Select a challenge first.");
+    if (!session?.id || selectedChallenges.size === 0) {
+      setError("Select at least one challenge first.");
       return;
     }
     if (studentIds.length === 0) {
@@ -505,12 +591,15 @@ function AssignHomeworkTab() {
     setMessage("");
 
     const due = dueDate ? new Date(dueDate).toISOString() : null;
-    const rows = studentIds.map((studentId) => ({
-      student_id: studentId,
-      challenge_id: selectedChallenge as number,
-      assigned_by: session.id,
-      due_date: due,
-    }));
+    const challengeIds = Array.from(selectedChallenges);
+    const rows = studentIds.flatMap((studentId) =>
+      challengeIds.map((challengeId) => ({
+        student_id: studentId,
+        challenge_id: challengeId,
+        assigned_by: session.id,
+        due_date: due,
+      }))
+    );
 
     const { error: upsertError } = await supabase
       .from("homework_assignments")
@@ -523,8 +612,13 @@ function AssignHomeworkTab() {
       return;
     }
 
-    setMessage(`Assigned to ${studentIds.length} student${studentIds.length === 1 ? "" : "s"}.`);
+    const cCount = challengeIds.length;
+    const sCount = studentIds.length;
+    setMessage(
+      `Assigned ${cCount} challenge${cCount === 1 ? "" : "s"} to ${sCount} student${sCount === 1 ? "" : "s"}.`
+    );
     setSelectedStudents(new Set());
+    setSelectedChallenges(new Set());
     await load();
   };
 
@@ -565,12 +659,38 @@ function AssignHomeworkTab() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Challenge</label>
-            <ChallengePicker
+            <label className="block text-xs text-slate-500 mb-1.5">
+              Challenges{selectedChallenges.size > 0 ? ` (${selectedChallenges.size})` : ""}
+            </label>
+            <ChallengeMultiPicker
               options={allChallengeOptions}
-              value={selectedChallenge}
-              onChange={setSelectedChallenge}
+              selected={selectedChallenges}
+              onToggle={toggleChallenge}
+              onSelectAll={selectAllChallenges}
+              onClear={clearChallenges}
             />
+            {selectedChallenges.size > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {allChallengeOptions
+                  .filter((c) => selectedChallenges.has(c.id))
+                  .map((c) => (
+                    <span
+                      key={c.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800/70 py-0.5 pl-2 pr-1 text-[11px] text-slate-300"
+                    >
+                      #{c.id}
+                      <button
+                        type="button"
+                        onClick={() => toggleChallenge(c.id)}
+                        aria-label={`Remove challenge ${c.id}`}
+                        className="flex h-3.5 w-3.5 items-center justify-center rounded-full text-slate-500 hover:bg-slate-700 hover:text-slate-200 transition-colors"
+                      >
+                        <X className="h-2.5 w-2.5" strokeWidth={3} />
+                      </button>
+                    </span>
+                  ))}
+              </div>
+            )}
           </div>
 
           <div>

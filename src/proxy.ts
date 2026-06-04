@@ -39,6 +39,14 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Mentor-only challenge answer key
+  if (pathname.startsWith("/challenges/answer-key")) {
+    if (role !== "mentor") {
+      return NextResponse.redirect(new URL("/challenges", request.url));
+    }
+    return NextResponse.next();
+  }
+
   // Student/shared area — any authenticated session allowed
   if (!role) {
     return NextResponse.redirect(new URL("/onboarding", request.url));

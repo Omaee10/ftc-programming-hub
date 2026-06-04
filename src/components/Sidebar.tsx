@@ -24,6 +24,7 @@ import {
   Gamepad2,
   MoveRight,
   ActivitySquare,
+  KeyRound,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 interface NavChild {
@@ -39,6 +40,8 @@ interface NavItem {
   icon: React.ElementType;
   children?: NavChild[];
   badge?: string;
+  /** Only show this item to mentor sessions. */
+  mentorOnly?: boolean;
 }
 
 interface NavSection {
@@ -87,6 +90,13 @@ const navigation: NavSection[] = [
         label: "Coding Challenges",
         href: "/challenges",
         icon: Code2,
+      },
+      {
+        label: "Challenge Answer Key",
+        href: "/challenges/answer-key",
+        icon: KeyRound,
+        mentorOnly: true,
+        badge: "Mentor",
       },
       {
         label: "Coding Homework",
@@ -211,9 +221,14 @@ function DocsGroup({ onLinkClick }: { onLinkClick?: () => void }) {
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [isStudent, setIsStudent] = useState(false);
+  const [isMentor, setIsMentor] = useState(false);
 
   useEffect(() => {
-    const syncRole = () => setIsStudent(getSession()?.role === "student");
+    const syncRole = () => {
+      const role = getSession()?.role;
+      setIsStudent(role === "student");
+      setIsMentor(role === "mentor");
+    };
     syncRole();
     window.addEventListener("ftc-session-updated", syncRole);
     return () => window.removeEventListener("ftc-session-updated", syncRole);
@@ -227,7 +242,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const visibleNavigation = navigation.map((section) => ({
     ...section,
     items: section.items.filter(
-      (item) => item.href !== "/homework" || isStudent
+      (item) =>
+        (item.href !== "/homework" || isStudent) &&
+        (!item.mentorOnly || isMentor)
     ),
   }));
 

@@ -23,6 +23,7 @@ import {
   Clock,
   Code2,
   FileCode,
+  Key,
   Loader2,
   MessageSquare,
   Play,
@@ -62,6 +63,7 @@ import {
   isBlocksEnabled,
   type WorkspaceState,
 } from "@/data/blockChallenges";
+import type { ChallengeSolution } from "@/data/challengeSolutions";
 import { FULL_TOOLBOX } from "@/lib/blockly/ftcBlocks";
 import {
   clearBlockDraft,
@@ -607,6 +609,7 @@ export default function ChallengeWorkspace({
   onHomeworkComplete,
   backHref = "/challenges",
   backLabel = "Challenges",
+  answerKey,
 }: {
   challenge: Challenge;
   homeworkMode?: boolean;
@@ -614,7 +617,13 @@ export default function ChallengeWorkspace({
   onHomeworkComplete?: (code: string) => Promise<void>;
   backHref?: string;
   backLabel?: string;
+  /** When set, render a locked, read-only reference solution (mentor answer key). */
+  answerKey?: ChallengeSolution;
 }) {
+  // Read-only mentor answer-key mode: pre-fills the editor with the reference
+  // solution, disables every write path (drafts, cloud, grading, completion),
+  // and hides the submit / reset / mark-complete UI.
+  const answerKeyMode = !!answerKey;
   const { theme } = useTheme();
   const monacoTheme = (theme === "light" || theme === "paper") ? "ftc-light" : "ftc-dark";
 
@@ -677,7 +686,9 @@ export default function ChallengeWorkspace({
 
   // ── Editor state ────────────────────────────────────────────────────────
   const [code, setCode] = useState(() =>
-    chooseSavedCode(challenge.id, challenge.starterCode, null, null)
+    answerKey
+      ? answerKey.java
+      : chooseSavedCode(challenge.id, challenge.starterCode, null, null)
   );
   const codeRef = useRef(code);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -691,10 +702,14 @@ export default function ChallengeWorkspace({
   const monacoRef = useRef<Monaco | null>(null);
 
   // ── FTC Blocks mode ───────────────────────────────────────────────────────
-  const blocksEnabled = isBlocksEnabled(challenge.id);
+  // In answer-key mode the Blocks toggle appears only when the solution ships a
+  // completed block layout; otherwise it mirrors the normal per-challenge flag.
+  const blocksEnabled = answerKeyMode
+    ? !!answerKey?.blocks
+    : isBlocksEnabled(challenge.id);
   const blocksConfig = useMemo(
-    () => (blocksEnabled ? getBlockConfig(challenge.id) : null),
-    [blocksEnabled, challenge.id]
+    () => (!answerKeyMode && blocksEnabled ? getBlockConfig(challenge.id) : null),
+    [answerKeyMode, blocksEnabled, challenge.id]
   );
   const [editorMode, setEditorMode] = useState<EditorMode>("java");
   const [pendingMode, setPendingMode] = useState<EditorMode | null>(null);
@@ -742,13 +757,15 @@ export default function ChallengeWorkspace({
     setEditorMode("java");
   }, [blocksConfig, challenge.id, saveCode]);
 
-  // Initial Blockly state: saved draft (client) or the challenge starter layout.
+  // Initial Blockly state: the locked solution (answer key), a saved draft, or
+  // the challenge starter layout.
   const blocksInitialState = useMemo<WorkspaceState | null>(() => {
+    if (answerKeyMode) return answerKey?.blocks ?? null;
     if (!blocksConfig) return null;
     const draft = readBlockDraft(challenge.id);
     return draft?.state ?? blocksConfig.starter;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blocksConfig, challenge.id]);
+  }, [answerKeyMode, blocksConfig, challenge.id]);
 
   useEffect(() => {
     blockStateRef.current = blocksInitialState;
@@ -761,10 +778,11 @@ export default function ChallengeWorkspace({
 
   const handleBlocksChange = useCallback(
     (state: WorkspaceState) => {
+      if (answerKeyMode) return;
       blockStateRef.current = state;
       saveBlockDraft(challenge.id, state);
     },
-    [challenge.id]
+    [answerKeyMode, challenge.id]
   );
 
   // Sync Monaco theme whenever the app theme changes
@@ -816,6 +834,7 @@ export default function ChallengeWorkspace({
   }, [challenge.id]);
 
   useEffect(() => {
+    if (answerKeyMode) return;
     const session = getSession();
     const needsCloud = session?.role === "student";
     if (needsCloud && !dbHydrated) return;
@@ -831,6 +850,7 @@ export default function ChallengeWorkspace({
     editorRef.current?.setValue(restored);
     restoredChallengeRef.current = challenge.id;
   }, [
+    answerKeyMode,
     challenge.id,
     challenge.starterCode,
     dbHydrated,
@@ -840,6 +860,7 @@ export default function ChallengeWorkspace({
 
   // Flush the latest editor contents when leaving the page or unmounting
   useEffect(() => {
+    if (answerKeyMode) return;
     const flush = () => {
       clearTimeout(saveTimer.current);
       clearTimeout(cloudSaveTimer.current);
@@ -852,7 +873,7 @@ export default function ChallengeWorkspace({
       window.removeEventListener("pagehide", onPageHide);
       flush();
     };
-  }, [challenge.id, persistCode]);
+  }, [answerKeyMode, challenge.id, persistCode]);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -1259,23 +1280,32 @@ export default function ChallengeWorkspace({
         </div>
 
         <div className="flex items-center gap-0.5">
-          {prevChallenge && (
-            <Link
-              href={`/challenges/${prevChallenge.id}`}
-              title={prevChallenge.title}
-              className="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-            </Link>
-          )}
-          {nextChallenge && (
-            <Link
-              href={`/challenges/${nextChallenge.id}`}
-              title={nextChallenge.title}
-              className="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
-            >
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+          {answerKeyMode ? (
+            <span className="flex shrink-0 items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">
+              <Key className="h-3 w-3" />
+              Answer Key
+            </span>
+          ) : (
+            <>
+              {prevChallenge && (
+                <Link
+                  href={`/challenges/${prevChallenge.id}`}
+                  title={prevChallenge.title}
+                  className="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </Link>
+              )}
+              {nextChallenge && (
+                <Link
+                  href={`/challenges/${nextChallenge.id}`}
+                  title={nextChallenge.title}
+                  className="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -1467,23 +1497,25 @@ export default function ChallengeWorkspace({
             {leftTab === "hints" && (
               <>
                 <HintsAccordion hints={challenge.hints} />
-                <div className="rounded-md border border-slate-800/60 bg-slate-900/40 p-4">
-                  <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-slate-600">
-                    Mark Complete
-                  </p>
-                  <MarkCompleteButton
-                    challengeId={challenge.id}
-                    xp={challenge.xp}
-                    lastGrade={lastGrade}
-                    forceCompleted={homeworkMode ? homeworkCompleted : undefined}
-                    onComplete={
-                      homeworkMode && onHomeworkComplete
-                        ? () => onHomeworkComplete(code)
-                        : undefined
-                    }
-                    completeLabel={homeworkMode ? "Mark Homework Complete" : "Mark as Complete"}
-                  />
-                </div>
+                {!answerKeyMode && (
+                  <div className="rounded-md border border-slate-800/60 bg-slate-900/40 p-4">
+                    <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                      Mark Complete
+                    </p>
+                    <MarkCompleteButton
+                      challengeId={challenge.id}
+                      xp={challenge.xp}
+                      lastGrade={lastGrade}
+                      forceCompleted={homeworkMode ? homeworkCompleted : undefined}
+                      onComplete={
+                        homeworkMode && onHomeworkComplete
+                          ? () => onHomeworkComplete(code)
+                          : undefined
+                      }
+                      completeLabel={homeworkMode ? "Mark Homework Complete" : "Mark as Complete"}
+                    />
+                  </div>
+                )}
               </>
             )}
 
@@ -1538,18 +1570,25 @@ export default function ChallengeWorkspace({
             </span>
 
             <div className="ml-auto flex items-center gap-1.5">
-              <button
-                onClick={handleReset}
-                title={
-                  editorMode === "blocks"
-                    ? "Reset to starter blocks"
-                    : "Reset to starter code"
-                }
-                className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
-              >
-                <RefreshCcw className="h-3 w-3" />
-                Reset
-              </button>
+              {answerKeyMode ? (
+                <span className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-600">
+                  <Key className="h-3 w-3" />
+                  Reference solution · read-only
+                </span>
+              ) : (
+                <button
+                  onClick={handleReset}
+                  title={
+                    editorMode === "blocks"
+                      ? "Reset to starter blocks"
+                      : "Reset to starter code"
+                  }
+                  className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
+                >
+                  <RefreshCcw className="h-3 w-3" />
+                  Reset
+                </button>
+              )}
             </div>
           </div>
 
@@ -1564,6 +1603,7 @@ export default function ChallengeWorkspace({
                 theme={monacoTheme}
                 value={code}
                 onChange={(val) => {
+                  if (answerKeyMode) return;
                   const next = val ?? "";
                   setCode(next);
                   clearTimeout(saveTimer.current);
@@ -1578,6 +1618,8 @@ export default function ChallengeWorkspace({
                   monaco.editor.setTheme(monacoTheme);
                 }}
                 options={{
+                  readOnly: answerKeyMode,
+                  domReadOnly: answerKeyMode,
                   fontSize: 13,
                   fontFamily:
                     "'Geist Mono', 'Fira Code', 'JetBrains Mono', ui-monospace, monospace",
@@ -1606,16 +1648,17 @@ export default function ChallengeWorkspace({
                 }}
               />
             </div>
-            {blocksEnabled && blocksConfig && blocksInitialState && (
+            {blocksEnabled && blocksInitialState && (answerKeyMode || blocksConfig) && (
               <div className={editorMode === "blocks" ? "h-full w-full" : "hidden"}>
                 <BlocklyWorkspace
                   key={challenge.id}
                   toolbox={FULL_TOOLBOX}
                   initialState={blocksInitialState}
-                  starterState={blocksConfig.starter}
+                  starterState={blocksConfig?.starter ?? blocksInitialState}
                   resetSignal={blockResetSignal}
                   dark={monacoTheme === "ftc-dark"}
                   visible={editorMode === "blocks"}
+                  readOnly={answerKeyMode}
                   onChange={handleBlocksChange}
                 />
               </div>
@@ -1740,6 +1783,7 @@ export default function ChallengeWorkspace({
           )}
 
           {/* ── Console ─────────────────────────────────────────────────── */}
+          {!answerKeyMode && (
           <div
             className={`flex flex-col border-t border-slate-800 bg-slate-950 transition-all duration-300 ${
               consoleOpen ? "h-64" : "h-10"
@@ -1860,6 +1904,7 @@ export default function ChallengeWorkspace({
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>

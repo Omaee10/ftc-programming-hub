@@ -27,6 +27,8 @@ interface BlocklyWorkspaceProps {
   dark: boolean;
   /** Whether this editor is the visible one (Blockly must resize on show). */
   visible: boolean;
+  /** Render a locked, non-editable canvas (mentor answer key). */
+  readOnly?: boolean;
   onChange: (state: WorkspaceState) => void;
 }
 
@@ -82,6 +84,7 @@ export default function BlocklyWorkspace({
   resetSignal,
   dark,
   visible,
+  readOnly = false,
   onChange,
 }: BlocklyWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -116,10 +119,14 @@ export default function BlocklyWorkspace({
     ensureThemes();
 
     const ws = BK.inject(containerRef.current, {
-      toolbox: toolbox as unknown as Blockly.utils.toolbox.ToolboxDefinition,
+      // Answer-key mode shows the completed blocks with no toolbox or editing.
+      toolbox: readOnly
+        ? undefined
+        : (toolbox as unknown as Blockly.utils.toolbox.ToolboxDefinition),
+      readOnly,
       theme: (dark ? ftcDarkTheme : ftcLightTheme) ?? undefined,
       renderer: "geras",
-      trashcan: true,
+      trashcan: !readOnly,
       sounds: false,
       // Workspace pan scrollbars stay on (for moving around the build area).
       // The toolbox/flyout scrollbar is hidden via CSS in globals.css.
