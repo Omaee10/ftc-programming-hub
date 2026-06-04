@@ -7,103 +7,118 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* ─── Dark mode (default) ─────────────────────────────────────── */
-/* Override slate (blue-tinted) with zinc (neutral black) values   */
+/* ─── Dark mode (default) — warm charcoal palette ────────────────
+   Shifted from cool slate to warm browns/charcoals for human warmth.
+   This is the new default theme with warm tones throughout. */
 :root {
   color-scheme: dark;
-  --color-slate-950: #18181f;
-  --color-slate-900: #22222a;
-  --color-slate-800: #32323c;
-  --color-slate-700: #4e4e58;
-  --color-slate-600: #686872;
-  --color-slate-500: #82828c;
-  --color-slate-400: #a1a1aa;
-  --color-slate-300: #d4d4d8;
-  --color-slate-200: #e4e4e7;
-  --color-slate-100: #f4f4f5;
-  /* Default accent: sky */
-  --accent: 14 165 233;
-  --accent-fg: 56 189 248;
+  /* Warm charcoal base instead of cool slate */
+  --color-slate-950: #1a1410;
+  --color-slate-900: #242019;
+  --color-slate-800: #34302a;
+  --color-slate-700: #4a4540;
+  --color-slate-600: #6b6560;
+  --color-slate-500: #8a8178;
+  --color-slate-400: #a39a8f;
+  --color-slate-300: #c9bfb5;
+  --color-slate-200: #ddd2c8;
+  --color-slate-100: #ede2d8;
+  
+  /* Warm color system custom properties */
+  --warm-pink: #ff6b9d;
+  --warm-purple: #9d4edd;
+  --calm-cyan: #5dade2;
+  --warm-cream: #fff5f7;
+  --warm-grey: #5a6c7d;
+  --success-warm: #68c9a3;
+  --warning-warm: #f6ad55;
+  --error-warm: #e8715c;
+  
+  /* Default accent: warm pink */
+  --accent: 255 107 157;
+  --accent-fg: 255 160 190;
 }
 
-/* ─── Light mode overrides — inverts the slate scale ─────────────
-   Tailwind v4 exposes slate colors as CSS custom properties,
-   so we can flip the whole palette without touching any component. */
+/* ─── Light mode — warm cream palette ─────────────────────────────
+   Inverted warm tones for light mode. Uses warm cream as background
+   instead of pure white. */
 .light {
   color-scheme: light;
-  --color-slate-950: #ffffff;
-  --color-slate-900: #f8fafc;
-  --color-slate-800: #f1f5f9;
-  --color-slate-700: #e2e8f0;
-  --color-slate-600: #94a3b8;
-  --color-slate-500: #64748b;
-  --color-slate-400: #475569;
-  --color-slate-300: #334155;
-  --color-slate-200: #1e293b;
-  --color-slate-100: #0f172a;
-  /* Invert zinc accent scale so white accents become dark in light mode */
-  --color-zinc-100: #18181b;
-  --color-zinc-200: #27272a;
-  --color-zinc-300: #3f3f46;
-  --color-zinc-400: #52525b;
-  --color-zinc-500: #71717a;
-  --color-zinc-600: #a1a1aa;
-  --color-zinc-700: #d4d4d8;
-  --color-zinc-800: #e4e4e7;
-  --color-zinc-900: #f4f4f5;
-  --color-zinc-950: #fafafa;
+  --color-slate-950: #fff5f7;
+  --color-slate-900: #f9eff1;
+  --color-slate-800: #f0e8ea;
+  --color-slate-700: #dcc4ca;
+  --color-slate-600: #b89fa5;
+  --color-slate-500: #8e7278;
+  --color-slate-400: #644d52;
+  --color-slate-300: #3d2f32;
+  --color-slate-200: #2a1f21;
+  --color-slate-100: #1a1315;
+  /* Invert zinc accent scale for light mode */
+  --color-zinc-100: #1a1315;
+  --color-zinc-200: #2a1f21;
+  --color-zinc-300: #3d2f32;
+  --color-zinc-400: #644d52;
+  --color-zinc-500: #8e7278;
+  --color-zinc-600: #b89fa5;
+  --color-zinc-700: #dcc4ca;
+  --color-zinc-800: #f0e8ea;
+  --color-zinc-900: #f9eff1;
+  --color-zinc-950: #fff5f7;
 }
 
-/* ─── Midnight mode — OLED pure black ────────────────────────── */
-/* Surfaces stay true black; muted text is lifted for readability  */
-/* on #000 — small labels at slate-600/700 were nearly invisible.  */
+/* ─── Midnight mode — warm black with subtle brown tint ──────────
+   Pure black for OLED, but warmed slightly with brown undertones
+   for consistency with the human-first design language. */
 .midnight {
   color-scheme: dark;
-  --color-slate-950: #000000;
-  --color-slate-900: #0a0a0a;
-  --color-slate-800: #141414;
-  --color-slate-700: #65656a;
-  --color-slate-600: #75757a;
-  --color-slate-500: #939399;
-  --color-slate-400: #aeaeb2;
-  --color-slate-300: #c7c7cc;
-  --color-slate-200: #e5e5ea;
-  --color-slate-100: #f2f2f7;
+  --color-slate-950: #0a0805;
+  --color-slate-900: #0f0d0a;
+  --color-slate-800: #1a1815;
+  --color-slate-700: #68656d;
+  --color-slate-600: #79767f;
+  --color-slate-500: #97939d;
+  --color-slate-400: #b2b0ba;
+  --color-slate-300: #cccbce;
+  --color-slate-200: #e5e3e8;
+  --color-slate-100: #f2f1f5;
 }
 
-/* ─── Paper mode — warm cream light surface ──────────────────── */
+/* ─── Paper mode — enhanced warm cream light surface ──────────────
+   Already warm, but enhancing contrast and saturation for the
+   human-first design language. */
 .paper {
   color-scheme: light;
-  --color-slate-950: #fdfaf6;
-  --color-slate-900: #f7f3ec;
-  --color-slate-800: #ede8de;
-  --color-slate-700: #d8d2c6;
-  --color-slate-600: #a89f94;
-  --color-slate-500: #7a7068;
-  --color-slate-400: #524843;
-  --color-slate-300: #2e2a26;
-  --color-slate-200: #1c1915;
-  --color-slate-100: #110f0c;
-  --color-zinc-100: #1c1915;
-  --color-zinc-200: #2e2a26;
-  --color-zinc-300: #524843;
-  --color-zinc-400: #7a7068;
-  --color-zinc-500: #a89f94;
-  --color-zinc-600: #d8d2c6;
-  --color-zinc-700: #ede8de;
-  --color-zinc-800: #f7f3ec;
-  --color-zinc-900: #fdfaf6;
-  --color-zinc-950: #fffef9;
+  --color-slate-950: #fffbf8;
+  --color-slate-900: #f8f4f0;
+  --color-slate-800: #f0e8e2;
+  --color-slate-700: #ddd1c5;
+  --color-slate-600: #b5a898;
+  --color-slate-500: #8c7d6f;
+  --color-slate-400: #66564a;
+  --color-slate-300: #3d3228;
+  --color-slate-200: #2a1f1a;
+  --color-slate-100: #180d07;
+  --color-zinc-100: #180d07;
+  --color-zinc-200: #2a1f1a;
+  --color-zinc-300: #3d3228;
+  --color-zinc-400: #66564a;
+  --color-zinc-500: #8c7d6f;
+  --color-zinc-600: #b5a898;
+  --color-zinc-700: #ddd1c5;
+  --color-zinc-800: #f0e8e2;
+  --color-zinc-900: #f8f4f0;
+  --color-zinc-950: #fffbf8;
 }
 
-/* ─── Accent color system ─────────────────────────────────────── */
-/* --accent: RGB triplet for the primary accent (e.g. 14 165 233)  */
-/* --accent-fg: lighter foreground variant of the accent           */
-.accent-sky     { --accent: 14 165 233;  --accent-fg: 56 189 248;  }
-.accent-violet  { --accent: 139 92 246;  --accent-fg: 167 139 250; }
-.accent-emerald { --accent: 16 185 129;  --accent-fg: 52 211 153;  }
-.accent-amber   { --accent: 245 158 11;  --accent-fg: 251 191 36;  }
-.accent-rose    { --accent: 244 63 94;   --accent-fg: 251 113 133; }
+/* ─── Accent color system — warm palette focus ────────────────────
+   Warm pink is now the primary default accent. Accents include 
+   warm purple and calm cyan as supporting tones. */
+.accent-sky     { --accent: 93 173 226;   --accent-fg: 141 197 235;  } /* Calm cyan */
+.accent-violet  { --accent: 157 78 221;   --accent-fg: 191 154 245; } /* Soft purple */
+.accent-emerald { --accent: 104 201 163;  --accent-fg: 140 220 188; } /* Warmed green */
+.accent-amber   { --accent: 246 173 85;   --accent-fg: 249 205 130; } /* Warm amber */
+.accent-rose    { --accent: 255 107 157;  --accent-fg: 255 160 190; } /* Warm pink (new default) */
 
 /* Accent utility classes used by components */
 .accent-fill          { background-color: rgb(var(--accent)); }
@@ -115,6 +130,47 @@
 .accent-dot           { background-color: rgb(var(--accent)); }
 .accent-shadow        { box-shadow: 0 0 6px rgb(var(--accent) / 0.45); }
 .accent-stat          { color: rgb(var(--accent-fg)); }
+
+/* ─── Warm component utilities ─────────────────────────────────────
+   New utilities for warm, human-first design system. */
+.btn-primary-warm {
+  background: linear-gradient(135deg, rgb(255 107 157) 0%, rgb(157 78 221) 100%);
+  color: #fff;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgb(255 107 157 / 0.3);
+}
+.btn-primary-warm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgb(255 107 157 / 0.4);
+}
+.btn-primary-warm:active {
+  transform: translateY(0);
+}
+
+.card-warm-gradient {
+  background: linear-gradient(135deg, rgb(255 245 247) 0%, rgb(240 230 255) 100%);
+  border-radius: 0.75rem;
+  border: 1px solid rgb(255 107 157 / 0.1);
+  transition: all 0.2s ease;
+}
+.card-warm-gradient:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgb(255 107 157 / 0.15);
+  border-color: rgb(255 107 157 / 0.2);
+}
+
+.glass-warm {
+  background: rgba(255, 245, 247, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 107, 157, 0.1);
+  border-radius: 0.75rem;
+}
+
+/* ─── Spacing utilities ────────────────────────────────────────────
+   Breathing room for human-first design. */
+.px-spacious { padding-left: 1.5rem; padding-right: 1.5rem; }
+.py-spacious { padding-top: 1.5rem; padding-bottom: 1.5rem; }
 
 /* ─── Dashboard stat typography ───────────────────────────────── */
 .stat-label {
@@ -295,19 +351,25 @@
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
 }
 
-/* Primary button — accent fill, white label */
+/* Primary button — warm pink gradient with lift effect */
 .btn-primary {
-  background-color: rgb(var(--accent));
+  background: linear-gradient(135deg, rgb(255 107 157) 0%, rgb(157 78 221) 100%);
   color: #fff;
-  transition: filter 0.15s ease, transform 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgb(255 107 157 / 0.3);
 }
-.btn-primary:hover  { filter: brightness(1.08); }
-.btn-primary:active { transform: scale(0.98); }
+.btn-primary:hover  { 
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgb(255 107 157 / 0.4);
+}
+.btn-primary:active { 
+  transform: translateY(0);
+}
 
-/* Focus ring using accent */
+/* Focus ring using warm cyan for accessibility */
 .accent-ring:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgb(var(--accent) / 0.45);
+  box-shadow: 0 0 0 2px rgb(93 173 226 / 0.5);
 }
 
 /* Link that tints on hover */
@@ -323,15 +385,17 @@
   background-color: rgb(var(--accent) / 0.05);
 }
 
-/* ─── Dashboard glass panels (Dark · Midnight · Light · Paper) ── */
-/* Uses slate-100 as the foreground tint — auto-inverts per theme.  */
+/* ─── Dashboard glass panels (Dark · Midnight · Light · Paper) ──
+   Updated for warm color palette. Increased padding for breathing room. */
 .dash-panel {
   background-color: color-mix(in srgb, var(--color-slate-100) 2.5%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-slate-100) 6%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-slate-100) 5%, transparent);
-  border-radius: 0.75rem;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  line-height: 1.6;
 }
 
 .dash-panel-elevated {
@@ -342,7 +406,8 @@
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--color-slate-100) 6%, transparent),
     0 1px 3px color-mix(in srgb, var(--color-slate-100) 2%, transparent);
-  border-radius: 0.75rem;
+  border-radius: 1rem;
+  padding: 1.5rem;
 }
 
 .dash-divider {
@@ -449,6 +514,7 @@
     inset 0 1px 0 color-mix(in srgb, var(--color-slate-100) 5%, transparent),
     0 1px 2px color-mix(in srgb, black 12%, transparent);
   border-radius: 0.875rem;
+  padding: 1.5rem;
 }
 
 .dash-surface-card {
@@ -458,6 +524,7 @@
   -webkit-backdrop-filter: blur(10px);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-slate-100) 4%, transparent);
   border-radius: 0.875rem;
+  padding: 1.5rem;
 }
 
 .dash-list-item {
@@ -491,6 +558,8 @@
 
 body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.6;
+  font-size: 1rem;
 }
 
 /* ─── Navigation active state — left accent bar ───────────────── */
@@ -540,7 +609,8 @@ body {
   display: block;
 }
 
-/* ─── Doc page prose ─────────────────────────────────────────── */
+/* ─── Doc page prose ────────────────────────────────────────────
+   Updated for warm palette with improved readability. */
 .doc-content p {
   color: var(--color-slate-400);
   line-height: 1.8;
@@ -606,11 +676,11 @@ body {
 .doc-content code:not(.shiki-wrapper *) {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.8125rem;
-  background: rgb(255 255 255 / 0.06);
+  background: color-mix(in srgb, rgb(255 107 157) 6%, transparent);
   color: var(--color-slate-300);
   padding: 0.15em 0.45em;
   border-radius: 0.3125rem;
-  border: 1px solid rgb(255 255 255 / 0.1);
+  border: 1px solid color-mix(in srgb, rgb(255 107 157) 12%, transparent);
 }
 
 .doc-content table {
@@ -669,7 +739,8 @@ body {
   border-radius: 9999px;
 }
 
-/* ─── Page fade-in animation ──────────────────────────────────── */
+/* ─── Page fade-in animation ─────────────────────────────────────
+   Smooth entry for page transitions. */
 @keyframes page-enter {
   from {
     opacity: 0;
@@ -683,6 +754,39 @@ body {
 
 .page-enter {
   animation: page-enter 0.25s ease forwards;
+}
+
+/* ─── Warm micro-interactions ────────────────────────────────────
+   Smooth transitions for components. */
+@keyframes warm-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.warm-pulse {
+  animation: warm-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes celebration-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}
+
+.celebration-pop {
+  animation: celebration-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 /* ─── Stat number emphasis ────────────────────────────────────── */
