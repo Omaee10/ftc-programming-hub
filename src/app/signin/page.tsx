@@ -13,7 +13,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { setSession } from "@/lib/auth";
+import { clearSession, setSession } from "@/lib/auth";
 import { getAuthUserId } from "@/lib/authSession";
 
 interface StudentEnrollment {
@@ -71,6 +71,10 @@ export default function SignInPage() {
     },
     [router]
   );
+
+  useEffect(() => {
+    clearSession();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,11 +159,6 @@ export default function SignInPage() {
       }
 
       if (cancelled) return;
-
-      if (enrollments.length === 1) {
-        enterWorkspace(enrollments[0]);
-        return;
-      }
 
       setItems(enrollments);
       setLoading(false);
