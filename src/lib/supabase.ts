@@ -6,6 +6,7 @@ export interface ProfileRow {
   id: string;
   email: string;
   display_name: string;
+  account_type?: "student" | "mentor" | null;
   created_at: string;
 }
 

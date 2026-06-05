@@ -169,11 +169,15 @@ CREATE TABLE IF NOT EXISTS homework_assignments (
 -- CREATE UNIQUE INDEX IF NOT EXISTS students_user_mentor_unique ON students (user_id, mentor_id) WHERE user_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS profiles (
-  id           uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email        text NOT NULL,
-  display_name text NOT NULL,
-  created_at   timestamptz DEFAULT now()
+  id            uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email         text NOT NULL,
+  display_name  text NOT NULL,
+  account_type  text CHECK (account_type IN ('student', 'mentor')),
+  created_at    timestamptz DEFAULT now()
 );
+
+-- Migration for existing profiles table:
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS account_type text CHECK (account_type IN ('student', 'mentor'));
 
 ALTER TABLE students ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE mentors  ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;

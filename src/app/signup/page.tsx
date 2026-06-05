@@ -12,6 +12,8 @@ import {
   Mail,
   ChevronDown,
   ChevronUp,
+  User,
+  Shield,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import CodeInput from "@/components/CodeInput";
@@ -21,6 +23,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [accountType, setAccountType] = useState<"student" | "mentor" | null>(null);
   const [showCodeSection, setShowCodeSection] = useState(false);
   const [codeType, setCodeType] = useState<"student" | "mentor">("student");
   const [accessCode, setAccessCode] = useState("");
@@ -40,6 +43,10 @@ export default function SignupPage() {
       setError("Your name is required.");
       return;
     }
+    if (!hasCode && !accountType) {
+      setError("Select whether you are a student or mentor.");
+      return;
+    }
     if (showCodeSection && accessCode.trim().length !== 6) {
       setError("Enter the full 6-digit code or collapse the code section.");
       return;
@@ -53,6 +60,7 @@ export default function SignupPage() {
       };
       if (!hasCode) {
         payload.name = name.trim();
+        if (accountType) payload.accountType = accountType;
       }
       if (hasCode) {
         if (codeType === "student") {
@@ -144,20 +152,54 @@ export default function SignupPage() {
           </div>
 
           {!hasCode && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
-                Your Name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Alex Johnson"
-                disabled={isPending}
-                autoComplete="name"
-                className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all"
-              />
-            </div>
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Alex Johnson"
+                  disabled={isPending}
+                  autoComplete="name"
+                  className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                  I am a
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("student")}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-3 text-sm font-medium transition-all ${
+                      accountType === "student"
+                        ? "border-slate-500 bg-slate-700/80 text-slate-100"
+                        : "border-slate-800/60 bg-slate-900/40 text-slate-500 hover:border-slate-700/60 hover:text-slate-300"
+                    }`}
+                  >
+                    <User className="h-4 w-4 shrink-0" />
+                    Student
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("mentor")}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-3 text-sm font-medium transition-all ${
+                      accountType === "mentor"
+                        ? "border-slate-500 bg-slate-700/80 text-slate-100"
+                        : "border-slate-800/60 bg-slate-900/40 text-slate-500 hover:border-slate-700/60 hover:text-slate-300"
+                    }`}
+                  >
+                    <Shield className="h-4 w-4 shrink-0" />
+                    Mentor
+                  </button>
+                </div>
+              </div>
+            </>
           )}
 
           <div className="rounded-lg border border-slate-800/60 bg-slate-900/40">
@@ -202,8 +244,9 @@ export default function SignupPage() {
                 </div>
                 <CodeInput value={accessCode} onChange={setAccessCode} disabled={isPending} />
                 <p className="text-xs text-slate-600">
-                  Link your existing {codeType} account — you&apos;ll be added to your class
-                  automatically.
+                  {codeType === "mentor"
+                    ? "Enter your mentor sign-in code or class code from when the class was created."
+                    : "Link your existing student account — you'll be added to your class automatically."}
                 </p>
               </div>
             )}

@@ -2,6 +2,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let _admin: SupabaseClient | null = null;
 
+export function hasServiceRoleKey(): boolean {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+  return key.length > 0 && key !== "your-service-role-key-here";
+}
+
 /** Service-role client — server-side API routes only. Never import in client components. */
 export function createAdminClient(): SupabaseClient {
   if (_admin) return _admin;

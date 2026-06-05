@@ -1,15 +1,57 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
 
 interface SignupBody {
   email?: string;
   password?: string;
   name?: string;
+  accountType?: string;
   studentCode?: string;
   mentorCode?: string;
 }
 
+interface MentorClaimRow {
+  id: string;
+  mentor_name: string | null;
+  name: string;
+  user_id: string | null;
+}
+
+async function findUnclaimedMentor(
+  admin: ReturnType<typeof createAdminClient>,
+  code: string
+): Promise<MentorClaimRow | null> {
+  const { data: byMentorCode } = await admin
+    .from("mentors")
+    .select("id, mentor_name, name, user_id")
+    .eq("code", code)
+    .maybeSingle();
+
+  if (byMentorCode) {
+    return byMentorCode as MentorClaimRow;
+  }
+
+  const { data: byClassCode } = await admin
+    .from("mentors")
+    .select("id, mentor_name, name, user_id")
+    .eq("class_code", code)
+    .is("created_by", null)
+    .maybeSingle();
+
+  return (byClassCode as MentorClaimRow | null) ?? null;
+}
+
 export async function POST(request: Request) {
+  if (!hasServiceRoleKey()) {
+    return NextResponse.json(
+      {
+        error:
+          "Signup is not configured on the server. Add SUPABASE_SERVICE_ROLE_KEY to your environment.",
+      },
+      { status: 500 }
+    );
+  }
+
   let body: SignupBody;
   try {
     body = (await request.json()) as SignupBody;
@@ -20,6 +62,7 @@ export async function POST(request: Request) {
   const email = body.email?.trim().toLowerCase() ?? "";
   const password = body.password ?? "";
   const name = body.name?.trim() ?? "";
+  const accountType = body.accountType === "mentor" ? "mentor" : body.accountType === "student" ? "student" : null;
   const studentCode = body.studentCode?.trim() ?? "";
   const mentorCode = body.mentorCode?.trim() ?? "";
 
@@ -40,6 +83,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   let displayName = name;
+  let mentorToClaim: MentorClaimRow | null = null;
 
   if (studentCode) {
     if (studentCode.length !== 6) {
@@ -49,9 +93,16 @@ export async function POST(request: Request) {
       .from("students")
       .select("id, name, user_id")
       .eq("code", studentCode)
-      .single();
+      .maybeSingle();
 
-    if (studentErr || !student) {
+    if (studentErr) {
+      return NextResponse.json(
+        { error: "Could not verify student code. Try again." },
+        { status: 500 }
+      );
+    }
+
+    if (!student) {
       return NextResponse.json({ error: "Invalid student code." }, { status: 400 });
     }
 
@@ -67,26 +118,37 @@ export async function POST(request: Request) {
     if (mentorCode.length !== 6) {
       return NextResponse.json({ error: "Mentor code must be 6 digits." }, { status: 400 });
     }
-    const { data: mentor, error: mentorErr } = await admin
-      .from("mentors")
-      .select("id, mentor_name, name, user_id")
-      .eq("code", mentorCode)
-      .single();
 
-    if (mentorErr || !mentor) {
-      return NextResponse.json({ error: "Invalid mentor code." }, { status: 400 });
+    mentorToClaim = await findUnclaimedMentor(admin, mentorCode);
+
+    if (!mentorToClaim) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid mentor code. Use your mentor sign-in code or class code from when the class was created.",
+        },
+        { status: 400 }
+      );
     }
 
-    if (mentor.user_id) {
+    if (mentorToClaim.user_id) {
       return NextResponse.json(
         { error: "This mentor code has already been claimed." },
         { status: 400 }
       );
     }
 
-    displayName = mentor.mentor_name?.trim() || mentor.name;
-  } else if (!displayName) {
-    return NextResponse.json({ error: "Your name is required." }, { status: 400 });
+    displayName = mentorToClaim.mentor_name?.trim() || mentorToClaim.name;
+  } else {
+    if (!displayName) {
+      return NextResponse.json({ error: "Your name is required." }, { status: 400 });
+    }
+    if (!accountType) {
+      return NextResponse.json(
+        { error: "Select whether you are a student or mentor." },
+        { status: 400 }
+      );
+    }
   }
 
   const { data: authData, error: authErr } = await admin.auth.admin.createUser({
@@ -102,11 +164,26 @@ export async function POST(request: Request) {
 
   const userId = authData.user.id;
 
-  const { error: profileErr } = await admin.from("profiles").insert({
+  const profilePayload: {
+    id: string;
+    email: string;
+    display_name: string;
+    account_type?: "student" | "mentor";
+  } = {
     id: userId,
     email,
     display_name: displayName,
-  });
+  };
+
+  if (!studentCode && !mentorCode && accountType) {
+    profilePayload.account_type = accountType;
+  } else if (studentCode) {
+    profilePayload.account_type = "student";
+  } else if (mentorCode) {
+    profilePayload.account_type = "mentor";
+  }
+
+  const { error: profileErr } = await admin.from("profiles").insert(profilePayload);
 
   if (profileErr) {
     await admin.auth.admin.deleteUser(userId);
@@ -131,11 +208,11 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
-  } else if (mentorCode) {
+  } else if (mentorToClaim) {
     const { data: linked, error: linkErr } = await admin
       .from("mentors")
       .update({ user_id: userId })
-      .eq("code", mentorCode)
+      .eq("id", mentorToClaim.id)
       .is("user_id", null)
       .select("id");
 
