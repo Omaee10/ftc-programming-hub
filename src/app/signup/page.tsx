@@ -245,7 +245,7 @@ export default function SignupPage() {
                 <CodeInput value={accessCode} onChange={setAccessCode} disabled={isPending} />
                 <p className="text-xs text-slate-600">
                   {codeType === "mentor"
-                    ? "Enter your mentor sign-in code or class code from when the class was created."
+                    ? "Enter your mentor or co-mentor sign-in code from the class dashboard."
                     : "Link your existing student account — you'll be added to your class automatically."}
                 </p>
               </div>

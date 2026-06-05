@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
+import {
+  createAdminClient,
+  getSupabaseEnvStatus,
+  hasServiceRoleKey,
+} from "@/lib/supabase/admin";
 
 interface SignupBody {
   email?: string;
@@ -20,33 +24,64 @@ interface MentorClaimRow {
 async function findUnclaimedMentor(
   admin: ReturnType<typeof createAdminClient>,
   code: string
-): Promise<MentorClaimRow | null> {
-  const { data: byMentorCode } = await admin
+): Promise<{ mentor: MentorClaimRow | null; lookupError?: string }> {
+  const { data: byMentorCode, error: mentorCodeErr } = await admin
     .from("mentors")
     .select("id, mentor_name, name, user_id")
     .eq("code", code)
-    .maybeSingle();
+    .limit(1);
 
-  if (byMentorCode) {
-    return byMentorCode as MentorClaimRow;
+  if (mentorCodeErr) {
+    return { mentor: null, lookupError: mentorCodeErr.message };
   }
 
-  const { data: byClassCode } = await admin
+  const mentorMatch = (byMentorCode?.[0] as MentorClaimRow | undefined) ?? null;
+  if (mentorMatch) {
+    return { mentor: mentorMatch };
+  }
+
+  const { data: byClassCode, error: classCodeErr } = await admin
     .from("mentors")
     .select("id, mentor_name, name, user_id")
     .eq("class_code", code)
     .is("created_by", null)
-    .maybeSingle();
+    .limit(1);
 
-  return (byClassCode as MentorClaimRow | null) ?? null;
+  if (classCodeErr) {
+    return { mentor: null, lookupError: classCodeErr.message };
+  }
+
+  return { mentor: (byClassCode?.[0] as MentorClaimRow | undefined) ?? null };
 }
 
 export async function POST(request: Request) {
+  const envStatus = getSupabaseEnvStatus();
+
+  if (!envStatus.urlProjectRef) {
+    return NextResponse.json(
+      {
+        error:
+          "Signup is not configured on the server. Add NEXT_PUBLIC_SUPABASE_URL to your environment.",
+      },
+      { status: 500 }
+    );
+  }
+
   if (!hasServiceRoleKey()) {
     return NextResponse.json(
       {
         error:
           "Signup is not configured on the server. Add SUPABASE_SERVICE_ROLE_KEY to your environment.",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (envStatus.refsMatch === false) {
+    return NextResponse.json(
+      {
+        error:
+          "Server Supabase keys do not match. The service role key must come from the same project as your Supabase URL.",
       },
       { status: 500 }
     );
@@ -119,13 +154,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Mentor code must be 6 digits." }, { status: 400 });
     }
 
-    mentorToClaim = await findUnclaimedMentor(admin, mentorCode);
+    const mentorLookup = await findUnclaimedMentor(admin, mentorCode);
+    mentorToClaim = mentorLookup.mentor;
+
+    if (mentorLookup.lookupError) {
+      return NextResponse.json(
+        { error: "Could not verify mentor code. Try again." },
+        { status: 500 }
+      );
+    }
 
     if (!mentorToClaim) {
       return NextResponse.json(
         {
           error:
-            "Invalid mentor code. Use your mentor sign-in code or class code from when the class was created.",
+            "Invalid mentor code. Use your mentor or co-mentor sign-in code (not the student class code).",
         },
         { status: 400 }
       );
