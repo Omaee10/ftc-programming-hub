@@ -77,11 +77,17 @@ export async function findUnclaimedMentor(
 export async function linkMentorToUser(
   admin: SupabaseClient,
   mentorId: string,
-  userId: string
+  userId: string,
+  displayName?: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const updatePayload: { user_id: string; mentor_name?: string } = { user_id: userId };
+  if (displayName?.trim()) {
+    updatePayload.mentor_name = displayName.trim();
+  }
+
   const { data: linked, error: linkErr } = await admin
     .from("mentors")
-    .update({ user_id: userId })
+    .update(updatePayload)
     .eq("id", mentorId)
     .is("user_id", null)
     .select("id");
@@ -90,7 +96,35 @@ export async function linkMentorToUser(
     return { ok: false, error: linkErr?.message ?? "Failed to link mentor code." };
   }
 
+  await cleanupStaleCoMentorSlots(admin, mentorId);
+
   return { ok: true };
+}
+
+/** Remove older unclaimed co-mentor slots with the same name in one class. */
+export async function cleanupStaleCoMentorSlots(
+  admin: SupabaseClient,
+  claimedMentorId: string
+): Promise<void> {
+  const { data: claimed } = await admin
+    .from("mentors")
+    .select("id, name, mentor_name, created_by")
+    .eq("id", claimedMentorId)
+    .single();
+
+  const row = claimed as MentorClaimRow | null;
+  if (!row?.created_by) return;
+
+  const displayName = row.mentor_name?.trim() || row.name?.trim();
+  if (!displayName) return;
+
+  await admin
+    .from("mentors")
+    .delete()
+    .eq("created_by", row.created_by)
+    .is("user_id", null)
+    .neq("id", claimedMentorId)
+    .eq("name", displayName);
 }
 
 export function databaseKeyErrorMessage(lookupError?: string): string {

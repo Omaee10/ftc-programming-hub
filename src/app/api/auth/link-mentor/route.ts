@@ -97,7 +97,23 @@ export async function POST(request: Request) {
     );
   }
 
-  const linked = await linkMentorToUser(admin, mentorLookup.mentor.id, user.id);
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const displayName =
+    profile?.display_name?.trim() ||
+    mentorLookup.mentor.mentor_name?.trim() ||
+    mentorLookup.mentor.name;
+
+  const linked = await linkMentorToUser(
+    admin,
+    mentorLookup.mentor.id,
+    user.id,
+    displayName
+  );
   if (!linked.ok) {
     return NextResponse.json(
       { error: linked.error ?? "Failed to link mentor workspace." },

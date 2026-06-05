@@ -985,7 +985,7 @@ function CodeManager({
       // Show the class owner + all co-mentors created by the owner
       const { data } = await supabase
         .from("mentors")
-        .select("id, name, mentor_name, code, created_at, created_by")
+        .select("id, name, mentor_name, code, created_at, created_by, user_id")
         .or(`id.eq.${ownerId},created_by.eq.${ownerId}`)
         .order("name");
       setRows((data ?? []) as (MentorRow | StudentRow)[]);
@@ -1100,9 +1100,11 @@ function CodeManager({
         ) : (
           <ul className="divide-y divide-slate-800/60">
             {rows.map((row) => {
-              const mentorRow = row as MentorRow;
+              const mentorRow = row as MentorRow & { user_id?: string | null };
               const displayName = mentorRow.mentor_name ?? mentorRow.name;
               const teamName = mentorRow.mentor_name ? mentorRow.name : null;
+              const isLinked = Boolean(mentorRow.user_id);
+              const isYou = session?.id === row.id;
               return (
               <li
                 key={row.id}
@@ -1114,10 +1116,18 @@ function CodeManager({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-200 truncate">
                     {displayName}
+                    {isYou && (
+                      <span className="ml-2 text-[10px] font-medium uppercase tracking-wide text-emerald-400">
+                        You
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-slate-500 truncate">
                     {teamName && <span className="mr-2">{teamName}</span>}
                     <span className="font-mono">{showCodes.has(row.id) ? row.code : maskCode(row.code)}</span>
+                    {!isLinked && table === "mentors" && (
+                      <span className="ml-2 text-amber-500/80">· Awaiting signup</span>
+                    )}
                   </p>
                 </div>
                 <button

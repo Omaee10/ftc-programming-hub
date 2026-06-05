@@ -228,7 +228,7 @@ export async function POST(request: Request) {
       );
     }
   } else if (mentorToClaim) {
-    const linked = await linkMentorToUser(admin, mentorToClaim.id, userId);
+    const linked = await linkMentorToUser(admin, mentorToClaim.id, userId, displayName);
     if (!linked.ok) {
       await admin.auth.admin.deleteUser(userId);
       return NextResponse.json(
