@@ -22,6 +22,7 @@ export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [accountType, setAccountType] = useState<"student" | "mentor" | null>(null);
   const [showCodeSection, setShowCodeSection] = useState(false);
@@ -35,8 +36,12 @@ export default function SignupPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
+    if (!trimmedEmail || !password || !confirmPassword) {
       setError("Email and password are required.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
     if (!hasCode && !name.trim()) {
@@ -145,6 +150,21 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="At least 6 characters"
+              disabled={isPending}
+              autoComplete="new-password"
+              className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter your password"
               disabled={isPending}
               autoComplete="new-password"
               className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all"
@@ -261,7 +281,7 @@ export default function SignupPage() {
 
           <button
             type="submit"
-            disabled={isPending || !email.trim() || !password}
+            disabled={isPending || !email.trim() || !password || !confirmPassword}
             className="flex items-center justify-center gap-2 rounded-lg btn-primary px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isPending ? (
