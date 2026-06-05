@@ -1063,7 +1063,7 @@ function CodeManager({
       {table === "mentors" && session && (() => {
         const myRow = rows.find((r) => r.id === session.id) as MentorRow | undefined;
         if (!myRow) return null;
-        const myDisplayName = myRow.mentor_name ?? myRow.name;
+        const myDisplayName = session?.name ?? myRow.mentor_name ?? myRow.name;
         return (
           <div className="rounded-xl border border-white/20 bg-white/5 p-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
             <div className="flex-1">

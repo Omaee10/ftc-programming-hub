@@ -9,7 +9,7 @@ import ThemePanel from "./ThemePanel";
 import DashboardDocSearch from "./DashboardDocSearch";
 import { getSession, setSession as persistSession, type Session } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { signOutAll } from "@/lib/authSession";
+import { signOutAll, getAuthUserId, getProfileDisplayName } from "@/lib/authSession";
 
 function getInitials(name: string): string {
   return name
@@ -38,6 +38,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
     if (stored?.role === "mentor") {
       (async () => {
+        const userId = await getAuthUserId();
+        const profileName = userId ? await getProfileDisplayName(userId) : null;
+
         const { data: mentorRow } = await supabase
           .from("mentors")
           .select("name, mentor_name, class_name, created_by")
@@ -51,11 +54,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           class_name?: string | null;
           created_by?: string | null;
         };
-        let personalName: string = row.mentor_name ?? row.name;
+        let personalName: string = profileName ?? row.mentor_name ?? row.name;
         let teamName: string = row.name;
         let resolvedClassName: string | undefined = row.class_name?.trim() || undefined;
         const parentMentorId: string | undefined = row.created_by ?? undefined;
         const ownerId = parentMentorId ?? stored.id;
+
+        if (profileName && row.mentor_name !== profileName) {
+          void supabase
+            .from("mentors")
+            .update({ mentor_name: profileName })
+            .eq("id", stored.id);
+        }
 
         const { data: ownerRow } = await supabase
           .from("mentors")

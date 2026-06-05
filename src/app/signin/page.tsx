@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { clearSession, setSession } from "@/lib/auth";
-import { getAuthUserId } from "@/lib/authSession";
+import { getAuthUserId, getProfileDisplayName } from "@/lib/authSession";
 
 interface StudentEnrollment {
   kind: "student";
@@ -42,11 +42,15 @@ function mentorClassOwnerId(item: MentorWorkspace): string {
   return item.parentMentorId ?? item.id;
 }
 
-/** One card per class — prefer owner workspace if user linked twice by mistake. */
-function dedupePickerItems(items: PickerItem[]): PickerItem[] {
+/** One card per class — prefer the row that matches the user's profile name. */
+function dedupePickerItems(items: PickerItem[], profileName?: string): PickerItem[] {
   const students: StudentEnrollment[] = [];
   const seenStudentClasses = new Set<string>();
   const mentorByClass = new Map<string, MentorWorkspace>();
+  const normalizedProfile = profileName?.trim().toLowerCase();
+
+  const nameMatchesProfile = (name: string) =>
+    Boolean(normalizedProfile && name.trim().toLowerCase() === normalizedProfile);
 
   for (const item of items) {
     if (item.kind === "student") {
@@ -58,7 +62,21 @@ function dedupePickerItems(items: PickerItem[]): PickerItem[] {
 
     const classKey = mentorClassOwnerId(item);
     const existing = mentorByClass.get(classKey);
-    if (!existing || (item.isOwner && !existing.isOwner)) {
+    if (!existing) {
+      mentorByClass.set(classKey, item);
+      continue;
+    }
+
+    const itemMatches = nameMatchesProfile(item.name);
+    const existingMatches = nameMatchesProfile(existing.name);
+    if (itemMatches && !existingMatches) {
+      mentorByClass.set(classKey, item);
+      continue;
+    }
+    if (existingMatches && !itemMatches) continue;
+
+    // Prefer co-mentor slot over owner when both are linked by mistake.
+    if (!item.isOwner && existing.isOwner) {
       mentorByClass.set(classKey, item);
     }
   }
@@ -75,28 +93,33 @@ export default function SignInPage() {
 
   const enterWorkspace = useCallback(
     (item: PickerItem) => {
-      if (item.kind === "student") {
-        setSession({
-          role: "student",
-          id: item.id,
-          name: item.name,
-          teamName: item.teamName,
-          mentorId: item.mentorId,
-          ...(item.className ? { className: item.className } : {}),
-        });
-        router.push("/dashboard");
-        return;
-      }
+      startTransition(async () => {
+        const userId = await getAuthUserId();
+        const profileName = userId ? await getProfileDisplayName(userId) : null;
 
-      setSession({
-        role: "mentor",
-        id: item.id,
-        name: item.name,
-        teamName: item.teamName,
-        ...(item.className ? { className: item.className } : {}),
-        ...(item.parentMentorId ? { parentMentorId: item.parentMentorId } : {}),
+        if (item.kind === "student") {
+          setSession({
+            role: "student",
+            id: item.id,
+            name: profileName ?? item.name,
+            teamName: item.teamName,
+            mentorId: item.mentorId,
+            ...(item.className ? { className: item.className } : {}),
+          });
+          router.push("/dashboard");
+          return;
+        }
+
+        setSession({
+          role: "mentor",
+          id: item.id,
+          name: profileName ?? item.name,
+          teamName: item.teamName,
+          ...(item.className ? { className: item.className } : {}),
+          ...(item.parentMentorId ? { parentMentorId: item.parentMentorId } : {}),
+        });
+        router.push("/mentor/dashboard");
       });
-      router.push("/mentor/dashboard");
     },
     [router]
   );
@@ -115,6 +138,7 @@ export default function SignInPage() {
         return;
       }
 
+      const profileName = (await getProfileDisplayName(userId)) ?? undefined;
       const enrollments: PickerItem[] = [];
 
       const { data: students, error: studentsErr } = await supabase
@@ -138,7 +162,7 @@ export default function SignInPage() {
         enrollments.push({
           kind: "student",
           id: row.id as string,
-          name: row.name as string,
+          name: profileName ?? (row.name as string),
           mentorId: (row.mentor_id as string) ?? "",
           teamName: mentor?.name ?? "",
           className: mentor?.class_name?.trim() || undefined,
@@ -179,7 +203,7 @@ export default function SignInPage() {
         enrollments.push({
           kind: "mentor",
           id: row.id as string,
-          name: personalName,
+          name: profileName ?? personalName,
           teamName,
           className,
           parentMentorId: parentId,
@@ -189,7 +213,7 @@ export default function SignInPage() {
 
       if (cancelled) return;
 
-      setItems(dedupePickerItems(enrollments));
+      setItems(dedupePickerItems(enrollments, profileName));
       setLoading(false);
     })();
 
@@ -199,9 +223,7 @@ export default function SignInPage() {
   }, [router, enterWorkspace]);
 
   const handleSelect = (item: PickerItem) => {
-    startTransition(() => {
-      enterWorkspace(item);
-    });
+    enterWorkspace(item);
   };
 
   if (loading || isPending) {

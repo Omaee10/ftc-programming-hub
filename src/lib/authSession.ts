@@ -12,3 +12,13 @@ export async function getAuthUserId(): Promise<string | null> {
   } = await supabase.auth.getUser();
   return user?.id ?? null;
 }
+
+export async function getProfileDisplayName(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return data?.display_name?.trim() || null;
+}
