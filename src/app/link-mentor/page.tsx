@@ -107,7 +107,8 @@ export default function LinkMentorPage() {
               Link mentor workspace
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Already have an account? Enter a mentor or co-mentor code to join another class.
+              Co-mentor only — link a <strong className="font-medium text-slate-400">different</strong> class
+              you haven&apos;t joined yet. If you used a mentor code at signup, use Sign in instead.
             </p>
           </div>
         </div>

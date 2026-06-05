@@ -97,7 +97,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push("/onboarding");
+      router.push(hasCode ? "/signin" : "/onboarding");
       router.refresh();
     });
   };
@@ -265,7 +265,7 @@ export default function SignupPage() {
                 <CodeInput value={accessCode} onChange={setAccessCode} disabled={isPending} />
                 <p className="text-xs text-slate-600">
                   {codeType === "mentor"
-                    ? "Enter your mentor or co-mentor sign-in code from the class dashboard."
+                    ? "Link your mentor workspace at signup — then use Sign in to enter your class. Don't use Link mentor workspace after."
                     : "Link your existing student account — you'll be added to your class automatically."}
                 </p>
               </div>

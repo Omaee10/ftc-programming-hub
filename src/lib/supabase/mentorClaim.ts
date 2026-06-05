@@ -5,6 +5,40 @@ export interface MentorClaimRow {
   mentor_name: string | null;
   name: string;
   user_id: string | null;
+  created_by?: string | null;
+}
+
+function classOwnerId(mentor: MentorClaimRow): string {
+  return mentor.created_by ?? mentor.id;
+}
+
+/** True if this login already owns or co-mentors in the same class as `mentor`. */
+export async function userAlreadyHasClassAccess(
+  admin: SupabaseClient,
+  userId: string,
+  mentor: MentorClaimRow
+): Promise<boolean> {
+  if (mentor.user_id === userId) return true;
+
+  const ownerId = classOwnerId(mentor);
+
+  const { data: ownerRow } = await admin
+    .from("mentors")
+    .select("id")
+    .eq("id", ownerId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (ownerRow) return true;
+
+  const { data: coRow } = await admin
+    .from("mentors")
+    .select("id")
+    .eq("created_by", ownerId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return Boolean(coRow);
 }
 
 export async function findUnclaimedMentor(
@@ -13,7 +47,7 @@ export async function findUnclaimedMentor(
 ): Promise<{ mentor: MentorClaimRow | null; lookupError?: string }> {
   const { data: byMentorCode, error: mentorCodeErr } = await admin
     .from("mentors")
-    .select("id, mentor_name, name, user_id")
+    .select("id, mentor_name, name, user_id, created_by")
     .eq("code", code)
     .limit(1);
 
@@ -28,7 +62,7 @@ export async function findUnclaimedMentor(
 
   const { data: byClassCode, error: classCodeErr } = await admin
     .from("mentors")
-    .select("id, mentor_name, name, user_id")
+    .select("id, mentor_name, name, user_id, created_by")
     .eq("class_code", code)
     .is("created_by", null)
     .limit(1);

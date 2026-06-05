@@ -1,11 +1,39 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trophy, ArrowRight, LogIn, UserPlus, LogOut, Shield, Settings } from "lucide-react";
-import { signOutAll } from "@/lib/authSession";
+import { Trophy, ArrowRight, LogIn, UserPlus, LogOut, Shield, Settings, Info } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { signOutAll, getAuthUserId } from "@/lib/authSession";
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const [hasWorkspaces, setHasWorkspaces] = useState(false);
+  const [checkingWorkspaces, setCheckingWorkspaces] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const userId = await getAuthUserId();
+      if (!userId) {
+        setCheckingWorkspaces(false);
+        return;
+      }
+
+      const [{ count: studentCount }, { count: mentorCount }] = await Promise.all([
+        supabase
+          .from("students")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId),
+        supabase
+          .from("mentors")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId),
+      ]);
+
+      setHasWorkspaces((studentCount ?? 0) + (mentorCount ?? 0) > 0);
+      setCheckingWorkspaces(false);
+    })();
+  }, []);
 
   const handleSignOut = () => {
     void signOutAll().then(() => {
@@ -57,6 +85,16 @@ export default function OnboardingPage() {
           </p>
         </div>
 
+        {!checkingWorkspaces && hasWorkspaces && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-sky-500/15 bg-sky-500/8 px-4 py-3">
+            <Info className="h-4 w-4 shrink-0 text-sky-400 mt-0.5" />
+            <p className="text-sm text-sky-300/90 leading-relaxed">
+              Your account is already linked to a class. Tap <strong className="font-medium">Sign in</strong> below —
+              you don&apos;t need to link your mentor code again.
+            </p>
+          </div>
+        )}
+
         <button
           onClick={() => router.push("/signin")}
           className="group w-full flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/80 px-6 py-5 text-left hover:border-slate-600/60 hover:bg-slate-800/60 transition-all duration-200 focus:outline-none accent-ring mb-4"
@@ -106,7 +144,7 @@ export default function OnboardingPage() {
                 Link mentor workspace
               </p>
               <p className="text-xs text-slate-700 mt-0.5">
-                Co-mentor — enter a code from another class
+                Co-mentor only — a different class, not your own code
               </p>
             </div>
           </div>

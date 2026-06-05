@@ -9,6 +9,7 @@ import {
   databaseKeyErrorMessage,
   findUnclaimedMentor,
   linkMentorToUser,
+  userAlreadyHasClassAccess,
 } from "@/lib/supabase/mentorClaim";
 
 interface LinkMentorBody {
@@ -69,9 +70,29 @@ export async function POST(request: Request) {
     );
   }
 
+  if (mentorLookup.mentor.user_id === user.id) {
+    return NextResponse.json(
+      {
+        error:
+          "This workspace is already linked to your account. Use Sign in to enter your class.",
+      },
+      { status: 400 }
+    );
+  }
+
   if (mentorLookup.mentor.user_id) {
     return NextResponse.json(
       { error: "This mentor code has already been claimed." },
+      { status: 400 }
+    );
+  }
+
+  if (await userAlreadyHasClassAccess(admin, user.id, mentorLookup.mentor)) {
+    return NextResponse.json(
+      {
+        error:
+          "You're already part of this class. Use Sign in — you don't need to link it again.",
+      },
       { status: 400 }
     );
   }
