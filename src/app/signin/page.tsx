@@ -38,6 +38,34 @@ interface MentorWorkspace {
 
 type PickerItem = StudentEnrollment | MentorWorkspace;
 
+function mentorClassOwnerId(item: MentorWorkspace): string {
+  return item.parentMentorId ?? item.id;
+}
+
+/** One card per class — prefer owner workspace if user linked twice by mistake. */
+function dedupePickerItems(items: PickerItem[]): PickerItem[] {
+  const students: StudentEnrollment[] = [];
+  const seenStudentClasses = new Set<string>();
+  const mentorByClass = new Map<string, MentorWorkspace>();
+
+  for (const item of items) {
+    if (item.kind === "student") {
+      if (seenStudentClasses.has(item.mentorId)) continue;
+      seenStudentClasses.add(item.mentorId);
+      students.push(item);
+      continue;
+    }
+
+    const classKey = mentorClassOwnerId(item);
+    const existing = mentorByClass.get(classKey);
+    if (!existing || (item.isOwner && !existing.isOwner)) {
+      mentorByClass.set(classKey, item);
+    }
+  }
+
+  return [...students, ...mentorByClass.values()];
+}
+
 export default function SignInPage() {
   const router = useRouter();
   const [items, setItems] = useState<PickerItem[]>([]);
@@ -161,7 +189,7 @@ export default function SignInPage() {
 
       if (cancelled) return;
 
-      setItems(enrollments);
+      setItems(dedupePickerItems(enrollments));
       setLoading(false);
     })();
 
