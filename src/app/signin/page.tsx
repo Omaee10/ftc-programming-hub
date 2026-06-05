@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Shield,
   UserPlus,
+  Settings,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { clearSession, setSession } from "@/lib/auth";
@@ -205,11 +206,21 @@ export default function SignInPage() {
           </div>
         </div>
 
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">Your classes</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Select a class or workspace to continue.
-          </p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">Your classes</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Select a class or workspace to continue.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/account")}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-800/60 px-3 py-2 text-xs font-medium text-slate-500 hover:border-slate-700/60 hover:text-slate-300 transition-colors"
+          >
+            <Settings className="h-3.5 w-3.5" />
+            Account
+          </button>
         </div>
 
         {error && (

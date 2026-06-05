@@ -5,10 +5,11 @@ import type { User } from "@supabase/supabase-js";
 
 const ROLE_COOKIE = "ftc-hub-role";
 
-const AUTH_PUBLIC_PATHS = ["/login", "/signup"];
+const AUTH_PUBLIC_PATHS = ["/login", "/signup", "/forgot-password"];
 const AUTH_REQUIRED_PATHS = [
   "/onboarding",
   "/signin",
+  "/account",
   "/join-class",
   "/create-class",
   "/link-mentor",

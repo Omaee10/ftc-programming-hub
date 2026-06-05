@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, LogOut, Palette, Shield, Copy, Check } from "lucide-react";
+import { Menu, LogOut, Palette, Shield, Copy, Check, Settings } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "./Sidebar";
 import ThemePanel from "./ThemePanel";
@@ -281,6 +281,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   </span>
                 )}
               </div>
+
+              <Link
+                href="/account"
+                title="Account settings"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-all duration-150"
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Link>
 
               <button
                 onClick={handleSignOut}

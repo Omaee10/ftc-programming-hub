@@ -20,7 +20,6 @@ export default function JoinClassPage() {
   const router = useRouter();
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [classCode, setClassCode] = useState("");
-  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -32,16 +31,6 @@ export default function JoinClassPage() {
         return;
       }
       setAuthUserId(userId);
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", userId)
-        .single();
-
-      if (profile?.display_name) {
-        setName(profile.display_name);
-      }
     })();
   }, [router]);
 
@@ -52,16 +41,24 @@ export default function JoinClassPage() {
       setError("Please enter the full 6-digit class code.");
       return;
     }
-    if (!name.trim()) {
-      setError("Your name is required.");
-      return;
-    }
     setError("");
 
     startTransition(async () => {
       const userId = authUserId ?? (await getAuthUserId());
       if (!userId) {
         router.replace("/login");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", userId)
+        .single();
+
+      const displayName = profile?.display_name?.trim() ?? "";
+      if (!displayName) {
+        setError("Your account has no name on file. Sign out and sign up again with your name.");
         return;
       }
 
@@ -102,7 +99,7 @@ export default function JoinClassPage() {
         const { data, error: insertErr } = await supabase
           .from("students")
           .insert({
-            name: name.trim(),
+            name: displayName,
             code,
             mentor_id: ownerRow.id,
             user_id: userId,
@@ -136,7 +133,7 @@ export default function JoinClassPage() {
       setSession({
         role: "student",
         id: inserted.id,
-        name: name.trim(),
+        name: displayName,
         teamName: ownerRow.name,
         mentorId: ownerRow.id,
         ...(ownerRow.class_name?.trim()
@@ -179,7 +176,7 @@ export default function JoinClassPage() {
               Join new class
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Enter your mentor&apos;s class code and your name to get started.
+              Enter your mentor&apos;s class code to get started.
             </p>
           </div>
         </div>
@@ -192,20 +189,6 @@ export default function JoinClassPage() {
             <CodeInput value={classCode} onChange={setClassCode} disabled={isPending} />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
-              Your Name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Alex Johnson"
-              disabled={isPending}
-              className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all"
-            />
-          </div>
-
           {error && (
             <div className="flex items-center gap-2 rounded-md border border-red-500/15 bg-red-500/8 px-3 py-2">
               <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
@@ -215,7 +198,7 @@ export default function JoinClassPage() {
 
           <button
             type="submit"
-            disabled={isPending || classCode.trim().length !== 6 || !name.trim()}
+            disabled={isPending || classCode.trim().length !== 6}
             className="flex items-center justify-center gap-2 rounded-lg btn-primary px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isPending ? (

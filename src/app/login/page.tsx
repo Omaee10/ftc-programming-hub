@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Trophy, Lock, AlertCircle, Loader2, ArrowRight, Mail } from "lucide-react";
+import { Trophy, Lock, AlertCircle, Loader2, ArrowRight, Mail, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resetSuccess = searchParams.get("reset") === "success";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -78,9 +80,17 @@ export default function LoginPage() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
-              Password
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                Password
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               value={password}
@@ -91,6 +101,15 @@ export default function LoginPage() {
               className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all"
             />
           </div>
+
+          {resetSuccess && (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-500/15 bg-emerald-500/8 px-3 py-2">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+              <span className="text-xs text-emerald-400">
+                Password updated. Sign in with your new password.
+              </span>
+            </div>
+          )}
 
           {error && (
             <div className="flex items-center gap-2 rounded-md border border-red-500/15 bg-red-500/8 px-3 py-2">
@@ -126,5 +145,19 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-950">
+          <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
