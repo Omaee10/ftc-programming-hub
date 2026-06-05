@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Trophy,
@@ -15,11 +15,13 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { setSession } from "@/lib/auth";
+import { getAuthUserId } from "@/lib/authSession";
 import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
 import CodeInput from "@/components/CodeInput";
 
 export default function JoinClassPage() {
   const router = useRouter();
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [classCode, setClassCode] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -28,6 +30,27 @@ export default function JoinClassPage() {
   const [studentCode, setStudentCode] = useState<string | null>(null);
   const [joinedClassName, setJoinedClassName] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const userId = await getAuthUserId();
+      if (!userId) {
+        router.replace("/login");
+        return;
+      }
+      setAuthUserId(userId);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", userId)
+        .single();
+
+      if (profile?.display_name) {
+        setName(profile.display_name);
+      }
+    })();
+  }, [router]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +66,12 @@ export default function JoinClassPage() {
     setError("");
 
     startTransition(async () => {
+      const userId = authUserId ?? (await getAuthUserId());
+      if (!userId) {
+        router.replace("/login");
+        return;
+      }
+
       const { data: owner, error: lookupErr } = await supabase
         .from("mentors")
         .select("id, name, class_name")
@@ -61,6 +90,18 @@ export default function JoinClassPage() {
         class_name?: string | null;
       };
 
+      const { data: existing } = await supabase
+        .from("students")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("mentor_id", ownerRow.id)
+        .maybeSingle();
+
+      if (existing) {
+        setError("Class already joined with this email");
+        return;
+      }
+
       let code = generateAccessCode();
       let inserted: { id: string; code: string } | null = null;
 
@@ -71,6 +112,7 @@ export default function JoinClassPage() {
             name: name.trim(),
             code,
             mentor_id: ownerRow.id,
+            user_id: userId,
           })
           .select("id, code")
           .single();
@@ -81,6 +123,10 @@ export default function JoinClassPage() {
         }
 
         if (isUniqueViolation(insertErr)) {
+          if (insertErr?.message?.includes("students_user_mentor_unique")) {
+            setError("Class already joined with this email");
+            return;
+          }
           code = generateAccessCode();
           continue;
         }
@@ -139,7 +185,7 @@ export default function JoinClassPage() {
               Welcome to {joinedClassName}
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Save your student code — you&apos;ll need it to sign in next time.
+              You&apos;re enrolled. Sign in with your email next time and pick this class.
             </p>
           </div>
 
@@ -164,6 +210,9 @@ export default function JoinClassPage() {
                 )}
               </button>
             </div>
+            <p className="mt-3 text-xs text-slate-600">
+              Your mentor may reference this code in the dashboard.
+            </p>
           </div>
 
           <button

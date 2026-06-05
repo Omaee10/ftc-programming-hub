@@ -7,8 +7,9 @@ import Link from "next/link";
 import Sidebar from "./Sidebar";
 import ThemePanel from "./ThemePanel";
 import DashboardDocSearch from "./DashboardDocSearch";
-import { getSession, setSession as persistSession, clearSession, type Session } from "@/lib/auth";
+import { getSession, setSession as persistSession, type Session } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { signOutAll } from "@/lib/authSession";
 
 function getInitials(name: string): string {
   return name
@@ -90,8 +91,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleSignOut = () => {
-    clearSession();
-    router.push("/onboarding");
+    void signOutAll().then(() => {
+      router.push("/login");
+      router.refresh();
+    });
   };
 
   const displayName = session

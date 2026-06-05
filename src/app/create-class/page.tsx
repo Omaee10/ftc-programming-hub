@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Trophy,
@@ -14,10 +14,12 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { setSession } from "@/lib/auth";
+import { getAuthUserId } from "@/lib/authSession";
 import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
 
 export default function CreateClassPage() {
   const router = useRouter();
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [mentorName, setMentorName] = useState("");
   const [className, setClassName] = useState("");
   const [teamName, setTeamName] = useState("");
@@ -30,6 +32,27 @@ export default function CreateClassPage() {
   const [copiedMentor, setCopiedMentor] = useState(false);
   const [copiedClass, setCopiedClass] = useState(false);
 
+  useEffect(() => {
+    (async () => {
+      const userId = await getAuthUserId();
+      if (!userId) {
+        router.replace("/login");
+        return;
+      }
+      setAuthUserId(userId);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", userId)
+        .single();
+
+      if (profile?.display_name) {
+        setMentorName(profile.display_name);
+      }
+    })();
+  }, [router]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!mentorName.trim()) { setError("Your name is required."); return; }
@@ -38,6 +61,12 @@ export default function CreateClassPage() {
     setError("");
 
     startTransition(async () => {
+      const userId = authUserId ?? (await getAuthUserId());
+      if (!userId) {
+        router.replace("/login");
+        return;
+      }
+
       let mentorCode = generateAccessCode();
       let classCodeValue = generateAccessCode();
 
@@ -53,6 +82,7 @@ export default function CreateClassPage() {
             mentor_name: mentorName.trim(),
             code: mentorCode,
             class_code: classCodeValue,
+            user_id: userId,
           })
           .select("id, name, class_name, mentor_name, code, class_code")
           .single();
@@ -177,7 +207,7 @@ export default function CreateClassPage() {
               </button>
             </div>
             <p className="mt-3 text-xs text-slate-600">
-              Use this code to sign in as a mentor. Share with co-mentors only.
+              Share with co-mentors so they can claim their workspace when signing up.
             </p>
           </div>
 

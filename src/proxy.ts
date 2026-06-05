@@ -1,63 +1,184 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import type { User } from "@supabase/supabase-js";
 
 const ROLE_COOKIE = "ftc-hub-role";
 
-export function proxy(request: NextRequest) {
+const AUTH_PUBLIC_PATHS = ["/login", "/signup"];
+const AUTH_REQUIRED_PATHS = [
+  "/onboarding",
+  "/signin",
+  "/join-class",
+  "/create-class",
+];
+
+function isPathMatch(pathname: string, prefixes: string[]): boolean {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+async function refreshAuthSession(request: NextRequest): Promise<{
+  response: NextResponse;
+  user: User | null;
+}> {
+  let supabaseResponse = NextResponse.next({ request });
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+  const supabase = createServerClient(url || "https://placeholder.supabase.co", key || "placeholder", {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
+        supabaseResponse = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) => {
+          supabaseResponse.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return { response: supabaseResponse, user };
+}
+
+function copyCookies(source: NextResponse, target: NextResponse): NextResponse {
+  source.cookies.getAll().forEach((cookie) => {
+    target.cookies.set(cookie.name, cookie.value);
+  });
+  return target;
+}
+
+function routeGuard(
+  request: NextRequest,
+  user: User | null,
+  sessionResponse: NextResponse
+): NextResponse {
   const { pathname } = request.nextUrl;
   const role = request.cookies.get(ROLE_COOKIE)?.value as
     | "mentor"
     | "student"
     | undefined;
 
-  // Server routes (grader proxy, health, etc.) — never gate behind session cookie.
   if (pathname.startsWith("/api/")) {
-    return NextResponse.next();
+    return copyCookies(sessionResponse, NextResponse.next());
   }
 
-  // Public paths — always allow (redirect to dashboard if already signed in)
-  if (
-    pathname.startsWith("/signin") ||
-    pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/create-class") ||
-    pathname.startsWith("/join-class")
-  ) {
+  if (isPathMatch(pathname, AUTH_PUBLIC_PATHS)) {
+    if (user) {
+      return copyCookies(
+        sessionResponse,
+        NextResponse.redirect(new URL("/onboarding", request.url))
+      );
+    }
+    return copyCookies(sessionResponse, NextResponse.next());
+  }
+
+  if (!user && isPathMatch(pathname, AUTH_REQUIRED_PATHS)) {
+    return copyCookies(
+      sessionResponse,
+      NextResponse.redirect(new URL("/login", request.url))
+    );
+  }
+
+  if (!user && pathname === "/") {
+    return copyCookies(
+      sessionResponse,
+      NextResponse.redirect(new URL("/login", request.url))
+    );
+  }
+
+  if (user && pathname === "/") {
     if (role === "mentor") {
-      return NextResponse.redirect(new URL("/mentor/dashboard", request.url));
+      return copyCookies(
+        sessionResponse,
+        NextResponse.redirect(new URL("/mentor/dashboard", request.url))
+      );
     }
     if (role === "student") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return copyCookies(
+        sessionResponse,
+        NextResponse.redirect(new URL("/dashboard", request.url))
+      );
     }
-    return NextResponse.next();
+    return copyCookies(
+      sessionResponse,
+      NextResponse.redirect(new URL("/onboarding", request.url))
+    );
   }
 
-  // Mentor-only area
   if (pathname.startsWith("/mentor")) {
-    if (role !== "mentor") {
-      return NextResponse.redirect(new URL("/signin", request.url));
+    if (!user) {
+      return copyCookies(
+        sessionResponse,
+        NextResponse.redirect(new URL("/login", request.url))
+      );
     }
-    return NextResponse.next();
+    if (role !== "mentor") {
+      return copyCookies(
+        sessionResponse,
+        NextResponse.redirect(new URL("/signin", request.url))
+      );
+    }
+    return copyCookies(sessionResponse, NextResponse.next());
   }
 
-  // Mentor-only challenge answer key
   if (pathname.startsWith("/challenges/answer-key")) {
-    if (role !== "mentor") {
-      return NextResponse.redirect(new URL("/challenges", request.url));
+    if (!user) {
+      return copyCookies(
+        sessionResponse,
+        NextResponse.redirect(new URL("/login", request.url))
+      );
     }
-    return NextResponse.next();
+    if (role !== "mentor") {
+      return copyCookies(
+        sessionResponse,
+        NextResponse.redirect(new URL("/challenges", request.url))
+      );
+    }
+    return copyCookies(sessionResponse, NextResponse.next());
   }
 
-  // Student/shared area — any authenticated session allowed
-  if (!role) {
-    return NextResponse.redirect(new URL("/onboarding", request.url));
+  const isMainApp =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/challenges") ||
+    pathname.startsWith("/homework") ||
+    pathname.startsWith("/docs");
+
+  if (isMainApp) {
+    if (!user) {
+      return copyCookies(
+        sessionResponse,
+        NextResponse.redirect(new URL("/login", request.url))
+      );
+    }
+    if (!role) {
+      return copyCookies(
+        sessionResponse,
+        NextResponse.redirect(new URL("/onboarding", request.url))
+      );
+    }
+    return copyCookies(sessionResponse, NextResponse.next());
   }
 
-  return NextResponse.next();
+  return copyCookies(sessionResponse, NextResponse.next());
+}
+
+export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const { response: sessionResponse, user } = await refreshAuthSession(request);
+  return routeGuard(request, user, sessionResponse);
 }
 
 export const config = {
   matcher: [
-    // Protect everything except Next.js internals and static assets
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

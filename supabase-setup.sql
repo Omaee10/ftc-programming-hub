@@ -161,13 +161,217 @@ CREATE TABLE IF NOT EXISTS homework_assignments (
 -- );
 -- ALTER TABLE homework_assignments DISABLE ROW LEVEL SECURITY;
 
--- ─── Disable RLS (internal tool — enable & add policies before going public) ──
-ALTER TABLE mentors                    DISABLE ROW LEVEL SECURITY;
-ALTER TABLE students                   DISABLE ROW LEVEL SECURITY;
-ALTER TABLE challenges                 DISABLE ROW LEVEL SECURITY;
-ALTER TABLE student_challenge_progress DISABLE ROW LEVEL SECURITY;
-ALTER TABLE challenge_submissions      DISABLE ROW LEVEL SECURITY;
-ALTER TABLE homework_assignments       DISABLE ROW LEVEL SECURITY;
+-- ─── Auth: profiles + user_id links ─────────────────────────────────────────
+-- Run these migrations if tables already exist:
+-- CREATE TABLE IF NOT EXISTS profiles (...);
+-- ALTER TABLE students ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
+-- ALTER TABLE mentors  ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+-- CREATE UNIQUE INDEX IF NOT EXISTS students_user_mentor_unique ON students (user_id, mentor_id) WHERE user_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id           uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email        text NOT NULL,
+  display_name text NOT NULL,
+  created_at   timestamptz DEFAULT now()
+);
+
+ALTER TABLE students ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE mentors  ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS students_user_mentor_unique
+  ON students (user_id, mentor_id)
+  WHERE user_id IS NOT NULL;
+
+-- ─── Row Level Security ───────────────────────────────────────────────────────
+ALTER TABLE profiles                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mentors                    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE students                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE challenges                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_challenge_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE challenge_submissions      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE homework_assignments       ENABLE ROW LEVEL SECURITY;
+
+-- Profiles: users read/update own row
+CREATE POLICY profiles_select_own ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY profiles_insert_own ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY profiles_update_own ON profiles FOR UPDATE USING (auth.uid() = id);
+
+-- Students: users manage own enrollments; mentors read students in their class
+CREATE POLICY students_select_own ON students FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY students_insert_own ON students FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY students_update_own ON students FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY students_select_mentor ON students FOR SELECT USING (
+  mentor_id IN (
+    SELECT id FROM mentors WHERE user_id = auth.uid()
+    UNION
+    SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+  )
+);
+CREATE POLICY students_insert_mentor ON students FOR INSERT WITH CHECK (
+  mentor_id IN (
+    SELECT id FROM mentors WHERE user_id = auth.uid()
+    UNION
+    SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+  )
+);
+CREATE POLICY students_delete_mentor ON students FOR DELETE USING (
+  mentor_id IN (
+    SELECT id FROM mentors WHERE user_id = auth.uid()
+    UNION
+    SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+  )
+);
+
+-- Mentors: users manage own rows; students read their class mentor
+CREATE POLICY mentors_select_own ON mentors FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY mentors_insert_own ON mentors FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY mentors_update_own ON mentors FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY mentors_select_student ON mentors FOR SELECT USING (
+  id IN (SELECT mentor_id FROM students WHERE user_id = auth.uid())
+  OR created_by IN (SELECT mentor_id FROM students WHERE user_id = auth.uid())
+);
+-- Class owners can see/manage co-mentor rows they created
+CREATE POLICY mentors_select_class_members ON mentors FOR SELECT USING (
+  created_by IN (SELECT id FROM mentors WHERE user_id = auth.uid())
+);
+CREATE POLICY mentors_insert_co_mentor ON mentors FOR INSERT WITH CHECK (
+  created_by IN (SELECT id FROM mentors WHERE user_id = auth.uid())
+);
+CREATE POLICY mentors_delete_co_mentor ON mentors FOR DELETE USING (
+  created_by IN (SELECT id FROM mentors WHERE user_id = auth.uid())
+);
+-- Allow lookup by class_code for joining a class
+CREATE POLICY mentors_select_class_code ON mentors FOR SELECT USING (
+  created_by IS NULL AND class_code IS NOT NULL
+);
+
+-- Challenges: mentors manage own; students read class challenges
+CREATE POLICY challenges_select_mentor ON challenges FOR SELECT USING (
+  created_by IN (
+    SELECT id FROM mentors WHERE user_id = auth.uid()
+    UNION
+    SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+  )
+  OR created_by IN (
+    SELECT mentor_id FROM students WHERE user_id = auth.uid()
+    UNION
+    SELECT m.created_by FROM students s
+      JOIN mentors m ON s.mentor_id = m.id
+      WHERE s.user_id = auth.uid() AND m.created_by IS NOT NULL
+  )
+);
+CREATE POLICY challenges_insert_mentor ON challenges FOR INSERT WITH CHECK (
+  created_by IN (
+    SELECT id FROM mentors WHERE user_id = auth.uid()
+    UNION
+    SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+  )
+);
+CREATE POLICY challenges_update_mentor ON challenges FOR UPDATE USING (
+  created_by IN (
+    SELECT id FROM mentors WHERE user_id = auth.uid()
+    UNION
+    SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+  )
+);
+CREATE POLICY challenges_delete_mentor ON challenges FOR DELETE USING (
+  created_by IN (
+    SELECT id FROM mentors WHERE user_id = auth.uid()
+    UNION
+    SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+  )
+);
+
+-- Progress: students manage own; mentors read class students' progress
+CREATE POLICY progress_select_own ON student_challenge_progress FOR SELECT USING (
+  student_id IN (SELECT id FROM students WHERE user_id = auth.uid())
+);
+CREATE POLICY progress_insert_own ON student_challenge_progress FOR INSERT WITH CHECK (
+  student_id IN (SELECT id FROM students WHERE user_id = auth.uid())
+);
+CREATE POLICY progress_update_own ON student_challenge_progress FOR UPDATE USING (
+  student_id IN (SELECT id FROM students WHERE user_id = auth.uid())
+);
+CREATE POLICY progress_select_mentor ON student_challenge_progress FOR SELECT USING (
+  student_id IN (
+    SELECT id FROM students WHERE mentor_id IN (
+      SELECT id FROM mentors WHERE user_id = auth.uid()
+      UNION
+      SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+    )
+  )
+);
+
+-- Submissions: students manage own; mentors grade class submissions
+CREATE POLICY submissions_select_own ON challenge_submissions FOR SELECT USING (
+  student_id IN (SELECT id FROM students WHERE user_id = auth.uid())
+);
+CREATE POLICY submissions_insert_own ON challenge_submissions FOR INSERT WITH CHECK (
+  student_id IN (SELECT id FROM students WHERE user_id = auth.uid())
+);
+CREATE POLICY submissions_update_own ON challenge_submissions FOR UPDATE USING (
+  student_id IN (SELECT id FROM students WHERE user_id = auth.uid())
+);
+CREATE POLICY submissions_select_mentor ON challenge_submissions FOR SELECT USING (
+  student_id IN (
+    SELECT id FROM students WHERE mentor_id IN (
+      SELECT id FROM mentors WHERE user_id = auth.uid()
+      UNION
+      SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+    )
+  )
+);
+CREATE POLICY submissions_update_mentor ON challenge_submissions FOR UPDATE USING (
+  student_id IN (
+    SELECT id FROM students WHERE mentor_id IN (
+      SELECT id FROM mentors WHERE user_id = auth.uid()
+      UNION
+      SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+    )
+  )
+);
+
+-- Homework: students read own; mentors manage class assignments
+CREATE POLICY homework_select_own ON homework_assignments FOR SELECT USING (
+  student_id IN (SELECT id FROM students WHERE user_id = auth.uid())
+);
+CREATE POLICY homework_update_own ON homework_assignments FOR UPDATE USING (
+  student_id IN (SELECT id FROM students WHERE user_id = auth.uid())
+);
+CREATE POLICY homework_select_mentor ON homework_assignments FOR SELECT USING (
+  student_id IN (
+    SELECT id FROM students WHERE mentor_id IN (
+      SELECT id FROM mentors WHERE user_id = auth.uid()
+      UNION
+      SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+    )
+  )
+);
+CREATE POLICY homework_insert_mentor ON homework_assignments FOR INSERT WITH CHECK (
+  assigned_by IN (
+    SELECT id FROM mentors WHERE user_id = auth.uid()
+    UNION
+    SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+  )
+);
+CREATE POLICY homework_update_mentor ON homework_assignments FOR UPDATE USING (
+  student_id IN (
+    SELECT id FROM students WHERE mentor_id IN (
+      SELECT id FROM mentors WHERE user_id = auth.uid()
+      UNION
+      SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+    )
+  )
+);
+CREATE POLICY homework_delete_mentor ON homework_assignments FOR DELETE USING (
+  student_id IN (
+    SELECT id FROM students WHERE mentor_id IN (
+      SELECT id FROM mentors WHERE user_id = auth.uid()
+      UNION
+      SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+    )
+  )
+);
 
 -- ─── Migration: drop FK on challenge_id so static challenges (IDs 1–999) ────
 -- can be stored alongside DB-created challenges (IDs 1000+).
