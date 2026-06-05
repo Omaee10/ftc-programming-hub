@@ -108,7 +108,7 @@ export default function AccountPage() {
 
   const backHref = (() => {
     const session = getSession();
-    if (!session) return "/signin";
+    if (!session) return "/onboarding";
     return session.role === "mentor" ? "/mentor/dashboard" : "/dashboard";
   })();
 

@@ -18,6 +18,16 @@ export default function OnboardingPage() {
     <div className="flex min-h-screen bg-slate-950 px-4">
       <button
         type="button"
+        onClick={() => router.push("/account")}
+        title="Account settings"
+        className="absolute top-5 left-5 flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-300 transition-colors"
+      >
+        <Settings className="h-4 w-4" />
+        Account
+      </button>
+
+      <button
+        type="button"
         onClick={handleSignOut}
         className="absolute top-5 right-5 flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-300 transition-colors"
       >
@@ -97,24 +107,6 @@ export default function OnboardingPage() {
               </p>
               <p className="text-xs text-slate-700 mt-0.5">
                 Co-mentor — enter a code from another class
-              </p>
-            </div>
-          </div>
-          <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
-        </button>
-
-        <button
-          onClick={() => router.push("/account")}
-          className="group w-full flex items-center justify-between rounded-xl border border-slate-800/60 px-6 py-4.5 text-left hover:border-slate-700/60 hover:bg-slate-900/40 transition-all duration-200 focus:outline-none accent-ring mb-4"
-        >
-          <div className="flex items-center gap-3">
-            <Settings className="h-5 w-5 text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-slate-400 group-hover:text-slate-200 transition-colors">
-                Account settings
-              </p>
-              <p className="text-xs text-slate-700 mt-0.5">
-                Change your email or password
               </p>
             </div>
           </div>
