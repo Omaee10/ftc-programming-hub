@@ -6,9 +6,6 @@ import {
   Trophy,
   Loader2,
   AlertCircle,
-  CheckCircle2,
-  Copy,
-  Check,
   ArrowRight,
   ArrowLeft,
   UserPlus,
@@ -26,10 +23,6 @@ export default function JoinClassPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
-
-  const [studentCode, setStudentCode] = useState<string | null>(null);
-  const [joinedClassName, setJoinedClassName] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -151,82 +144,10 @@ export default function JoinClassPage() {
           : {}),
       });
 
-      setStudentCode(inserted.code);
-      setJoinedClassName(ownerRow.class_name?.trim() || ownerRow.name);
+      router.push("/dashboard");
+      router.refresh();
     });
   };
-
-  const handleCopy = async () => {
-    if (!studentCode) return;
-    await navigator.clipboard.writeText(studentCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  if (studentCode) {
-    return (
-      <div className="flex min-h-screen bg-slate-950 px-4">
-        <div className="m-auto w-full max-w-sm py-16">
-          <div className="mb-10 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 border border-slate-700/60">
-              <Trophy className="h-4 w-4 text-slate-300" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-200">FTC Programming Hub</p>
-            </div>
-          </div>
-
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              <span className="text-sm font-medium text-emerald-400">You&apos;re in!</span>
-            </div>
-            <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
-              Welcome to {joinedClassName}
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              You&apos;re enrolled. Sign in with your email next time and pick this class.
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-5 mb-6">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-3">
-              Your Student Code
-            </p>
-            <div className="flex items-center gap-3">
-              <span className="flex-1 font-mono text-3xl font-bold tracking-[0.18em] text-slate-100 stat-number">
-                {studentCode}
-              </span>
-              <button
-                type="button"
-                onClick={() => void handleCopy()}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-700/60 bg-slate-800/60 text-slate-500 hover:text-slate-200 hover:bg-slate-700/60 transition-all"
-                title="Copy code"
-              >
-                {copied ? (
-                  <Check className="h-3.5 w-3.5 text-emerald-400" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
-            <p className="mt-3 text-xs text-slate-600">
-              Your mentor may reference this code in the dashboard.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard")}
-            className="w-full flex items-center justify-center gap-2 rounded-lg btn-primary px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98]"
-          >
-            Go to Dashboard
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex min-h-screen bg-slate-950 px-4">
