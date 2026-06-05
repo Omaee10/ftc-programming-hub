@@ -4,6 +4,12 @@ import {
   getSupabaseEnvStatus,
   hasServiceRoleKey,
 } from "@/lib/supabase/admin";
+import {
+  databaseKeyErrorMessage,
+  findUnclaimedMentor,
+  linkMentorToUser,
+  type MentorClaimRow,
+} from "@/lib/supabase/mentorClaim";
 
 interface SignupBody {
   email?: string;
@@ -12,46 +18,6 @@ interface SignupBody {
   accountType?: string;
   studentCode?: string;
   mentorCode?: string;
-}
-
-interface MentorClaimRow {
-  id: string;
-  mentor_name: string | null;
-  name: string;
-  user_id: string | null;
-}
-
-async function findUnclaimedMentor(
-  admin: ReturnType<typeof createAdminClient>,
-  code: string
-): Promise<{ mentor: MentorClaimRow | null; lookupError?: string }> {
-  const { data: byMentorCode, error: mentorCodeErr } = await admin
-    .from("mentors")
-    .select("id, mentor_name, name, user_id")
-    .eq("code", code)
-    .limit(1);
-
-  if (mentorCodeErr) {
-    return { mentor: null, lookupError: mentorCodeErr.message };
-  }
-
-  const mentorMatch = (byMentorCode?.[0] as MentorClaimRow | undefined) ?? null;
-  if (mentorMatch) {
-    return { mentor: mentorMatch };
-  }
-
-  const { data: byClassCode, error: classCodeErr } = await admin
-    .from("mentors")
-    .select("id, mentor_name, name, user_id")
-    .eq("class_code", code)
-    .is("created_by", null)
-    .limit(1);
-
-  if (classCodeErr) {
-    return { mentor: null, lookupError: classCodeErr.message };
-  }
-
-  return { mentor: (byClassCode?.[0] as MentorClaimRow | undefined) ?? null };
 }
 
 export async function POST(request: Request) {
@@ -72,6 +38,16 @@ export async function POST(request: Request) {
       {
         error:
           "Signup is not configured on the server. Add SUPABASE_SERVICE_ROLE_KEY to your environment.",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (envStatus.keyLikelyTruncated) {
+    return NextResponse.json(
+      {
+        error:
+          "Server database key looks truncated. Re-copy the full service_role secret into SUPABASE_SERVICE_ROLE_KEY and redeploy.",
       },
       { status: 500 }
     );
@@ -132,7 +108,7 @@ export async function POST(request: Request) {
 
     if (studentErr) {
       return NextResponse.json(
-        { error: "Could not verify student code. Try again." },
+        { error: databaseKeyErrorMessage(studentErr.message) },
         { status: 500 }
       );
     }
@@ -159,7 +135,7 @@ export async function POST(request: Request) {
 
     if (mentorLookup.lookupError) {
       return NextResponse.json(
-        { error: "Could not verify mentor code. Try again." },
+        { error: databaseKeyErrorMessage(mentorLookup.lookupError) },
         { status: 500 }
       );
     }
@@ -252,17 +228,11 @@ export async function POST(request: Request) {
       );
     }
   } else if (mentorToClaim) {
-    const { data: linked, error: linkErr } = await admin
-      .from("mentors")
-      .update({ user_id: userId })
-      .eq("id", mentorToClaim.id)
-      .is("user_id", null)
-      .select("id");
-
-    if (linkErr || !linked?.length) {
+    const linked = await linkMentorToUser(admin, mentorToClaim.id, userId);
+    if (!linked.ok) {
       await admin.auth.admin.deleteUser(userId);
       return NextResponse.json(
-        { error: linkErr?.message ?? "Failed to link mentor code." },
+        { error: linked.error ?? "Failed to link mentor code." },
         { status: 500 }
       );
     }

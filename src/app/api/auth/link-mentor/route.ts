@@ -1,0 +1,88 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import {
+  createAdminClient,
+  getSupabaseEnvStatus,
+  hasServiceRoleKey,
+} from "@/lib/supabase/admin";
+import {
+  databaseKeyErrorMessage,
+  findUnclaimedMentor,
+  linkMentorToUser,
+} from "@/lib/supabase/mentorClaim";
+
+interface LinkMentorBody {
+  mentorCode?: string;
+}
+
+export async function POST(request: Request) {
+  const envStatus = getSupabaseEnvStatus();
+
+  if (!hasServiceRoleKey() || envStatus.keyLikelyTruncated || envStatus.refsMatch === false) {
+    return NextResponse.json(
+      {
+        error:
+          "Link mentor is not configured on the server. Check SUPABASE_SERVICE_ROLE_KEY on Vercel and redeploy.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
+  }
+
+  let body: LinkMentorBody;
+  try {
+    body = (await request.json()) as LinkMentorBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const mentorCode = body.mentorCode?.trim() ?? "";
+  if (mentorCode.length !== 6) {
+    return NextResponse.json({ error: "Mentor code must be 6 digits." }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+  const mentorLookup = await findUnclaimedMentor(admin, mentorCode);
+
+  if (mentorLookup.lookupError) {
+    return NextResponse.json(
+      { error: databaseKeyErrorMessage(mentorLookup.lookupError) },
+      { status: 500 }
+    );
+  }
+
+  if (!mentorLookup.mentor) {
+    return NextResponse.json(
+      {
+        error:
+          "Invalid mentor code. Use the mentor or co-mentor sign-in code from the class dashboard.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (mentorLookup.mentor.user_id) {
+    return NextResponse.json(
+      { error: "This mentor code has already been claimed." },
+      { status: 400 }
+    );
+  }
+
+  const linked = await linkMentorToUser(admin, mentorLookup.mentor.id, user.id);
+  if (!linked.ok) {
+    return NextResponse.json(
+      { error: linked.error ?? "Failed to link mentor workspace." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ ok: true });
+}

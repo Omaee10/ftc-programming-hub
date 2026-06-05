@@ -26,6 +26,16 @@ export async function GET() {
     });
   }
 
+  if (envStatus.keyLikelyTruncated) {
+    return NextResponse.json({
+      ok: false,
+      configured: false,
+      message:
+        "SUPABASE_SERVICE_ROLE_KEY looks truncated. Paste the full service_role secret (about 200+ characters) and redeploy.",
+      ...envStatus,
+    });
+  }
+
   if (envStatus.refsMatch === false) {
     return NextResponse.json({
       ok: false,
@@ -41,12 +51,17 @@ export async function GET() {
     .from("mentors")
     .select("id", { count: "exact", head: true });
 
+  const databaseReachable = !countErr;
+
   return NextResponse.json({
-    ok: !countErr,
+    ok: databaseReachable,
     configured: true,
-    databaseReachable: !countErr,
+    databaseReachable,
     mentorRows: count ?? 0,
-    message: countErr?.message ?? "Auth signup is configured.",
+    message: countErr
+      ? countErr.message ||
+        "Database unreachable — SUPABASE_SERVICE_ROLE_KEY is likely invalid or truncated."
+      : "Auth signup is configured.",
     ...envStatus,
   });
 }

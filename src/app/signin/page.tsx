@@ -227,14 +227,23 @@ export default function SignInPage() {
             <p className="text-xs text-slate-600 mb-6">
               Join a class with your mentor&apos;s code or create a mentor workspace.
             </p>
-            <button
-              type="button"
-              onClick={() => router.push("/join-class")}
-              className="inline-flex items-center gap-2 rounded-lg btn-primary px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98]"
-            >
-              <UserPlus className="h-4 w-4" />
-              Join a class
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => router.push("/join-class")}
+                className="inline-flex items-center justify-center gap-2 rounded-lg btn-primary px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98]"
+              >
+                <UserPlus className="h-4 w-4" />
+                Join a class
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/link-mentor")}
+                className="text-sm text-slate-600 hover:text-slate-300 transition-colors"
+              >
+                Link a mentor or co-mentor code
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -270,6 +279,13 @@ export default function SignInPage() {
                 <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-slate-400 shrink-0 transition-colors" />
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => router.push("/link-mentor")}
+              className="mt-2 text-center text-sm text-slate-600 hover:text-slate-300 transition-colors"
+            >
+              Don&apos;t see your class? Link a mentor or co-mentor code
+            </button>
           </div>
         )}
       </div>

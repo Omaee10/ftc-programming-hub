@@ -13,7 +13,9 @@ export function getJwtProjectRef(key: string): string | null {
   try {
     const payload = key.split(".")[1];
     if (!payload) return null;
-    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+    const decoded = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as {
       ref?: string;
     };
     return decoded.ref ?? null;
@@ -27,7 +29,9 @@ export function getSupabaseEnvStatus(): {
   urlProjectRef: string | null;
   jwtProjectRef: string | null;
   keyLooksJwt: boolean;
+  keyLength: number;
   refsMatch: boolean | null;
+  keyLikelyTruncated: boolean;
 } {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
@@ -36,8 +40,17 @@ export function getSupabaseEnvStatus(): {
   const jwtProjectRef = keyLooksJwt ? getJwtProjectRef(key) : null;
   const refsMatch =
     urlProjectRef && jwtProjectRef ? urlProjectRef === jwtProjectRef : null;
+  const keyLikelyTruncated = keyLooksJwt && key.length < 180;
 
-  return { url, urlProjectRef, jwtProjectRef, keyLooksJwt, refsMatch };
+  return {
+    url,
+    urlProjectRef,
+    jwtProjectRef,
+    keyLooksJwt,
+    keyLength: key.length,
+    refsMatch,
+    keyLikelyTruncated,
+  };
 }
 
 /** Service-role client — server-side API routes only. Never import in client components. */

@@ -11,6 +11,7 @@ const AUTH_REQUIRED_PATHS = [
   "/signin",
   "/join-class",
   "/create-class",
+  "/link-mentor",
 ];
 
 function isPathMatch(pathname: string, prefixes: string[]): boolean {
