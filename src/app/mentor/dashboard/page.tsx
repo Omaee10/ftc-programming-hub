@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow, type HomeworkAssignmentRow } from "@/lib/supabase";
-import { getSession } from "@/lib/auth";
+import { getSession, type Session } from "@/lib/auth";
 import {
   classOwner,
   challengeCreatedBy,
@@ -64,6 +64,20 @@ type EnrichedSubmission = SubmissionRow & {
 
 function maskCode(code: string) {
   return `${code.slice(0, 2)}••••`;
+}
+
+/** Reactive workspace session — AppShell may hydrate localStorage after first paint. */
+function useWorkspaceSession(): Session | null {
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    const sync = () => setSession(getSession());
+    sync();
+    window.addEventListener("ftc-session-updated", sync);
+    return () => window.removeEventListener("ftc-session-updated", sync);
+  }, []);
+
+  return session;
 }
 
 // ─── Tab button ───────────────────────────────────────────────────────────────
@@ -108,7 +122,7 @@ function ProgressTab() {
   const [dbChallenges, setDbChallenges] = useState<ChallengeRow[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const session = typeof window !== "undefined" ? getSession() : null;
+  const session = useWorkspaceSession();
 
   const dbIds = new Set(dbChallenges.map((c) => c.id));
   const allChallenges = [
@@ -119,54 +133,61 @@ function ProgressTab() {
   ].sort((a, b) => a.id - b.id);
 
   const load = useCallback(async () => {
-    if (!session?.id) return;
+    const s = getSession();
+    if (!s?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const ownerId = classOwner(session);
-    const [{ data: students }, { data: progress }, { data: homework }, classChallengeRows] =
-      await Promise.all([
-        supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-        supabase.from("student_challenge_progress").select("*"),
-        supabase.from("homework_assignments").select("*"),
-        session ? fetchClassChallenges(session) : Promise.resolve([]),
-      ]);
+    try {
+      const ownerId = classOwner(s);
+      const [{ data: students }, { data: progress }, { data: homework }, classChallengeRows] =
+        await Promise.all([
+          supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
+          supabase.from("student_challenge_progress").select("*"),
+          supabase.from("homework_assignments").select("*"),
+          fetchClassChallenges(s),
+        ]);
 
-    const challenges = classChallengeRows;
-    setDbChallenges(challenges as ChallengeRow[]);
+      const challenges = classChallengeRows;
+      setDbChallenges(challenges as ChallengeRow[]);
 
-    const studentList = (students ?? []) as StudentRow[];
-    const homeworkRows = (homework ?? []) as HomeworkAssignmentRow[];
+      const studentList = (students ?? []) as StudentRow[];
+      const homeworkRows = (homework ?? []) as HomeworkAssignmentRow[];
 
-    const allCh = [
-      ...staticChallenges.map((c) => c.id),
-      ...((challenges ?? []) as { id: number }[])
-        .map((c) => c.id)
-        .filter((id) => !staticChallenges.find((s) => s.id === id)),
-    ];
+      const allCh = [
+        ...staticChallenges.map((c) => c.id),
+        ...((challenges ?? []) as { id: number }[])
+          .map((c) => c.id)
+          .filter((id) => !staticChallenges.find((sc) => sc.id === id)),
+      ];
 
-    setData(
-      studentList.map((student) => {
-        const studentHomework = homeworkRows.filter(
-          (h) => h.student_id === student.id
-        );
-        const homeworkIds = new Set(studentHomework.map((h) => h.challenge_id));
-        const studentRecords = ((progress ?? []) as ProgressRow[]).filter(
-          (r) => r.student_id === student.id && !homeworkIds.has(r.challenge_id)
-        );
+      setData(
+        studentList.map((student) => {
+          const studentHomework = homeworkRows.filter(
+            (h) => h.student_id === student.id
+          );
+          const homeworkIds = new Set(studentHomework.map((h) => h.challenge_id));
+          const studentRecords = ((progress ?? []) as ProgressRow[]).filter(
+            (r) => r.student_id === student.id && !homeworkIds.has(r.challenge_id)
+          );
 
-        return {
-          student,
-          records: studentRecords,
-          totalChallenges: allCh.filter((id) => !homeworkIds.has(id)).length,
-          homework: studentHomework,
-        };
-      })
-    );
-    setLoading(false);
-  }, [session?.id]);
+          return {
+            student,
+            records: studentRecords,
+            totalChallenges: allCh.filter((id) => !homeworkIds.has(id)).length,
+            homework: studentHomework,
+          };
+        })
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, session?.id, session?.parentMentorId]);
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -975,31 +996,57 @@ function CodeManager({
   } | null>(null);
   const [isPending, startTransition] = useTransition();
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const session = typeof window !== "undefined" ? getSession() : null;
+  const session = useWorkspaceSession();
   const roleLabel = table === "students" ? "student" : "mentor";
 
   const load = useCallback(async () => {
-    if (!session?.id) return;
-    setLoading(true);
-    const ownerId = classOwner(session);
-    if (table === "students") {
-      const { data } = await supabase.from("students").select("*").eq("mentor_id", ownerId).order("name");
-      setRows((data ?? []) as (MentorRow | StudentRow)[]);
-    } else {
-      // Show the class owner + all co-mentors created by the owner
-      const { data } = await supabase
-        .from("mentors")
-        .select("id, name, mentor_name, code, created_at, created_by, user_id")
-        .or(`id.eq.${ownerId},created_by.eq.${ownerId}`)
-        .order("name");
-      setRows((data ?? []) as (MentorRow | StudentRow)[]);
+    const s = getSession();
+    if (!s?.id) {
+      setLoading(false);
+      setRows([]);
+      return;
     }
-    setLoading(false);
-  }, [table, session?.id, session?.parentMentorId]);
+    setLoading(true);
+    setError("");
+    try {
+      const ownerId = classOwner(s);
+      if (!ownerId) {
+        setRows([]);
+        return;
+      }
+      if (table === "students") {
+        const { data, error: dbErr } = await supabase
+          .from("students")
+          .select("*")
+          .eq("mentor_id", ownerId)
+          .order("name");
+        if (dbErr) {
+          setError(dbErr.message);
+          setRows([]);
+          return;
+        }
+        setRows((data ?? []) as (MentorRow | StudentRow)[]);
+      } else {
+        const { data, error: dbErr } = await supabase
+          .from("mentors")
+          .select("id, name, mentor_name, code, created_at, created_by, user_id")
+          .or(`id.eq.${ownerId},created_by.eq.${ownerId}`)
+          .order("name");
+        if (dbErr) {
+          setError(dbErr.message);
+          setRows([]);
+          return;
+        }
+        setRows((data ?? []) as (MentorRow | StudentRow)[]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [table]);
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, session?.id, session?.parentMentorId]);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
