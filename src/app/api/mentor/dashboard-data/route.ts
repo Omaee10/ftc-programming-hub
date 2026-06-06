@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { classChallengeAuthorIds, classOwner } from "@/lib/classChallenges";
 import type { Session } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
+import { repairClassMentorLinks } from "@/lib/supabase/mentorClaim";
 import type { MentorDashboardScope } from "@/lib/mentorDashboardApi";
 
 const SCOPES: MentorDashboardScope[] = [
@@ -110,6 +112,11 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "mentors": {
+      if (hasServiceRoleKey()) {
+        const admin = createAdminClient();
+        await repairClassMentorLinks(admin, ownerId);
+      }
+
       const { data: rows, error } = await supabase
         .from("mentors")
         .select("id, name, mentor_name, code, created_at, created_by, user_id")
@@ -120,7 +127,33 @@ export async function POST(req: Request): Promise<NextResponse> {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      return NextResponse.json({ rows: rows ?? [] });
+      const mentorRows = rows ?? [];
+      const linkedIds = mentorRows
+        .map((row) => (row as { user_id?: string | null }).user_id)
+        .filter((id): id is string => Boolean(id));
+
+      let profileNames = new Map<string, string>();
+      if (linkedIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", linkedIds);
+
+        profileNames = new Map(
+          (profiles ?? []).map((profile) => [
+            profile.id as string,
+            (profile.display_name as string)?.trim() || "",
+          ])
+        );
+      }
+
+      return NextResponse.json({
+        rows: mentorRows.map((row) => {
+          const userId = (row as { user_id?: string | null }).user_id;
+          const linkedDisplayName = userId ? profileNames.get(userId) || null : null;
+          return { ...row, linkedDisplayName };
+        }),
+      });
     }
 
     case "students": {

@@ -116,6 +116,16 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const { data: refreshedSlot } = await admin
+      .from("mentors")
+      .select("user_id")
+      .eq("id", mentorLookup.mentor.id)
+      .maybeSingle();
+
+    if (refreshedSlot?.user_id === user.id) {
+      return NextResponse.json({ ok: true });
+    }
   }
 
   const linked = await linkMentorToUser(

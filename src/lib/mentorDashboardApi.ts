@@ -31,8 +31,12 @@ export type HomeworkPayload = {
   homework: HomeworkAssignmentRow[];
 };
 
+export type MentorListRow = MentorRow & {
+  linkedDisplayName?: string | null;
+};
+
 export type MentorsPayload = {
-  rows: MentorRow[];
+  rows: MentorListRow[];
 };
 
 export type StudentsPayload = {

@@ -1173,14 +1173,19 @@ function CodeManager({
               const classTeamName = ownerRow?.name ?? session?.teamName ?? null;
               const isOwnerRow = table === "mentors" && !mentorRow.created_by;
               const slotName = mentorRow.name;
-              const displayName = mentorRow.mentor_name ?? slotName;
-              const teamName = isOwnerRow
-                ? mentorRow.mentor_name
-                  ? classTeamName
-                  : null
-                : classTeamName;
+              const linkedDisplayName = (
+                mentorRow as MentorRow & { linkedDisplayName?: string | null }
+              ).linkedDisplayName;
+              const displayName = isOwnerRow
+                ? linkedDisplayName || classTeamName || mentorRow.mentor_name || slotName
+                : mentorRow.mentor_name ?? slotName;
+              const teamName = isOwnerRow ? null : classTeamName;
               const isLinked = Boolean(mentorRow.user_id);
               const isYou = session?.id === row.id;
+              const signedInLabel =
+                isLinked && linkedDisplayName && linkedDisplayName !== displayName
+                  ? `Signed in as ${linkedDisplayName}`
+                  : "Signed in";
               return (
               <li
                 key={row.id}
@@ -1214,7 +1219,7 @@ function CodeManager({
                             : "ml-2 text-amber-500/80"
                         }
                       >
-                        · {isLinked ? "Signed in" : "Awaiting signup"}
+                        · {isLinked ? signedInLabel : "Awaiting signup"}
                       </span>
                     )}
                   </p>
