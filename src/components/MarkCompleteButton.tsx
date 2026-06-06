@@ -5,8 +5,6 @@ import { CheckCircle2, RotateCcw, Loader2 } from "lucide-react";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { getSession } from "@/lib/auth";
-import ConfirmDialog from "@/components/ConfirmDialog";
-
 interface MarkCompleteButtonProps {
   challengeId: number;
   xp: number;
@@ -52,8 +50,10 @@ export default function MarkCompleteButton({
   const [justCompleted, setJustCompleted] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const markButtonRef = useRef<HTMLButtonElement>(null);
+
+  const canMarkComplete =
+    lastGrade === "good" || lastGrade === "needs-improvement";
 
   useEffect(() => {
     setIsMentor(getSession()?.role === "mentor");
@@ -147,10 +147,12 @@ export default function MarkCompleteButton({
     );
   }
 
-  const confirmMessage =
+  const blockedHint =
     lastGrade == null
-      ? "You haven't submitted your code to the grader yet. Mark this challenge complete anyway?"
-      : "Your code hasn't passed all checks yet. Mark this challenge complete anyway?";
+      ? "Submit your code to the grader first."
+      : lastGrade === "wrong"
+        ? "Fix failing checks before marking complete."
+        : null;
 
   const completeChallenge = async () => {
     setBusy(true);
@@ -169,29 +171,19 @@ export default function MarkCompleteButton({
     }
   };
 
-  const handleMarkComplete = () => {
-    if (lastGrade !== "good") {
-      setConfirmOpen(true);
-      return;
-    }
-    void completeChallenge();
-  };
-
-  const handleConfirmMarkComplete = async () => {
-    setConfirmOpen(false);
-    await completeChallenge();
-  };
-
   return (
-    <>
+    <div className="flex flex-col gap-2">
       <button
         ref={markButtonRef}
-        onClick={handleMarkComplete}
-        disabled={busy}
-        className={`flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:opacity-60 ${
+        onClick={() => void completeChallenge()}
+        disabled={busy || !canMarkComplete}
+        title={!canMarkComplete ? (blockedHint ?? undefined) : undefined}
+        className={`flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
           justCompleted
             ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/15"
-            : "btn-primary border border-transparent"
+            : canMarkComplete
+              ? "btn-primary border border-transparent"
+              : "border border-slate-800 bg-slate-900/60 text-slate-500"
         }`}
       >
         {busy ? (
@@ -204,19 +196,9 @@ export default function MarkCompleteButton({
           <span className="ml-0.5 text-xs text-white/70 font-normal">+{xp} XP</span>
         )}
       </button>
-
-      <ConfirmDialog
-        open={confirmOpen}
-        title="Mark as complete?"
-        message={confirmMessage}
-        confirmLabel="Mark Complete"
-        cancelLabel="Cancel"
-        onConfirm={() => void handleConfirmMarkComplete()}
-        onCancel={() => setConfirmOpen(false)}
-        pending={busy}
-        returnFocusRef={markButtonRef}
-        variant="primary"
-      />
-    </>
+      {!canMarkComplete && blockedHint && (
+        <p className="text-xs text-slate-500">{blockedHint}</p>
+      )}
+    </div>
   );
 }
