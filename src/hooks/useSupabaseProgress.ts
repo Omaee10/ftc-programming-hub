@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, useEffect, useCallback } from "react";
+import { useSyncExternalStore, useEffect, useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { mergeLocalProgress, readLocalProgress } from "@/hooks/useChallengeProgress";
@@ -210,20 +210,31 @@ async function ensureProgressLoaded(studentId: string): Promise<void> {
  * always returns false, so the existing localStorage hook can take over.
  */
 export function useSupabaseProgress(challengeId?: number) {
-  const session = getSession();
-  const studentId =
-    session?.role === "student" ? session.id : null;
+  const [studentId, setStudentId] = useState<string | null>(null);
 
-  const { records, hydrated } = useSyncExternalStore(
+  const { records, hydrated: storeHydrated } = useSyncExternalStore(
     subscribeToStore,
     getStoreSnapshot,
     getServerStoreSnapshot
   );
 
   useEffect(() => {
+    const syncStudentId = () => {
+      const session = getSession();
+      setStudentId(session?.role === "student" ? session.id : null);
+    };
+
+    syncStudentId();
+    window.addEventListener("ftc-session-updated", syncStudentId);
+    return () => window.removeEventListener("ftc-session-updated", syncStudentId);
+  }, []);
+
+  useEffect(() => {
     if (!studentId) return;
     void ensureProgressLoaded(studentId);
   }, [studentId]);
+
+  const hydrated = studentId ? storeHydrated : true;
 
   const isCompleted = useCallback(
     (id: number): boolean => {
@@ -353,7 +364,7 @@ export function useSupabaseProgress(challengeId?: number) {
     attemptedIds,
     loadedCode,
     loadedCodeUpdatedAt,
-    hydrated: studentId ? hydrated : true,
+    hydrated,
     saveCode,
     markComplete,
     markIncomplete,
