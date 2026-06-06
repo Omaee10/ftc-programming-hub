@@ -1176,11 +1176,19 @@ function CodeManager({
               const linkedDisplayName = (
                 mentorRow as MentorRow & { linkedDisplayName?: string | null }
               ).linkedDisplayName;
-              const displayName = isOwnerRow
-                ? classTeamName || slotName
-                : mentorRow.mentor_name ?? slotName;
-              const teamName = isOwnerRow ? null : classTeamName;
               const isLinked = Boolean(mentorRow.user_id);
+              const ownerSlotName = mentorRow.mentor_name?.trim() || null;
+              const displayName = isOwnerRow
+                ? ownerSlotName
+                  || (isLinked ? linkedDisplayName : null)
+                  || classTeamName
+                  || slotName
+                : mentorRow.mentor_name ?? slotName;
+              const teamName = isOwnerRow
+                ? ownerSlotName && classTeamName && displayName !== classTeamName
+                  ? classTeamName
+                  : null
+                : classTeamName;
               const isYou = session?.id === row.id;
               const signedInLabel =
                 isLinked && linkedDisplayName
