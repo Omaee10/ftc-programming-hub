@@ -200,6 +200,51 @@ export async function transferMistakenOwnerClaimToCoMentor(
   return (await linkMentorToUser(admin, coSlot.id, userId, resolvedName)).ok;
 }
 
+const ITKAN_OWNER_NAME = "Wadood Mohammed";
+
+function isItkanRoboticsClass(teamLabel: string): boolean {
+  const normalized = teamLabel.trim().toLowerCase();
+  return (
+    normalized.includes("itkan")
+    || normalized.includes("robotics22")
+    || normalized === "22"
+  );
+}
+
+/** One-time: restore Wadood's Itkan Robotics owner slot so his sign-in code works. */
+export async function repairItkanOwnerSlotOnce(
+  admin: SupabaseClient,
+  ownerId: string
+): Promise<void> {
+  const { data: ownerRow } = await admin
+    .from("mentors")
+    .select("id, name, mentor_name, user_id")
+    .eq("id", ownerId)
+    .maybeSingle();
+
+  if (!ownerRow) return;
+  if (!isItkanRoboticsClass((ownerRow.name as string) ?? "")) return;
+
+  const patch: { mentor_name: string; user_id?: null } = {
+    mentor_name: ITKAN_OWNER_NAME,
+  };
+
+  if (ownerRow.user_id) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("display_name")
+      .eq("id", ownerRow.user_id as string)
+      .maybeSingle();
+
+    const linkedName = profile?.display_name?.trim() ?? "";
+    if (!namesMatch(linkedName, ITKAN_OWNER_NAME)) {
+      patch.user_id = null;
+    }
+  }
+
+  await admin.from("mentors").update(patch).eq("id", ownerId);
+}
+
 /** On dashboard load, fix owner-row links that belong on a co-mentor slot. */
 export async function repairClassMentorLinks(
   admin: SupabaseClient,

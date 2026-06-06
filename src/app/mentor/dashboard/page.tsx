@@ -994,12 +994,6 @@ function CodeManager({
     id: string;
     displayName: string;
   } | null>(null);
-  const [pendingReset, setPendingReset] = useState<{
-    id: string;
-    displayName: string;
-  } | null>(null);
-  const [ownerNameDraft, setOwnerNameDraft] = useState("");
-  const [editingOwnerName, setEditingOwnerName] = useState(false);
   const [isPending, startTransition] = useTransition();
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const { loading, session, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
@@ -1070,68 +1064,12 @@ function CodeManager({
     });
   };
 
-  const requestResetLink = (id: string, displayName: string) => {
-    setPendingReset({ id, displayName });
-  };
-
-  const cancelResetLink = () => {
-    if (isPending) return;
-    setPendingReset(null);
-  };
-
-  const confirmResetLink = () => {
-    if (!pendingReset || isPending) return;
-
-    startTransition(async () => {
-      const res = await fetch("/api/auth/reset-mentor-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mentorRowId: pendingReset.id }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        setError(data.error ?? "Failed to reset sign-in.");
-        setPendingReset(null);
-        return;
-      }
-      setPendingReset(null);
-      setError("");
-      load();
-    });
-  };
-
   const toggleShow = (id: string) =>
     setShowCodes((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-
-  const saveOwnerName = (ownerRowId: string) => {
-    const trimmed = ownerNameDraft.trim();
-    if (!trimmed) {
-      setError("Owner name is required.");
-      return;
-    }
-
-    startTransition(async () => {
-      const res = await fetch("/api/mentor/update-slot-name", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mentorRowId: ownerRowId, mentorName: trimmed }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        setError(data.error ?? "Failed to save owner name.");
-        return;
-      }
-      setEditingOwnerName(false);
-      setOwnerNameDraft("");
-      setError("");
-      load();
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -1204,77 +1142,21 @@ function CodeManager({
               const classTeamName = ownerRow?.name ?? session?.teamName ?? null;
               const isOwnerRow = table === "mentors" && !mentorRow.created_by;
               const slotName = mentorRow.name;
-              const linkedDisplayName = (
-                mentorRow as MentorRow & { linkedDisplayName?: string | null }
-              ).linkedDisplayName;
               const isLinked = Boolean(mentorRow.user_id);
-              const ownerSlotName = mentorRow.mentor_name?.trim() || null;
-              const needsOwnerName = isOwnerRow && !ownerSlotName && !isLinked;
-              const displayName = isOwnerRow
-                ? ownerSlotName
-                  || (isLinked ? linkedDisplayName : null)
-                  || "Owner name not set"
-                : mentorRow.mentor_name ?? slotName;
+              const displayName = mentorRow.mentor_name ?? slotName;
               const teamName = isOwnerRow ? classTeamName : classTeamName;
               const isYou = session?.id === row.id;
-              const signedInLabel =
-                isLinked && linkedDisplayName
-                  ? `Signed in as ${linkedDisplayName}`
-                  : "Signed in";
-              const avatarLetter = (
-                ownerSlotName
-                || linkedDisplayName
-                || classTeamName
-                || displayName
-              )[0]?.toUpperCase();
               return (
               <li
                 key={row.id}
                 className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/30 transition-colors"
               >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-xs font-bold text-slate-300">
-                  {avatarLetter}
+                  {displayName[0]?.toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  {needsOwnerName || (isOwnerRow && editingOwnerName) ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        type="text"
-                        value={ownerNameDraft}
-                        onChange={(e) => setOwnerNameDraft(e.target.value)}
-                        placeholder="Owner's full name"
-                        className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200 placeholder:text-slate-500 focus:border-sky-500/50 focus:outline-none"
-                        disabled={isPending}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => saveOwnerName(row.id)}
-                        disabled={isPending || !ownerNameDraft.trim()}
-                        className="rounded bg-sky-500/20 px-2 py-1 text-xs font-medium text-sky-300 hover:bg-sky-500/30 disabled:opacity-50"
-                      >
-                        Save
-                      </button>
-                      {ownerSlotName && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingOwnerName(false);
-                            setOwnerNameDraft("");
-                          }}
-                          className="text-xs text-slate-500 hover:text-slate-300"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                      <span className="text-[10px] font-medium uppercase tracking-wide text-sky-400/90">
-                        Owner
-                      </span>
-                    </div>
-                  ) : (
                   <p className="text-sm font-medium text-slate-200 truncate">
-                    <span className={needsOwnerName ? "text-amber-400/90" : undefined}>
-                      {displayName}
-                    </span>
+                    {displayName}
                     {isYou && (
                       <span className="ml-2 text-[10px] font-medium uppercase tracking-wide text-emerald-400">
                         You
@@ -1285,20 +1167,7 @@ function CodeManager({
                         Owner
                       </span>
                     )}
-                    {isOwnerRow && ownerSlotName && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOwnerNameDraft(ownerSlotName);
-                          setEditingOwnerName(true);
-                        }}
-                        className="ml-2 text-[10px] text-slate-500 hover:text-slate-300"
-                      >
-                        Edit
-                      </button>
-                    )}
                   </p>
-                  )}
                   <p className="text-xs text-slate-500 truncate">
                     {teamName && <span className="mr-2">{teamName}</span>}
                     <span className="font-mono">{showCodes.has(row.id) ? row.code : maskCode(row.code)}</span>
@@ -1310,7 +1179,7 @@ function CodeManager({
                             : "ml-2 text-amber-500/80"
                         }
                       >
-                        · {isLinked ? signedInLabel : "Awaiting signup"}
+                        · {isLinked ? "Signed in" : "Awaiting signup"}
                       </span>
                     )}
                   </p>
@@ -1326,20 +1195,9 @@ function CodeManager({
                     <Eye className="h-3.5 w-3.5" />
                   )}
                 </button>
-                {table === "mentors" && isLinked && !isYou && (
-                  <button
-                    type="button"
-                    onClick={() => requestResetLink(row.id, displayName)}
-                    disabled={isPending || pendingReset !== null || pendingDelete !== null}
-                    className="rounded px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-500 hover:bg-amber-500/10 hover:text-amber-400 transition-colors disabled:opacity-50"
-                    title="Clear sign-in so they can claim their personal code again"
-                  >
-                    Reset
-                  </button>
-                )}
                 <button
                   onClick={(e) => requestDelete(row.id, displayName, e.currentTarget)}
-                  disabled={isPending || pendingDelete !== null || pendingReset !== null}
+                  disabled={isPending || pendingDelete !== null}
                   className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
                   title={`Delete ${label.toLowerCase()}`}
                 >
@@ -1364,19 +1222,6 @@ function CodeManager({
         onCancel={cancelDelete}
         pending={isPending}
         returnFocusRef={deleteTriggerRef}
-      />
-
-      <ConfirmDialog
-        open={pendingReset !== null}
-        title="Reset sign-in?"
-        message={
-          pendingReset
-            ? `Clear the sign-in for ${pendingReset.displayName}? They can link again with their personal co-mentor code.`
-            : ""
-        }
-        onConfirm={confirmResetLink}
-        onCancel={cancelResetLink}
-        pending={isPending}
       />
 
       {/* Add form */}
