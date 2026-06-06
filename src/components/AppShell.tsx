@@ -8,6 +8,7 @@ import Sidebar from "./Sidebar";
 import ThemePanel from "./ThemePanel";
 import DashboardDocSearch from "./DashboardDocSearch";
 import { getSession, setSession as persistSession, type Session } from "@/lib/auth";
+import { prefetchHomework } from "@/hooks/useHomeworkAssignments";
 import { supabase } from "@/lib/supabase";
 import { signOutAll, getAuthUserId, getProfileDisplayName } from "@/lib/authSession";
 
@@ -33,6 +34,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const stored = getSession();
+    if (stored) {
+      persistSession(stored);
+      if (stored.role === "student") {
+        prefetchHomework();
+      }
+    }
     setSession(stored);
     setMounted(true);
 

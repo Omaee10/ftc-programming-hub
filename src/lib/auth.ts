@@ -1,5 +1,6 @@
 const SESSION_KEY = "ftc-hub-session";
 const COOKIE_NAME = "ftc-hub-role";
+export const WORKSPACE_ID_COOKIE = "ftc-hub-workspace-id";
 
 export interface Session {
   role: "mentor" | "student";
@@ -27,8 +28,9 @@ export function getSession(): Session | null {
 
 export function setSession(session: Session): void {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  // Set cookie so proxy.ts can read the role for server-side route guards.
+  // Cookies let middleware / server components read the active workspace.
   document.cookie = `${COOKIE_NAME}=${session.role}; path=/; SameSite=Lax`;
+  document.cookie = `${WORKSPACE_ID_COOKIE}=${session.id}; path=/; SameSite=Lax`;
 }
 
 export function clearSupabaseAuthCookies(): void {
@@ -45,6 +47,7 @@ export function clearSupabaseAuthCookies(): void {
 export function clearWorkspaceSession(): void {
   localStorage.removeItem(SESSION_KEY);
   document.cookie = `${COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  document.cookie = `${WORKSPACE_ID_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
 }
 
 /** Full sign-out: workspace state + Supabase auth cookies. */

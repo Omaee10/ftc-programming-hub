@@ -55,6 +55,28 @@ function subscribeToStore(callback: () => void): () => void {
   return () => storeListeners.delete(callback);
 }
 
+const SESSION_CACHE_PREFIX = "ftc-homework-cache:";
+
+function readSessionCache(key: HomeworkCacheKey): HomeworkAssignmentRow[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(`${SESSION_CACHE_PREFIX}${key}`);
+    if (!raw) return null;
+    return JSON.parse(raw) as HomeworkAssignmentRow[];
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionCache(key: HomeworkCacheKey, assignments: HomeworkAssignmentRow[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(`${SESSION_CACHE_PREFIX}${key}`, JSON.stringify(assignments));
+  } catch {
+    // Ignore quota errors
+  }
+}
+
 function cacheKeyForSession(): HomeworkCacheKey | null {
   const session = getSession();
   if (!session?.id) return null;
@@ -63,6 +85,13 @@ function cacheKeyForSession(): HomeworkCacheKey | null {
     return `mentor:${classOwner(session)}`;
   }
   return null;
+}
+
+/** Warm homework cache after sign-in (e.g. from AppShell). */
+export function prefetchHomework(): void {
+  const key = cacheKeyForSession();
+  if (!key) return;
+  void ensureHomeworkLoaded(key);
 }
 
 async function fetchStudentHomework(studentId: string): Promise<HomeworkAssignmentRow[]> {
@@ -119,16 +148,15 @@ async function fetchMentorHomework(ownerId: string): Promise<HomeworkAssignmentR
 
 async function ensureHomeworkLoaded(key: HomeworkCacheKey): Promise<void> {
   if (storeSnapshot.cacheKey !== key) {
+    const cached = readSessionCache(key);
     publishStore({
-      assignments: [],
-      hydrated: false,
+      assignments: cached ?? [],
+      hydrated: cached !== null,
       loadError: null,
       cacheKey: key,
     });
     loadInFlight = null;
   }
-
-  if (storeSnapshot.hydrated && storeSnapshot.cacheKey === key) return;
 
   if (loadInFlight) {
     await loadInFlight;
@@ -150,6 +178,7 @@ async function ensureHomeworkLoaded(key: HomeworkCacheKey): Promise<void> {
 
       if (storeSnapshot.cacheKey !== loadKey) return;
 
+      writeSessionCache(loadKey, assignments);
       publishStore({
         assignments,
         hydrated: true,

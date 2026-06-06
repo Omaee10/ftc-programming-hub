@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { fetchStudentHomework } from "@/lib/studentHomework";
 
-/** Student homework for the active workspace — verifies studentId belongs to auth user. */
+/** Student homework for the active workspace. */
 export async function GET(request: Request): Promise<NextResponse> {
   const studentId = new URL(request.url).searchParams.get("studentId")?.trim();
   if (!studentId) {
@@ -17,33 +18,11 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: enrollment, error: enrollmentErr } = await supabase
-    .from("students")
-    .select("id")
-    .eq("id", studentId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (enrollmentErr) {
-    return NextResponse.json({ error: enrollmentErr.message }, { status: 500 });
-  }
-
-  if (!enrollment) {
-    return NextResponse.json(
-      { error: "This class workspace is not linked to your account." },
-      { status: 403 }
-    );
-  }
-
-  const { data, error } = await supabase
-    .from("homework_assignments")
-    .select("*")
-    .eq("student_id", studentId)
-    .order("assigned_at", { ascending: false });
+  const { assignments, error } = await fetchStudentHomework(supabase, studentId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 
-  return NextResponse.json({ assignments: data ?? [] });
+  return NextResponse.json({ assignments });
 }

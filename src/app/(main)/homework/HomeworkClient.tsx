@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
 import { getSession } from "@/lib/auth";
+import type { HomeworkAssignmentRow } from "@/lib/supabase";
 import { fetchClassChallenges } from "@/lib/classChallenges";
 import {
   rowToChallenge,
@@ -113,10 +114,17 @@ function HomeworkCard({
   );
 }
 
-export default function HomeworkClient() {
+export default function HomeworkClient({
+  initialAssignments = null,
+}: {
+  initialAssignments?: HomeworkAssignmentRow[] | null;
+}) {
   const router = useRouter();
   const { assignments, hydrated, loadError, refresh } = useHomeworkAssignments();
   const [dbChallenges, setDbChallenges] = useState<Challenge[]>([]);
+
+  const waitingForData = !hydrated && initialAssignments === null;
+  const list = hydrated ? assignments : (initialAssignments ?? []);
 
   useEffect(() => {
     const session = getSession();
@@ -134,8 +142,8 @@ export default function HomeworkClient() {
     });
   }, []);
 
-  const pending = assignments.filter((a) => !a.completed);
-  const completed = assignments.filter((a) => a.completed);
+  const pending = list.filter((a) => !a.completed);
+  const completed = list.filter((a) => a.completed);
 
   const resolve = (challengeId: number) =>
     resolveChallenge(challengeId, dbChallenges);
@@ -155,7 +163,7 @@ export default function HomeworkClient() {
         </p>
       </div>
 
-      {!hydrated ? (
+      {waitingForData ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div
@@ -175,7 +183,7 @@ export default function HomeworkClient() {
             Try again
           </button>
         </div>
-      ) : assignments.length === 0 ? (
+      ) : list.length === 0 ? (
         <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 px-6 py-12 text-center">
           <ClipboardList className="mx-auto h-8 w-8 text-slate-600 mb-3" />
           <p className="text-sm text-slate-400">No homework assigned yet.</p>
