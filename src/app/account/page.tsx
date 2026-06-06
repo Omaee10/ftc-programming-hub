@@ -17,6 +17,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getSession, setSession as persistSession } from "@/lib/auth";
 import { getAuthUserId, signOutAll } from "@/lib/authSession";
+import { AsyncTimeoutError, formatLoadError } from "@/lib/withTimeout";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
 const inputClass =
@@ -50,6 +51,8 @@ function StatusMessage({ type, message }: { type: "error" | "success"; message: 
 export default function AccountPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
 
@@ -114,7 +117,13 @@ export default function AccountPage() {
         }
       } catch (err) {
         console.error("Account page load:", err);
-        if (!cancelled) router.replace("/login");
+        if (!cancelled) {
+          if (err instanceof AsyncTimeoutError) {
+            setLoadError(formatLoadError(err));
+          } else {
+            router.replace("/login");
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -123,7 +132,7 @@ export default function AccountPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, loadAttempt]);
 
   const backHref = (() => {
     const session = getSession();
@@ -307,6 +316,25 @@ export default function AccountPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950">
         <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-950 px-4">
+        <p className="max-w-sm text-center text-sm text-red-400/90">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoadError(null);
+            setLoading(true);
+            setLoadAttempt((n) => n + 1);
+          }}
+          className="text-xs text-slate-400 underline hover:text-slate-200 transition-colors"
+        >
+          Try again
+        </button>
       </div>
     );
   }

@@ -71,11 +71,15 @@ function maskCode(code: string) {
 function TabLoaderGate({
   loading,
   sessionMissing,
+  loadError,
+  onRetry,
   children,
   spinnerClass = "text-zinc-100",
 }: {
   loading: boolean;
   sessionMissing: boolean;
+  loadError?: string | null;
+  onRetry?: () => void;
   children: React.ReactNode;
   spinnerClass?: string;
 }) {
@@ -96,6 +100,23 @@ function TabLoaderGate({
         </Link>{" "}
         to continue.
       </p>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="py-12 text-center space-y-3">
+        <p className="text-sm text-red-400/90">{loadError}</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="text-xs text-slate-400 underline hover:text-slate-200 transition-colors"
+          >
+            Try again
+          </button>
+        )}
+      </div>
     );
   }
 
@@ -152,7 +173,7 @@ function ProgressTab() {
     ...dbChallenges.map((c) => ({ id: c.id, title: c.title })),
   ].sort((a, b) => a.id - b.id);
 
-  const { loading, sessionMissing } = useTabLoader(async (s) => {
+  const { loading, sessionMissing, loadError, reload } = useTabLoader(async (s) => {
     const ownerId = classOwner(s);
     const [{ data: students }, { data: progress }, { data: homework }, classChallengeRows] =
       await Promise.all([
@@ -203,7 +224,12 @@ function ProgressTab() {
     });
 
   return (
-    <TabLoaderGate loading={loading} sessionMissing={sessionMissing}>
+    <TabLoaderGate
+      loading={loading}
+      sessionMissing={sessionMissing}
+      loadError={loadError}
+      onRetry={() => void reload()}
+    >
       {data.length === 0 ? (
         <p className="py-12 text-center text-sm text-slate-500">
           No students yet. Add students in the &quot;Manage Students&quot; tab.
@@ -547,7 +573,7 @@ function AssignHomeworkTab() {
       .map((c) => ({ id: c.id, title: c.title, number: undefined as number | undefined })),
   ];
 
-  const { loading, sessionMissing, reload: load } = useTabLoader(async (s) => {
+  const { loading, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
     const ownerId = classOwner(s);
 
     const [{ data: studentRows }, challengeList, { data: hwRows }] =
@@ -701,7 +727,12 @@ function AssignHomeworkTab() {
   };
 
   return (
-    <TabLoaderGate loading={loading} sessionMissing={sessionMissing}>
+    <TabLoaderGate
+      loading={loading}
+      sessionMissing={sessionMissing}
+      loadError={loadError}
+      onRetry={() => void load()}
+    >
       {students.length === 0 ? (
         <p className="py-12 text-center text-sm text-slate-500">
           No students yet. Add students in the &quot;Manage Students&quot; tab.
@@ -979,7 +1010,7 @@ function CodeManager({
   } | null>(null);
   const [isPending, startTransition] = useTransition();
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const { loading, session, sessionMissing, reload: load } = useTabLoader(async (s) => {
+  const { loading, session, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
     setError("");
     const ownerId = classOwner(s);
     if (!ownerId) {
@@ -1148,6 +1179,17 @@ function CodeManager({
             </Link>
             .
           </p>
+        ) : loadError ? (
+          <div className="py-8 text-center space-y-2">
+            <p className="text-sm text-red-400/90">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="text-xs text-slate-400 underline hover:text-slate-200 transition-colors"
+            >
+              Try again
+            </button>
+          </div>
         ) : rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-500">
             No {label.toLowerCase()}s yet.
@@ -1328,7 +1370,7 @@ function ManageChallengesTab() {
   const [rows, setRows] = useState<ChallengeRow[]>([]);
   const [isPending, startTransition] = useTransition();
 
-  const { loading, session, sessionMissing, reload: load } = useTabLoader(async (s) => {
+  const { loading, session, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
     const challengeRows = await fetchClassChallenges(s);
     setRows(challengeRows);
   });
@@ -1341,7 +1383,13 @@ function ManageChallengesTab() {
   };
 
   return (
-    <TabLoaderGate loading={loading} sessionMissing={sessionMissing} spinnerClass="text-zinc-300">
+    <TabLoaderGate
+      loading={loading}
+      sessionMissing={sessionMissing}
+      loadError={loadError}
+      onRetry={() => void load()}
+      spinnerClass="text-zinc-300"
+    >
       {rows.length === 0 ? (
         <p className="py-12 text-center text-sm text-slate-500">
           No custom challenges yet. Create one in the &quot;Create Challenge&quot; tab.
@@ -1683,7 +1731,7 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
   const [gradeInputs, setGradeInputs] = useState<Record<string, { grade: string; feedback: string }>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
-  const { loading, sessionMissing, reload: load } = useTabLoader(async (s) => {
+  const { loading, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
     const ownerId = classOwner(s);
     const { data: students } = await supabase
       .from("students")
@@ -1801,7 +1849,13 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
   const graded = submissions.filter((s) => s.status === "graded");
 
   return (
-    <TabLoaderGate loading={loading} sessionMissing={sessionMissing} spinnerClass="text-amber-400">
+    <TabLoaderGate
+      loading={loading}
+      sessionMissing={sessionMissing}
+      loadError={loadError}
+      onRetry={() => void load()}
+      spinnerClass="text-amber-400"
+    >
       {submissions.length === 0 ? (
         <p className="py-12 text-center text-sm text-slate-500">
           No submissions yet. Students will appear here once they submit mentor-created challenges.

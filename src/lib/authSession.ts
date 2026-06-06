@@ -1,5 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import { clearSession } from "@/lib/auth";
+import { withTimeout } from "@/lib/withTimeout";
+
+const AUTH_TIMEOUT_MS = 10_000;
 
 export async function signOutAll(): Promise<void> {
   await supabase.auth.signOut();
@@ -9,7 +12,7 @@ export async function signOutAll(): Promise<void> {
 export async function getAuthUserId(): Promise<string | null> {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await withTimeout(supabase.auth.getUser(), AUTH_TIMEOUT_MS, "Auth check");
   return user?.id ?? null;
 }
 
