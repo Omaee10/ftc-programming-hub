@@ -41,8 +41,14 @@ export function clearSupabaseAuthCookies(): void {
   }
 }
 
-export function clearSession(): void {
+/** Clear workspace picker state only — keeps Supabase auth cookies intact. */
+export function clearWorkspaceSession(): void {
   localStorage.removeItem(SESSION_KEY);
   document.cookie = `${COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+
+/** Full sign-out: workspace state + Supabase auth cookies. */
+export function clearSession(): void {
+  clearWorkspaceSession();
   clearSupabaseAuthCookies();
 }

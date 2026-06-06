@@ -13,7 +13,7 @@ import {
   UserPlus,
   Settings,
 } from "lucide-react";
-import { clearSession, setSession } from "@/lib/auth";
+import { clearWorkspaceSession, setSession } from "@/lib/auth";
 import { getAuthUserId, getProfileDisplayName } from "@/lib/authSession";
 import { withTimeout } from "@/lib/withTimeout";
 
@@ -124,8 +124,9 @@ export default function SignInPage() {
     [router]
   );
 
+  // Reset workspace choice so the user can pick a class — do not clear Supabase auth.
   useEffect(() => {
-    clearSession();
+    clearWorkspaceSession();
   }, []);
 
   useEffect(() => {
