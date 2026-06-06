@@ -46,10 +46,9 @@ export default function OnboardingPage() {
   }, []);
 
   const handleSignOut = () => {
-    void signOutAll().then(() => {
-      router.push("/login");
-      router.refresh();
-    });
+    router.push("/login");
+    router.refresh();
+    void signOutAll();
   };
 
   return (

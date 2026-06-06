@@ -101,10 +101,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleSignOut = () => {
-    void signOutAll().then(() => {
-      router.push("/login");
-      router.refresh();
-    });
+    router.push("/login");
+    router.refresh();
+    void signOutAll();
   };
 
   const displayName = session

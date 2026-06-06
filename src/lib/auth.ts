@@ -31,7 +31,18 @@ export function setSession(session: Session): void {
   document.cookie = `${COOKIE_NAME}=${session.role}; path=/; SameSite=Lax`;
 }
 
+export function clearSupabaseAuthCookies(): void {
+  if (typeof document === "undefined") return;
+  for (const cookie of document.cookie.split(";")) {
+    const name = cookie.split("=")[0]?.trim();
+    if (name?.startsWith("sb-")) {
+      document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    }
+  }
+}
+
 export function clearSession(): void {
   localStorage.removeItem(SESSION_KEY);
   document.cookie = `${COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  clearSupabaseAuthCookies();
 }

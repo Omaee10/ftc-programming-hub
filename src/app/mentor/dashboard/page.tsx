@@ -26,11 +26,15 @@ import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type Prog
 import { getSession } from "@/lib/auth";
 import { useTabLoader, useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import Link from "next/link";
+import { classOwner, challengeCreatedBy } from "@/lib/classChallenges";
 import {
-  classOwner,
-  challengeCreatedBy,
-  fetchClassChallenges,
-} from "@/lib/classChallenges";
+  fetchChallengesData,
+  fetchHomeworkData,
+  fetchMentorsData,
+  fetchProgressData,
+  fetchStudentsData,
+  fetchSubmissionsData,
+} from "@/lib/mentorDashboardApi";
 import { challenges as staticChallenges } from "@/data/challenges";
 import { computeDisplayNumbers, rowToChallenge } from "@/lib/homeworkUtils";
 import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
@@ -174,20 +178,12 @@ function ProgressTab() {
   ].sort((a, b) => a.id - b.id);
 
   const { loading, sessionMissing, loadError, reload } = useTabLoader(async (s) => {
-    const ownerId = classOwner(s);
-    const [{ data: students }, { data: progress }, { data: homework }, classChallengeRows] =
-      await Promise.all([
-        supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-        supabase.from("student_challenge_progress").select("*"),
-        supabase.from("homework_assignments").select("*"),
-        fetchClassChallenges(s),
-      ]);
+    const { students, progress, homework, challenges } = await fetchProgressData(s);
 
-    const challenges = classChallengeRows;
     setDbChallenges(challenges as ChallengeRow[]);
 
-    const studentList = (students ?? []) as StudentRow[];
-    const homeworkRows = (homework ?? []) as HomeworkAssignmentRow[];
+    const studentList = students as StudentRow[];
+    const homeworkRows = homework as HomeworkAssignmentRow[];
 
     const allCh = [
       ...staticChallenges.map((c) => c.id),
@@ -574,16 +570,10 @@ function AssignHomeworkTab() {
   ];
 
   const { loading, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
-    const ownerId = classOwner(s);
+    const { students: studentRows, challenges: challengeList, homework: hwRows } =
+      await fetchHomeworkData(s);
 
-    const [{ data: studentRows }, challengeList, { data: hwRows }] =
-      await Promise.all([
-        supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-        fetchClassChallenges(s),
-        supabase.from("homework_assignments").select("*").order("assigned_at", { ascending: false }),
-      ]);
-
-    const studentList = (studentRows ?? []) as StudentRow[];
+    const studentList = studentRows as StudentRow[];
     const studentIds = new Set(studentList.map((st) => st.id));
 
     setStudents(studentList);
@@ -1012,35 +1002,12 @@ function CodeManager({
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const { loading, session, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
     setError("");
-    const ownerId = classOwner(s);
-    if (!ownerId) {
-      setRows([]);
-      return;
-    }
     if (table === "students") {
-      const { data, error: dbErr } = await supabase
-        .from("students")
-        .select("*")
-        .eq("mentor_id", ownerId)
-        .order("name");
-      if (dbErr) {
-        setError(dbErr.message);
-        setRows([]);
-        return;
-      }
-      setRows((data ?? []) as (MentorRow | StudentRow)[]);
+      const { rows } = await fetchStudentsData(s);
+      setRows(rows as (MentorRow | StudentRow)[]);
     } else {
-      const { data, error: dbErr } = await supabase
-        .from("mentors")
-        .select("id, name, mentor_name, code, created_at, created_by, user_id")
-        .or(`id.eq.${ownerId},created_by.eq.${ownerId}`)
-        .order("name");
-      if (dbErr) {
-        setError(dbErr.message);
-        setRows([]);
-        return;
-      }
-      setRows((data ?? []) as (MentorRow | StudentRow)[]);
+      const { rows } = await fetchMentorsData(s);
+      setRows(rows as (MentorRow | StudentRow)[]);
     }
   });
   const roleLabel = table === "students" ? "student" : "mentor";
@@ -1371,8 +1338,8 @@ function ManageChallengesTab() {
   const [isPending, startTransition] = useTransition();
 
   const { loading, session, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
-    const challengeRows = await fetchClassChallenges(s);
-    setRows(challengeRows);
+    const { rows } = await fetchChallengesData(s);
+    setRows(rows);
   });
 
   const handleDelete = (id: number) => {
@@ -1732,28 +1699,14 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
   const { loading, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
-    const ownerId = classOwner(s);
-    const { data: students } = await supabase
-      .from("students")
-      .select("id, name")
-      .eq("mentor_id", ownerId);
+    const { students, submissions: subs, challenges: dbChallenges } =
+      await fetchSubmissionsData(s);
 
     if (!students || students.length === 0) {
       setSubmissions([]);
       onCountChange?.(0);
       return;
     }
-
-    const studentIds = (students as { id: string }[]).map((st) => st.id);
-
-    const [{ data: subs }, { data: dbChallenges }] = await Promise.all([
-      supabase
-        .from("challenge_submissions")
-        .select("*")
-        .in("student_id", studentIds)
-        .order("submitted_at", { ascending: false }),
-      supabase.from("challenges").select("id, title"),
-    ]);
 
     const allChallengeTitles = [
       ...staticChallenges.map((c) => ({ id: c.id, title: c.title })),
@@ -2071,22 +2024,12 @@ export default function MentorDashboardPage() {
     const s = getSession();
     if (!s?.id) return;
     (async () => {
-      const ownerId = classOwner(s);
-      const { data: students } = await supabase
-        .from("students")
-        .select("id")
-        .eq("mentor_id", ownerId);
-      if (!students || students.length === 0) {
+      try {
+        const { submissions } = await fetchSubmissionsData(s);
+        setPendingCount(submissions.filter((sub) => sub.status === "pending").length);
+      } catch {
         setPendingCount(0);
-        return;
       }
-      const studentIds = (students as { id: string }[]).map((st) => st.id);
-      const { count } = await supabase
-        .from("challenge_submissions")
-        .select("*", { count: "exact", head: true })
-        .in("student_id", studentIds)
-        .eq("status", "pending");
-      setPendingCount(count ?? 0);
     })();
   }, [session?.id, session?.parentMentorId]);
 

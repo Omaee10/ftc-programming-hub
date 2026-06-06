@@ -29,7 +29,7 @@ export function withTimeout<T>(
 
 export function formatLoadError(error: unknown): string {
   if (error instanceof AsyncTimeoutError) {
-    return "Could not reach the database. Check your connection or Supabase project status, then try again.";
+    return "The server took too long to respond. Check your connection and try again.";
   }
   if (error instanceof Error && error.message.trim()) {
     return error.message;

@@ -5,8 +5,24 @@ import { withTimeout } from "@/lib/withTimeout";
 const AUTH_TIMEOUT_MS = 10_000;
 
 export async function signOutAll(): Promise<void> {
-  await supabase.auth.signOut();
   clearSession();
+
+  try {
+    const res = await withTimeout(
+      fetch("/api/auth/signout", { method: "POST", credentials: "include" }),
+      8_000,
+      "Sign out"
+    );
+    if (res.ok) return;
+  } catch {
+    // Fall through to direct client sign-out.
+  }
+
+  try {
+    await withTimeout(supabase.auth.signOut(), 5_000, "Sign out");
+  } catch {
+    // Local session and cookies are already cleared.
+  }
 }
 
 export async function getAuthUserId(): Promise<string | null> {
