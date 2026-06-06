@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trophy, ArrowRight, LogIn, UserPlus, LogOut, Shield, Settings, Info } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { signOutAll, getAuthUserId } from "@/lib/authSession";
+import { withTimeout } from "@/lib/withTimeout";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -19,19 +19,16 @@ export default function OnboardingPage() {
         const userId = await getAuthUserId();
         if (!userId) return;
 
-        const [{ count: studentCount }, { count: mentorCount }] = await Promise.all([
-          supabase
-            .from("students")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", userId),
-          supabase
-            .from("mentors")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", userId),
-        ]);
-
-        if (!cancelled) {
-          setHasWorkspaces((studentCount ?? 0) + (mentorCount ?? 0) > 0);
+        const res = await withTimeout(
+          fetch("/api/auth/workspaces", { credentials: "include" }),
+          15_000,
+          "Loading workspaces"
+        );
+        if (res.ok) {
+          const data = (await res.json()) as { studentCount?: number; mentorCount?: number };
+          if (!cancelled) {
+            setHasWorkspaces((data.studentCount ?? 0) + (data.mentorCount ?? 0) > 0);
+          }
         }
       } catch (err) {
         console.error("Onboarding workspace check:", err);

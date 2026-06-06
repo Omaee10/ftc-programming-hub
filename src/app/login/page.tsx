@@ -4,7 +4,7 @@ import { Suspense, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Trophy, Lock, AlertCircle, Loader2, ArrowRight, Mail, CheckCircle2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { signInViaApi } from "@/lib/authSession";
 
 function LoginForm() {
   const router = useRouter();
@@ -25,13 +25,10 @@ function LoginForm() {
     setError("");
 
     startTransition(async () => {
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
+      const { error: signInErr } = await signInViaApi(trimmedEmail, password);
 
       if (signInErr) {
-        setError(signInErr.message);
+        setError(signInErr);
         return;
       }
 

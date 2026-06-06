@@ -15,7 +15,7 @@ import {
   User,
   Shield,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { signInViaApi } from "@/lib/authSession";
 import CodeInput from "@/components/CodeInput";
 
 export default function SignupPage() {
@@ -87,10 +87,7 @@ export default function SignupPage() {
         return;
       }
 
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
+      const { error: signInErr } = await signInViaApi(trimmedEmail, password);
 
       if (signInErr) {
         setError("Account created but sign-in failed. Try logging in.");

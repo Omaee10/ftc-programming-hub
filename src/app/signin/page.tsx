@@ -13,9 +13,9 @@ import {
   UserPlus,
   Settings,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { clearSession, setSession } from "@/lib/auth";
 import { getAuthUserId, getProfileDisplayName } from "@/lib/authSession";
+import { withTimeout } from "@/lib/withTimeout";
 
 interface StudentEnrollment {
   kind: "student";
@@ -140,74 +140,29 @@ export default function SignInPage() {
       }
 
       const profileName = (await getProfileDisplayName(userId)) ?? undefined;
-      const enrollments: PickerItem[] = [];
 
-      const { data: students, error: studentsErr } = await supabase
-        .from("students")
-        .select("id, name, mentor_id, mentors(name, class_name)")
-        .eq("user_id", userId);
+      const res = await withTimeout(
+        fetch("/api/auth/workspaces", { credentials: "include" }),
+        15_000,
+        "Loading workspaces"
+      );
+      const data = (await res.json()) as {
+        error?: string;
+        students?: StudentEnrollment[];
+        mentors?: MentorWorkspace[];
+      };
 
-      if (studentsErr) {
-        if (!cancelled) setError(studentsErr.message);
+      if (!res.ok) {
+        if (!cancelled) setError(data.error ?? "Failed to load workspaces.");
         return;
-      }
-
-      for (const row of students ?? []) {
-        const mentor = row.mentors as unknown as {
-          name: string;
-          class_name?: string | null;
-        } | null;
-        enrollments.push({
-          kind: "student",
-          id: row.id as string,
-          name: profileName ?? (row.name as string),
-          mentorId: (row.mentor_id as string) ?? "",
-          teamName: mentor?.name ?? "",
-          className: mentor?.class_name?.trim() || undefined,
-        });
-      }
-
-      const { data: mentors, error: mentorsErr } = await supabase
-        .from("mentors")
-        .select("id, name, mentor_name, class_name, created_by")
-        .eq("user_id", userId);
-
-      if (mentorsErr) {
-        if (!cancelled) setError(mentorsErr.message);
-        return;
-      }
-
-      for (const row of mentors ?? []) {
-        const parentId = (row.created_by as string | null) ?? undefined;
-        let personalName = (row.mentor_name as string | null) ?? (row.name as string);
-        let teamName = row.name as string;
-        let className = (row.class_name as string | null)?.trim() || undefined;
-
-        if (parentId) {
-          const { data: parent } = await supabase
-            .from("mentors")
-            .select("name, class_name")
-            .eq("id", parentId)
-            .single();
-          if (parent) {
-            teamName = parent.name as string;
-            className = (parent.class_name as string | null)?.trim() || className;
-          }
-        }
-
-        enrollments.push({
-          kind: "mentor",
-          id: row.id as string,
-          name: profileName ?? personalName,
-          teamName,
-          className,
-          parentMentorId: parentId,
-          isOwner: !parentId,
-        });
       }
 
       if (cancelled) return;
 
+      const enrollments: PickerItem[] = [
+        ...(data.students ?? []),
+        ...(data.mentors ?? []),
+      ];
       setItems(dedupePickerItems(enrollments, profileName));
       } catch (err) {
         console.error("Sign-in page load:", err);

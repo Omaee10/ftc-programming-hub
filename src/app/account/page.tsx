@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getSession, setSession as persistSession } from "@/lib/auth";
-import { getAuthUserId, signOutAll } from "@/lib/authSession";
+import { fetchAuthMe, getAuthUserId, signInViaApi, signOutAll } from "@/lib/authSession";
 import { AsyncTimeoutError, formatLoadError } from "@/lib/withTimeout";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
@@ -89,32 +89,14 @@ export default function AccountPage() {
 
     (async () => {
       try {
-        const userId = await getAuthUserId();
-        if (!userId) {
+        const me = await fetchAuthMe();
+        if (!me) {
           router.replace("/login");
           return;
         }
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          router.replace("/login");
-          return;
-        }
-
-        if (!cancelled) setEmail(user.email ?? "");
-
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", userId)
-          .single();
-
-        if (!cancelled && profile?.display_name) {
-          setDisplayName(profile.display_name);
-        }
+        if (!cancelled) setEmail(me.email);
+        if (!cancelled && me.displayName) setDisplayName(me.displayName);
       } catch (err) {
         console.error("Account page load:", err);
         if (!cancelled) {
@@ -206,10 +188,7 @@ export default function AccountPage() {
         return;
       }
 
-      const { error: reauthErr } = await supabase.auth.signInWithPassword({
-        email,
-        password: emailPassword,
-      });
+      const { error: reauthErr } = await signInViaApi(email, emailPassword);
 
       if (reauthErr) {
         setEmailMsg({ type: "error", text: "Current password is incorrect." });
@@ -255,10 +234,7 @@ export default function AccountPage() {
     setPasswordMsg(null);
 
     startPasswordTransition(async () => {
-      const { error: reauthErr } = await supabase.auth.signInWithPassword({
-        email,
-        password: currentPassword,
-      });
+      const { error: reauthErr } = await signInViaApi(email, currentPassword);
 
       if (reauthErr) {
         setPasswordMsg({ type: "error", text: "Current password is incorrect." });
@@ -287,10 +263,7 @@ export default function AccountPage() {
     setDeleteMsg(null);
 
     startDeleteTransition(async () => {
-      const { error: reauthErr } = await supabase.auth.signInWithPassword({
-        email,
-        password: deletePassword,
-      });
+      const { error: reauthErr } = await signInViaApi(email, deletePassword);
 
       if (reauthErr) {
         setDeleteMsg({ type: "error", text: "Password is incorrect." });
