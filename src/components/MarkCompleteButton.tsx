@@ -14,6 +14,14 @@ interface MarkCompleteButtonProps {
   lastGrade?: "good" | "needs-improvement" | "wrong" | null;
   /** When set, overrides default progress-based completion check. */
   forceCompleted?: boolean;
+  /** Parent-provided completion state (avoids duplicate progress hooks). */
+  completed?: boolean;
+  /** Parent-provided mark-complete handler. */
+  onMarkComplete?: () => Promise<void>;
+  /** Parent-provided reset handler for non-homework mode. */
+  onMarkIncomplete?: () => Promise<void>;
+  /** When false, show a loading placeholder. Defaults to local hydration. */
+  progressReady?: boolean;
   /** Custom complete handler (e.g. homework assignments). */
   onComplete?: () => Promise<void>;
   /** Custom reset handler for homework mode. */
@@ -26,12 +34,20 @@ export default function MarkCompleteButton({
   xp,
   lastGrade,
   forceCompleted,
+  completed: completedProp,
+  onMarkComplete,
+  onMarkIncomplete,
+  progressReady,
   onComplete,
   onReset,
   completeLabel = "Mark as Complete",
 }: MarkCompleteButtonProps) {
+  const useOwnProgress =
+    completedProp === undefined &&
+    onMarkComplete === undefined &&
+    forceCompleted === undefined;
   const local = useChallengeProgress();
-  const db = useSupabaseProgress(challengeId);
+  const db = useSupabaseProgress(useOwnProgress ? challengeId : undefined);
 
   const [justCompleted, setJustCompleted] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
@@ -53,7 +69,7 @@ export default function MarkCompleteButton({
   // Mentors don't track personal progress — hide the button entirely
   if (isMentor) return null;
 
-  const hydrated = local.hydrated && db.hydrated;
+  const hydrated = progressReady ?? local.hydrated;
 
   if (!hydrated) {
     return (
@@ -67,7 +83,8 @@ export default function MarkCompleteButton({
   const done =
     forceCompleted !== undefined
       ? forceCompleted
-      : local.isCompleted(challengeId) || db.isCompleted(challengeId);
+      : completedProp ??
+        (local.isCompleted(challengeId) || db.isCompleted(challengeId));
 
   if (done) {
     return (
@@ -83,8 +100,11 @@ export default function MarkCompleteButton({
           <button
             onClick={async () => {
               setBusy(true);
-              await onReset();
-              setBusy(false);
+              try {
+                await onReset();
+              } finally {
+                setBusy(false);
+              }
             }}
             disabled={busy}
             className="flex items-center gap-1.5 px-3 py-2 text-xs text-slate-600 hover:text-slate-300 transition-colors disabled:opacity-50"
@@ -101,9 +121,16 @@ export default function MarkCompleteButton({
           <button
             onClick={async () => {
               setBusy(true);
-              local.markIncomplete(challengeId);
-              await db.markIncomplete(challengeId);
-              setBusy(false);
+              try {
+                if (onMarkIncomplete) {
+                  await onMarkIncomplete();
+                } else {
+                  local.markIncomplete(challengeId);
+                  await db.markIncomplete(challengeId);
+                }
+              } finally {
+                setBusy(false);
+              }
             }}
             disabled={busy}
             className="flex items-center gap-1.5 px-3 py-2 text-xs text-slate-600 hover:text-slate-300 transition-colors disabled:opacity-50"
@@ -127,14 +154,19 @@ export default function MarkCompleteButton({
 
   const completeChallenge = async () => {
     setBusy(true);
-    if (onComplete) {
-      await onComplete();
-    } else {
-      local.markComplete(challengeId);
-      await db.markComplete(challengeId);
+    try {
+      if (onComplete) {
+        await onComplete();
+      } else if (onMarkComplete) {
+        await onMarkComplete();
+      } else {
+        local.markComplete(challengeId);
+        await db.markComplete(challengeId);
+      }
+      setJustCompleted(true);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    setJustCompleted(true);
   };
 
   const handleMarkComplete = () => {

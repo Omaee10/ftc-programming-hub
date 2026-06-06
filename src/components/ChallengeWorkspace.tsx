@@ -635,12 +635,15 @@ export default function ChallengeWorkspace({
   const {
     isCompleted: isCompletedLocal,
     markComplete: markCompleteLocal,
+    markIncomplete: markIncompleteLocal,
+    hydrated: localProgressHydrated,
   } = useChallengeProgress();
 
   // Supabase progress — active when a student session exists
   const {
     isCompleted: isCompletedDB,
     markComplete: markCompleteDB,
+    markIncomplete: markIncompleteDB,
     saveCode,
     loadedCode,
     loadedCodeUpdatedAt,
@@ -1507,6 +1510,21 @@ export default function ChallengeWorkspace({
                       xp={challenge.xp}
                       lastGrade={lastGrade}
                       forceCompleted={homeworkMode ? homeworkCompleted : undefined}
+                      completed={homeworkMode ? undefined : isCompleted(challenge.id)}
+                      progressReady={localProgressHydrated}
+                      onMarkComplete={
+                        homeworkMode
+                          ? undefined
+                          : () => markComplete(challenge.id)
+                      }
+                      onMarkIncomplete={
+                        homeworkMode
+                          ? undefined
+                          : async () => {
+                              markIncompleteLocal(challenge.id);
+                              await markIncompleteDB(challenge.id);
+                            }
+                      }
                       onComplete={
                         homeworkMode && onHomeworkComplete
                           ? () => onHomeworkComplete(code)

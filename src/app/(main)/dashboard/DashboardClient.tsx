@@ -308,16 +308,21 @@ export default function DashboardClient({ name }: { name?: string }) {
   const db = useSupabaseProgress();
   const homework = useHomeworkAssignments();
 
-  const hydrated = local.hydrated && db.hydrated && homework.hydrated;
+  const hydrated = local.hydrated;
   const completedIds = hydrated
-    ? Array.from(new Set([...local.completedIds, ...db.completedIds]))
+    ? Array.from(
+        new Set([
+          ...local.completedIds,
+          ...(db.hydrated ? db.completedIds : []),
+        ])
+      )
     : [];
   const progress = local.progress;
 
   const attemptedCount = hydrated
     ? new Set([
         ...Object.keys(local.progress).map(Number),
-        ...db.attemptedIds,
+        ...(db.hydrated ? db.attemptedIds : []),
       ]).size
     : 0;
 

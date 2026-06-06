@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, type HomeworkAssignmentRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
+import { withTimeout } from "@/lib/withTimeout";
 
 import { classOwner } from "@/lib/classChallenges";
 
@@ -18,48 +20,67 @@ export function useHomeworkAssignments() {
       return;
     }
 
-    if (session.role === "student") {
-      const { data, error } = await supabase
-        .from("homework_assignments")
-        .select("*")
-        .eq("student_id", session.id)
-        .order("assigned_at", { ascending: false });
+    try {
+      if (session.role === "student") {
+        const { data, error } = await withTimeout(
+          Promise.resolve(
+            supabase
+              .from("homework_assignments")
+              .select("*")
+              .eq("student_id", session.id)
+              .order("assigned_at", { ascending: false })
+          ),
+          TAB_LOADER_TIMEOUT_MS,
+          "Loading homework"
+        );
 
-      if (error) {
-        console.error("Failed to load homework assignments:", error.message);
-        setAssignments([]);
-      } else {
-        setAssignments((data ?? []) as HomeworkAssignmentRow[]);
+        if (error) {
+          console.error("Failed to load homework assignments:", error.message);
+          setAssignments([]);
+        } else {
+          setAssignments((data ?? []) as HomeworkAssignmentRow[]);
+        }
+      } else if (session.role === "mentor") {
+        const ownerId = classOwner(session);
+        const { data: students } = await withTimeout(
+          Promise.resolve(
+            supabase.from("students").select("id").eq("mentor_id", ownerId)
+          ),
+          TAB_LOADER_TIMEOUT_MS,
+          "Loading students"
+        );
+
+        const studentIds = ((students ?? []) as { id: string }[]).map((s) => s.id);
+        if (studentIds.length === 0) {
+          setAssignments([]);
+          return;
+        }
+
+        const { data, error } = await withTimeout(
+          Promise.resolve(
+            supabase
+              .from("homework_assignments")
+              .select("*")
+              .in("student_id", studentIds)
+              .order("assigned_at", { ascending: false })
+          ),
+          TAB_LOADER_TIMEOUT_MS,
+          "Loading homework"
+        );
+
+        if (error) {
+          console.error("Failed to load class homework:", error.message);
+          setAssignments([]);
+        } else {
+          setAssignments((data ?? []) as HomeworkAssignmentRow[]);
+        }
       }
-    } else if (session.role === "mentor") {
-      const ownerId = classOwner(session);
-      const { data: students } = await supabase
-        .from("students")
-        .select("id")
-        .eq("mentor_id", ownerId);
-
-      const studentIds = ((students ?? []) as { id: string }[]).map((s) => s.id);
-      if (studentIds.length === 0) {
-        setAssignments([]);
-        setHydrated(true);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("homework_assignments")
-        .select("*")
-        .in("student_id", studentIds)
-        .order("assigned_at", { ascending: false });
-
-      if (error) {
-        console.error("Failed to load class homework:", error.message);
-        setAssignments([]);
-      } else {
-        setAssignments((data ?? []) as HomeworkAssignmentRow[]);
-      }
+    } catch (error) {
+      console.error("Failed to load homework assignments:", error);
+      setAssignments([]);
+    } finally {
+      setHydrated(true);
     }
-
-    setHydrated(true);
   }, []);
 
   useEffect(() => {
