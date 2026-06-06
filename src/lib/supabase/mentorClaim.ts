@@ -202,13 +202,20 @@ export async function transferMistakenOwnerClaimToCoMentor(
 
 const ITKAN_OWNER_NAME = "Wadood Mohammed";
 
-function isItkanRoboticsClass(teamLabel: string): boolean {
+/** Students added on/after this date use the server login + signup flow. */
+export const NEW_LOGIN_SYSTEM_SINCE = "2026-06-05T00:00:00.000Z";
+
+export function isItkanRoboticsClass(teamLabel: string): boolean {
   const normalized = teamLabel.trim().toLowerCase();
   return (
     normalized.includes("itkan")
     || normalized.includes("robotics22")
     || normalized === "22"
   );
+}
+
+export function isNewLoginStudent(createdAt: string): boolean {
+  return new Date(createdAt).getTime() >= new Date(NEW_LOGIN_SYSTEM_SINCE).getTime();
 }
 
 /** One-time: restore Wadood's Itkan Robotics owner slot so his sign-in code works. */

@@ -38,6 +38,10 @@ import {
 import { challenges as staticChallenges } from "@/data/challenges";
 import { computeDisplayNumbers, rowToChallenge } from "@/lib/homeworkUtils";
 import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
+import {
+  isItkanRoboticsClass,
+  isNewLoginStudent,
+} from "@/lib/supabase/mentorClaim";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1133,18 +1137,80 @@ function CodeManager({
         ) : (
           <ul className="divide-y divide-slate-800/60">
             {rows.map((row) => {
+              const classTeamName = session?.teamName ?? null;
+              const isItkanClass = isItkanRoboticsClass(classTeamName ?? "");
+
+              if (table === "students") {
+                const studentRow = row as StudentRow;
+                const displayName = studentRow.name;
+                const isLinked = Boolean(studentRow.user_id);
+                const awaitingSignup =
+                  isItkanClass && !isLinked && Boolean(studentRow.code);
+                const newAccount =
+                  awaitingSignup && isNewLoginStudent(studentRow.created_at);
+
+                return (
+                  <li
+                    key={row.id}
+                    className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/30 transition-colors"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-xs font-bold text-slate-300">
+                      {displayName[0]?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-200 truncate">
+                        {displayName}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        <span className="font-mono">
+                          {showCodes.has(row.id) ? studentRow.code : maskCode(studentRow.code)}
+                        </span>
+                        {isItkanClass && isLinked && (
+                          <span className="ml-2 text-emerald-500/80">· Signed in</span>
+                        )}
+                        {awaitingSignup && (
+                          <span className="ml-2 text-amber-500/80">· Awaiting signup</span>
+                        )}
+                        {newAccount && (
+                          <span className="ml-2 text-sky-400/80">· new account</span>
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => toggleShow(row.id)}
+                      className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:text-slate-300 transition-colors"
+                      title={showCodes.has(row.id) ? "Hide code" : "Show code"}
+                    >
+                      {showCodes.has(row.id) ? (
+                        <EyeOff className="h-3.5 w-3.5" />
+                      ) : (
+                        <Eye className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => requestDelete(row.id, displayName, e.currentTarget)}
+                      disabled={isPending || pendingDelete !== null}
+                      className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
+                      title="Delete student"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                );
+              }
+
               const mentorRow = row as MentorRow & {
                 user_id?: string | null;
                 created_by?: string | null;
               };
               const ownerId = classOwner(session);
               const ownerRow = rows.find((r) => r.id === ownerId) as MentorRow | undefined;
-              const classTeamName = ownerRow?.name ?? session?.teamName ?? null;
-              const isOwnerRow = table === "mentors" && !mentorRow.created_by;
+              const mentorTeamName = ownerRow?.name ?? classTeamName;
+              const isOwnerRow = !mentorRow.created_by;
               const slotName = mentorRow.name;
               const isLinked = Boolean(mentorRow.user_id);
               const displayName = mentorRow.mentor_name ?? slotName;
-              const teamName = isOwnerRow ? classTeamName : classTeamName;
+              const teamName = isOwnerRow ? mentorTeamName : mentorTeamName;
               const isYou = session?.id === row.id;
               return (
               <li
