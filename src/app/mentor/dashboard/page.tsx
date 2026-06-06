@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useTransition, useRef } from "react";
+import { useState, useEffect, useTransition, useRef } from "react";
 import {
   Users,
   Shield,
@@ -23,7 +23,9 @@ import {
   X,
 } from "lucide-react";
 import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow, type HomeworkAssignmentRow } from "@/lib/supabase";
-import { getSession, type Session } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { useTabLoader, useWorkspaceSession } from "@/lib/useWorkspaceSession";
+import Link from "next/link";
 import {
   classOwner,
   challengeCreatedBy,
@@ -66,18 +68,38 @@ function maskCode(code: string) {
   return `${code.slice(0, 2)}••••`;
 }
 
-/** Reactive workspace session — AppShell may hydrate localStorage after first paint. */
-function useWorkspaceSession(): Session | null {
-  const [session, setSession] = useState<Session | null>(null);
+function TabLoaderGate({
+  loading,
+  sessionMissing,
+  children,
+  spinnerClass = "text-zinc-100",
+}: {
+  loading: boolean;
+  sessionMissing: boolean;
+  children: React.ReactNode;
+  spinnerClass?: string;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className={`h-6 w-6 animate-spin ${spinnerClass}`} />
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    const sync = () => setSession(getSession());
-    sync();
-    window.addEventListener("ftc-session-updated", sync);
-    return () => window.removeEventListener("ftc-session-updated", sync);
-  }, []);
+  if (sessionMissing) {
+    return (
+      <p className="py-12 text-center text-sm text-slate-500">
+        No workspace selected.{" "}
+        <Link href="/signin" className="text-slate-300 underline hover:text-slate-100">
+          Choose a class
+        </Link>{" "}
+        to continue.
+      </p>
+    );
+  }
 
-  return session;
+  return <>{children}</>;
 }
 
 // ─── Tab button ───────────────────────────────────────────────────────────────
@@ -121,8 +143,6 @@ function ProgressTab() {
   const [data, setData] = useState<StudentProgress[]>([]);
   const [dbChallenges, setDbChallenges] = useState<ChallengeRow[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const session = useWorkspaceSession();
 
   const dbIds = new Set(dbChallenges.map((c) => c.id));
   const allChallenges = [
@@ -132,62 +152,48 @@ function ProgressTab() {
     ...dbChallenges.map((c) => ({ id: c.id, title: c.title })),
   ].sort((a, b) => a.id - b.id);
 
-  const load = useCallback(async () => {
-    const s = getSession();
-    if (!s?.id) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const ownerId = classOwner(s);
-      const [{ data: students }, { data: progress }, { data: homework }, classChallengeRows] =
-        await Promise.all([
-          supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-          supabase.from("student_challenge_progress").select("*"),
-          supabase.from("homework_assignments").select("*"),
-          fetchClassChallenges(s),
-        ]);
+  const { loading, sessionMissing } = useTabLoader(async (s) => {
+    const ownerId = classOwner(s);
+    const [{ data: students }, { data: progress }, { data: homework }, classChallengeRows] =
+      await Promise.all([
+        supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
+        supabase.from("student_challenge_progress").select("*"),
+        supabase.from("homework_assignments").select("*"),
+        fetchClassChallenges(s),
+      ]);
 
-      const challenges = classChallengeRows;
-      setDbChallenges(challenges as ChallengeRow[]);
+    const challenges = classChallengeRows;
+    setDbChallenges(challenges as ChallengeRow[]);
 
-      const studentList = (students ?? []) as StudentRow[];
-      const homeworkRows = (homework ?? []) as HomeworkAssignmentRow[];
+    const studentList = (students ?? []) as StudentRow[];
+    const homeworkRows = (homework ?? []) as HomeworkAssignmentRow[];
 
-      const allCh = [
-        ...staticChallenges.map((c) => c.id),
-        ...((challenges ?? []) as { id: number }[])
-          .map((c) => c.id)
-          .filter((id) => !staticChallenges.find((sc) => sc.id === id)),
-      ];
+    const allCh = [
+      ...staticChallenges.map((c) => c.id),
+      ...((challenges ?? []) as { id: number }[])
+        .map((c) => c.id)
+        .filter((id) => !staticChallenges.find((sc) => sc.id === id)),
+    ];
 
-      setData(
-        studentList.map((student) => {
-          const studentHomework = homeworkRows.filter(
-            (h) => h.student_id === student.id
-          );
-          const homeworkIds = new Set(studentHomework.map((h) => h.challenge_id));
-          const studentRecords = ((progress ?? []) as ProgressRow[]).filter(
-            (r) => r.student_id === student.id && !homeworkIds.has(r.challenge_id)
-          );
+    setData(
+      studentList.map((student) => {
+        const studentHomework = homeworkRows.filter(
+          (h) => h.student_id === student.id
+        );
+        const homeworkIds = new Set(studentHomework.map((h) => h.challenge_id));
+        const studentRecords = ((progress ?? []) as ProgressRow[]).filter(
+          (r) => r.student_id === student.id && !homeworkIds.has(r.challenge_id)
+        );
 
-          return {
-            student,
-            records: studentRecords,
-            totalChallenges: allCh.filter((id) => !homeworkIds.has(id)).length,
-            homework: studentHomework,
-          };
-        })
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load, session?.id, session?.parentMentorId]);
+        return {
+          student,
+          records: studentRecords,
+          totalChallenges: allCh.filter((id) => !homeworkIds.has(id)).length,
+          homework: studentHomework,
+        };
+      })
+    );
+  });
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -196,21 +202,13 @@ function ProgressTab() {
       return next;
     });
 
-  if (loading)
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-100" />
-      </div>
-    );
-
-  if (data.length === 0)
-    return (
-      <p className="py-12 text-center text-sm text-slate-500">
-        No students yet. Add students in the &quot;Manage Students&quot; tab.
-      </p>
-    );
-
   return (
+    <TabLoaderGate loading={loading} sessionMissing={sessionMissing}>
+      {data.length === 0 ? (
+        <p className="py-12 text-center text-sm text-slate-500">
+          No students yet. Add students in the &quot;Manage Students&quot; tab.
+        </p>
+      ) : (
     <div className="space-y-3">
       {data.map(({ student, records, totalChallenges, homework }) => {
         const completedCount = records.filter((r) => r.completed).length;
@@ -368,6 +366,8 @@ function ProgressTab() {
         );
       })}
     </div>
+      )}
+    </TabLoaderGate>
   );
 }
 
@@ -516,7 +516,6 @@ function ChallengeMultiPicker({
 // ─── Assign Homework Tab ──────────────────────────────────────────────────────
 
 function AssignHomeworkTab() {
-  const session = typeof window !== "undefined" ? getSession() : null;
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [dbChallenges, setDbChallenges] = useState<ChallengeRow[]>([]);
   const [assignments, setAssignments] = useState<
@@ -527,7 +526,6 @@ function AssignHomeworkTab() {
   const [selectedAssignments, setSelectedAssignments] = useState<Set<string>>(new Set());
   const [unassigning, setUnassigning] = useState(false);
   const [dueDate, setDueDate] = useState("");
-  const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -549,20 +547,18 @@ function AssignHomeworkTab() {
       .map((c) => ({ id: c.id, title: c.title, number: undefined as number | undefined })),
   ];
 
-  const load = useCallback(async () => {
-    if (!session?.id) return;
-    setLoading(true);
-    const ownerId = classOwner(session);
+  const { loading, sessionMissing, reload: load } = useTabLoader(async (s) => {
+    const ownerId = classOwner(s);
 
     const [{ data: studentRows }, challengeList, { data: hwRows }] =
       await Promise.all([
         supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-        fetchClassChallenges(session),
+        fetchClassChallenges(s),
         supabase.from("homework_assignments").select("*").order("assigned_at", { ascending: false }),
       ]);
 
     const studentList = (studentRows ?? []) as StudentRow[];
-    const studentIds = new Set(studentList.map((s) => s.id));
+    const studentIds = new Set(studentList.map((st) => st.id));
 
     setStudents(studentList);
     setDbChallenges(challengeList);
@@ -571,7 +567,7 @@ function AssignHomeworkTab() {
     staticChallenges.forEach((c) => titleMap.set(c.id, c.title));
     challengeList.forEach((c) => titleMap.set(c.id, c.title));
 
-    const nameMap = new Map(studentList.map((s) => [s.id, s.name]));
+    const nameMap = new Map(studentList.map((st) => [st.id, st.name]));
 
     setAssignments(
       ((hwRows ?? []) as HomeworkAssignmentRow[])
@@ -582,12 +578,7 @@ function AssignHomeworkTab() {
           challengeTitle: titleMap.get(h.challenge_id) ?? `Challenge #${h.challenge_id}`,
         }))
     );
-    setLoading(false);
-  }, [session?.id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  });
 
   const toggleStudent = (id: string) => {
     setSelectedStudents((prev) => {
@@ -624,7 +615,8 @@ function AssignHomeworkTab() {
   const clearChallenges = () => setSelectedChallenges(new Set());
 
   const handleAssign = async (studentIds: string[]) => {
-    if (!session?.id || selectedChallenges.size === 0) {
+    const s = getSession();
+    if (!s?.id || selectedChallenges.size === 0) {
       setError("Select at least one challenge first.");
       return;
     }
@@ -643,7 +635,7 @@ function AssignHomeworkTab() {
       challengeIds.map((challengeId) => ({
         student_id: studentId,
         challenge_id: challengeId,
-        assigned_by: session.id,
+        assigned_by: s.id,
         due_date: due,
       }))
     );
@@ -708,23 +700,13 @@ function AssignHomeworkTab() {
     await load();
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-100" />
-      </div>
-    );
-  }
-
-  if (students.length === 0) {
-    return (
-      <p className="py-12 text-center text-sm text-slate-500">
-        No students yet. Add students in the &quot;Manage Students&quot; tab.
-      </p>
-    );
-  }
-
   return (
+    <TabLoaderGate loading={loading} sessionMissing={sessionMissing}>
+      {students.length === 0 ? (
+        <p className="py-12 text-center text-sm text-slate-500">
+          No students yet. Add students in the &quot;Manage Students&quot; tab.
+        </p>
+      ) : (
     <div className="space-y-8">
       {/* Assign form */}
       <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-5 space-y-5">
@@ -966,6 +948,8 @@ function AssignHomeworkTab() {
         )}
       </div>
     </div>
+      )}
+    </TabLoaderGate>
   );
 }
 
@@ -981,7 +965,6 @@ function CodeManager({
   accentClass: string;
 }) {
   const [rows, setRows] = useState<(MentorRow | StudentRow)[]>([]);
-  const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [newCode, setNewCode] = useState("");
   const [error, setError] = useState("");
@@ -996,57 +979,40 @@ function CodeManager({
   } | null>(null);
   const [isPending, startTransition] = useTransition();
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const session = useWorkspaceSession();
-  const roleLabel = table === "students" ? "student" : "mentor";
-
-  const load = useCallback(async () => {
-    const s = getSession();
-    if (!s?.id) {
-      setLoading(false);
+  const { loading, session, sessionMissing, reload: load } = useTabLoader(async (s) => {
+    setError("");
+    const ownerId = classOwner(s);
+    if (!ownerId) {
       setRows([]);
       return;
     }
-    setLoading(true);
-    setError("");
-    try {
-      const ownerId = classOwner(s);
-      if (!ownerId) {
+    if (table === "students") {
+      const { data, error: dbErr } = await supabase
+        .from("students")
+        .select("*")
+        .eq("mentor_id", ownerId)
+        .order("name");
+      if (dbErr) {
+        setError(dbErr.message);
         setRows([]);
         return;
       }
-      if (table === "students") {
-        const { data, error: dbErr } = await supabase
-          .from("students")
-          .select("*")
-          .eq("mentor_id", ownerId)
-          .order("name");
-        if (dbErr) {
-          setError(dbErr.message);
-          setRows([]);
-          return;
-        }
-        setRows((data ?? []) as (MentorRow | StudentRow)[]);
-      } else {
-        const { data, error: dbErr } = await supabase
-          .from("mentors")
-          .select("id, name, mentor_name, code, created_at, created_by, user_id")
-          .or(`id.eq.${ownerId},created_by.eq.${ownerId}`)
-          .order("name");
-        if (dbErr) {
-          setError(dbErr.message);
-          setRows([]);
-          return;
-        }
-        setRows((data ?? []) as (MentorRow | StudentRow)[]);
+      setRows((data ?? []) as (MentorRow | StudentRow)[]);
+    } else {
+      const { data, error: dbErr } = await supabase
+        .from("mentors")
+        .select("id, name, mentor_name, code, created_at, created_by, user_id")
+        .or(`id.eq.${ownerId},created_by.eq.${ownerId}`)
+        .order("name");
+      if (dbErr) {
+        setError(dbErr.message);
+        setRows([]);
+        return;
       }
-    } finally {
-      setLoading(false);
+      setRows((data ?? []) as (MentorRow | StudentRow)[]);
     }
-  }, [table]);
-
-  useEffect(() => {
-    load();
-  }, [load, session?.id, session?.parentMentorId]);
+  });
+  const roleLabel = table === "students" ? "student" : "mentor";
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1054,7 +1020,7 @@ function CodeManager({
     setError("");
 
     startTransition(async () => {
-      const ownerId = classOwner(session);
+      const ownerId = classOwner(getSession());
       const tryInsert = async (code: string) => {
         const payload: Record<string, string> = { name: newName.trim(), code };
         if (table === "students" && ownerId) payload.mentor_id = ownerId;
@@ -1174,6 +1140,14 @@ function CodeManager({
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-zinc-100" />
           </div>
+        ) : sessionMissing ? (
+          <p className="py-8 text-center text-sm text-slate-500">
+            No workspace selected.{" "}
+            <Link href="/signin" className="text-slate-300 underline hover:text-slate-100">
+              Choose a class
+            </Link>
+            .
+          </p>
         ) : rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-500">
             No {label.toLowerCase()}s yet.
@@ -1352,20 +1326,12 @@ function CodeManager({
 
 function ManageChallengesTab() {
   const [rows, setRows] = useState<ChallengeRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
-  const session = typeof window !== "undefined" ? getSession() : null;
 
-  const load = useCallback(async () => {
-    const s = getSession();
-    if (!s?.id) { setLoading(false); return; }
-    setLoading(true);
-    const rows = await fetchClassChallenges(s);
-    setRows(rows);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  const { loading, session, sessionMissing, reload: load } = useTabLoader(async (s) => {
+    const challengeRows = await fetchClassChallenges(s);
+    setRows(challengeRows);
+  });
 
   const handleDelete = (id: number) => {
     startTransition(async () => {
@@ -1374,19 +1340,13 @@ function ManageChallengesTab() {
     });
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-20">
-      <Loader2 className="h-6 w-6 animate-spin text-zinc-300" />
-    </div>
-  );
-
-  if (rows.length === 0) return (
-    <p className="py-12 text-center text-sm text-slate-500">
-      No custom challenges yet. Create one in the &quot;Create Challenge&quot; tab.
-    </p>
-  );
-
   return (
+    <TabLoaderGate loading={loading} sessionMissing={sessionMissing} spinnerClass="text-zinc-300">
+      {rows.length === 0 ? (
+        <p className="py-12 text-center text-sm text-slate-500">
+          No custom challenges yet. Create one in the &quot;Create Challenge&quot; tab.
+        </p>
+      ) : (
     <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
       <div className="flex items-center gap-2 border-b border-slate-800 px-5 py-3">
         <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
@@ -1429,6 +1389,8 @@ function ManageChallengesTab() {
         ))}
       </ul>
     </div>
+      )}
+    </TabLoaderGate>
   );
 }
 
@@ -1449,8 +1411,6 @@ function CreateChallengeTab() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  const session = typeof window !== "undefined" ? getSession() : null;
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !instructions.trim()) return;
@@ -1470,7 +1430,7 @@ function CreateChallengeTab() {
       starter_code: starterCode,
       hints: hints.filter(Boolean),
       concepts_covered: [],
-      created_by: challengeCreatedBy(session),
+      created_by: challengeCreatedBy(getSession()),
     });
 
     setSaving(false);
@@ -1719,17 +1679,12 @@ function CreateChallengeTab() {
 
 function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number) => void }) {
   const [submissions, setSubmissions] = useState<EnrichedSubmission[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [gradeInputs, setGradeInputs] = useState<Record<string, { grade: string; feedback: string }>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
-  const session = typeof window !== "undefined" ? getSession() : null;
 
-  const load = useCallback(async () => {
-    if (!session?.id) return;
-    setLoading(true);
-
-    const ownerId = classOwner(session);
+  const { loading, sessionMissing, reload: load } = useTabLoader(async (s) => {
+    const ownerId = classOwner(s);
     const { data: students } = await supabase
       .from("students")
       .select("id, name")
@@ -1738,11 +1693,10 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
     if (!students || students.length === 0) {
       setSubmissions([]);
       onCountChange?.(0);
-      setLoading(false);
       return;
     }
 
-    const studentIds = (students as { id: string }[]).map((s) => s.id);
+    const studentIds = (students as { id: string }[]).map((st) => st.id);
 
     const [{ data: subs }, { data: dbChallenges }] = await Promise.all([
       supabase
@@ -1764,8 +1718,8 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
     const enriched: EnrichedSubmission[] = ((subs ?? []) as SubmissionRow[]).map((sub) => ({
       ...sub,
       studentName:
-        (students as { id: string; name: string }[]).find((s) => s.id === sub.student_id)?.name ??
-        "Unknown",
+        (students as { id: string; name: string }[]).find((st) => st.id === sub.student_id)
+          ?.name ?? "Unknown",
       challengeTitle:
         allChallengeTitles.find((c) => c.id === sub.challenge_id)?.title ??
         `Challenge ${sub.challenge_id}`,
@@ -1773,27 +1727,21 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
 
     setSubmissions(enriched);
 
-    const pendingCount = enriched.filter((s) => s.status === "pending").length;
+    const pendingCount = enriched.filter((sub) => sub.status === "pending").length;
     onCountChange?.(pendingCount);
 
     setGradeInputs((prev) => {
       const next = { ...prev };
       enriched
-        .filter((s) => s.status === "pending")
-        .forEach((s) => {
-          if (!(s.id in next)) {
-            next[s.id] = { grade: "pass", feedback: "" };
+        .filter((sub) => sub.status === "pending")
+        .forEach((sub) => {
+          if (!(sub.id in next)) {
+            next[sub.id] = { grade: "pass", feedback: "" };
           }
         });
       return next;
     });
-
-    setLoading(false);
-  }, [session?.id, session?.parentMentorId, onCountChange]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  });
 
   const toggleExpand = (id: string) =>
     setExpandedIds((prev) => {
@@ -1832,7 +1780,8 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
 
   const handleGrade = async (sub: EnrichedSubmission) => {
     const input = gradeInputs[sub.id];
-    if (!input?.grade || !session?.id) return;
+    const s = getSession();
+    if (!input?.grade || !s?.id) return;
     setSaving((prev) => ({ ...prev, [sub.id]: true }));
     await supabase
       .from("challenge_submissions")
@@ -1841,7 +1790,7 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
         grade: input.grade,
         feedback: input.feedback || null,
         graded_at: new Date().toISOString(),
-        graded_by: session.id,
+        graded_by: s.id,
       })
       .eq("id", sub.id);
     setSaving((prev) => ({ ...prev, [sub.id]: false }));
@@ -1851,21 +1800,13 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
   const pending = submissions.filter((s) => s.status === "pending");
   const graded = submissions.filter((s) => s.status === "graded");
 
-  if (loading)
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
-      </div>
-    );
-
-  if (submissions.length === 0)
-    return (
-      <p className="py-12 text-center text-sm text-slate-500">
-        No submissions yet. Students will appear here once they submit mentor-created challenges.
-      </p>
-    );
-
   return (
+    <TabLoaderGate loading={loading} sessionMissing={sessionMissing} spinnerClass="text-amber-400">
+      {submissions.length === 0 ? (
+        <p className="py-12 text-center text-sm text-slate-500">
+          No submissions yet. Students will appear here once they submit mentor-created challenges.
+        </p>
+      ) : (
     <div className="space-y-8">
       {/* ── Pending Reviews ──────────────────────────────────────────── */}
       <div>
@@ -2042,6 +1983,8 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
         </div>
       )}
     </div>
+      )}
+    </TabLoaderGate>
   );
 }
 
@@ -2050,6 +1993,7 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
 export default function MentorDashboardPage() {
   const [tab, setTabState] = useState<Tab>("progress");
   const [pendingCount, setPendingCount] = useState(0);
+  const session = useWorkspaceSession();
 
   // Restore the active tab from the URL (?tab=…) so refreshing keeps you on the
   // same tab instead of bouncing back to "progress".
@@ -2068,18 +2012,21 @@ export default function MentorDashboardPage() {
     window.history.replaceState(null, "", url.toString());
   };
 
-  // Fetch pending submission count on mount for the tab badge
+  // Fetch pending submission count for the tab badge (re-run when session hydrates).
   useEffect(() => {
-    const session = typeof window !== "undefined" ? getSession() : null;
-    if (!session?.id) return;
+    const s = getSession();
+    if (!s?.id) return;
     (async () => {
-      const ownerId = classOwner(session);
+      const ownerId = classOwner(s);
       const { data: students } = await supabase
         .from("students")
         .select("id")
         .eq("mentor_id", ownerId);
-      if (!students || students.length === 0) return;
-      const studentIds = (students as { id: string }[]).map((s) => s.id);
+      if (!students || students.length === 0) {
+        setPendingCount(0);
+        return;
+      }
+      const studentIds = (students as { id: string }[]).map((st) => st.id);
       const { count } = await supabase
         .from("challenge_submissions")
         .select("*", { count: "exact", head: true })
@@ -2087,7 +2034,7 @@ export default function MentorDashboardPage() {
         .eq("status", "pending");
       setPendingCount(count ?? 0);
     })();
-  }, []);
+  }, [session?.id, session?.parentMentorId]);
 
   return (
     <div className="min-h-full px-6 py-10 max-w-5xl mx-auto page-enter">

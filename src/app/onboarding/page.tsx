@@ -12,27 +12,37 @@ export default function OnboardingPage() {
   const [checkingWorkspaces, setCheckingWorkspaces] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
-      const userId = await getAuthUserId();
-      if (!userId) {
-        setCheckingWorkspaces(false);
-        return;
+      try {
+        const userId = await getAuthUserId();
+        if (!userId) return;
+
+        const [{ count: studentCount }, { count: mentorCount }] = await Promise.all([
+          supabase
+            .from("students")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", userId),
+          supabase
+            .from("mentors")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", userId),
+        ]);
+
+        if (!cancelled) {
+          setHasWorkspaces((studentCount ?? 0) + (mentorCount ?? 0) > 0);
+        }
+      } catch (err) {
+        console.error("Onboarding workspace check:", err);
+      } finally {
+        if (!cancelled) setCheckingWorkspaces(false);
       }
-
-      const [{ count: studentCount }, { count: mentorCount }] = await Promise.all([
-        supabase
-          .from("students")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId),
-        supabase
-          .from("mentors")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId),
-      ]);
-
-      setHasWorkspaces((studentCount ?? 0) + (mentorCount ?? 0) > 0);
-      setCheckingWorkspaces(false);
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleSignOut = () => {

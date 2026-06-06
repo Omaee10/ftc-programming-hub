@@ -132,6 +132,7 @@ export default function SignInPage() {
     let cancelled = false;
 
     (async () => {
+      try {
       const userId = await getAuthUserId();
       if (!userId) {
         router.replace("/login");
@@ -147,10 +148,7 @@ export default function SignInPage() {
         .eq("user_id", userId);
 
       if (studentsErr) {
-        if (!cancelled) {
-          setError(studentsErr.message);
-          setLoading(false);
-        }
+        if (!cancelled) setError(studentsErr.message);
         return;
       }
 
@@ -175,10 +173,7 @@ export default function SignInPage() {
         .eq("user_id", userId);
 
       if (mentorsErr) {
-        if (!cancelled) {
-          setError(mentorsErr.message);
-          setLoading(false);
-        }
+        if (!cancelled) setError(mentorsErr.message);
         return;
       }
 
@@ -214,7 +209,12 @@ export default function SignInPage() {
       if (cancelled) return;
 
       setItems(dedupePickerItems(enrollments, profileName));
-      setLoading(false);
+      } catch (err) {
+        console.error("Sign-in page load:", err);
+        if (!cancelled) setError("Failed to load workspaces. Please try again.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
 
     return () => {

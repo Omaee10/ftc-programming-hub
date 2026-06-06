@@ -82,36 +82,47 @@ export default function AccountPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
-      const userId = await getAuthUserId();
-      if (!userId) {
-        router.replace("/login");
-        return;
+      try {
+        const userId = await getAuthUserId();
+        if (!userId) {
+          router.replace("/login");
+          return;
+        }
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.replace("/login");
+          return;
+        }
+
+        if (!cancelled) setEmail(user.email ?? "");
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", userId)
+          .single();
+
+        if (!cancelled && profile?.display_name) {
+          setDisplayName(profile.display_name);
+        }
+      } catch (err) {
+        console.error("Account page load:", err);
+        if (!cancelled) router.replace("/login");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.replace("/login");
-        return;
-      }
-
-      setEmail(user.email ?? "");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", userId)
-        .single();
-
-      if (profile?.display_name) {
-        setDisplayName(profile.display_name);
-      }
-
-      setLoading(false);
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const backHref = (() => {
