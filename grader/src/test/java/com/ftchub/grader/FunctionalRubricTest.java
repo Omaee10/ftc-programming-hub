@@ -190,6 +190,75 @@ class FunctionalRubricTest {
     }
 
     @Test
+    void dcMotorExField_passesDcMotorDeclaredCheck() {
+        GradedResultJson result = grader.grade(new CompileRequest(BLOCKS_NEGATED_DEADZONE, 1, List.of()));
+        assertTrue(
+                result.requiredResults().stream()
+                        .anyMatch(r -> "DcMotor declared".equals(r.label()) && r.pass()),
+                "DcMotorEx should satisfy 'DcMotor declared', failures: " + allFailed(result));
+    }
+
+    private static final String DC_MOTOR_SIMPLE_TELEOP = """
+            package org.firstinspires.ftc.teamcode;
+
+            import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+            import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+            import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
+            @TeleOp(name = "Simple Motor TeleOp", group = "Challenge 1")
+            public class SimpleMotorTeleOp extends LinearOpMode {
+
+                private DcMotorSimple leftMotor;
+
+                @Override
+                public void runOpMode() {
+                    leftMotor = hardwareMap.get(DcMotorSimple.class, "left_motor");
+                    leftMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+                    telemetry.addData("Status", "Ready");
+                    telemetry.update();
+                    waitForStart();
+                    while (opModeIsActive()) {
+                        double power = -gamepad1.left_stick_y;
+                        leftMotor.setPower(power);
+                        telemetry.update();
+                    }
+                    leftMotor.setPower(0);
+                }
+            }
+            """;
+
+    @Test
+    void dcMotorSimpleField_passesBasicTeleOpMotorCheck() {
+        GradedResultJson result = grader.grade(new CompileRequest(DC_MOTOR_SIMPLE_TELEOP, 1, List.of()));
+        assertTrue(
+                result.requiredResults().stream()
+                        .anyMatch(r -> "DcMotor declared".equals(r.label()) && r.pass()),
+                "DcMotorSimple should satisfy basic 'DcMotor declared', failures: " + allFailed(result));
+        assertTrue(
+                result.syntaxIssues().stream().noneMatch(i -> "error".equals(i.severity())),
+                "DcMotorSimple submission should compile cleanly, issues: " + result.syntaxIssues());
+    }
+
+    @Test
+    void dcMotorSimpleField_failsEncoderChallengeMotorCheck() {
+        GradedResultJson result = grader.grade(new CompileRequest(DC_MOTOR_SIMPLE_TELEOP, 2, List.of()));
+        assertTrue(
+                result.requiredResults().stream()
+                        .anyMatch(r -> "DcMotor declared (encoder-capable)".equals(r.label()) && !r.pass()),
+                "DcMotorSimple must fail encoder-capable motor check on challenge 2, got: "
+                        + result.requiredResults());
+    }
+
+    @Test
+    void dcMotorExField_passesEncoderChallengeMotorCheck() {
+        GradedResultJson result = grader.grade(new CompileRequest(BLOCKS_NEGATED_DEADZONE, 2, List.of()));
+        assertTrue(
+                result.requiredResults().stream()
+                        .anyMatch(r -> "DcMotor declared (encoder-capable)".equals(r.label()) && r.pass()),
+                "DcMotorEx should satisfy encoder-capable motor check, failures: " + allFailed(result));
+    }
+
+    @Test
     void plainSubtraction_doesNotCountAsNegation() {
         String code = """
                 package org.firstinspires.ftc.teamcode;

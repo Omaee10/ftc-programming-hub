@@ -291,7 +291,9 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
         type: "field_dropdown",
         name: "TYPE",
         options: [
+          ["DcMotor", "DcMotor"],
           ["DcMotorEx", "DcMotorEx"],
+          ["DcMotorSimple", "DcMotorSimple"],
           ["Servo", "Servo"],
           ["CRServo", "CRServo"],
           ["TouchSensor", "TouchSensor"],

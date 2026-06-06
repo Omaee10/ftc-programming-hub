@@ -12,10 +12,12 @@ import {
   Lock,
   User,
   Settings,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getSession, setSession as persistSession } from "@/lib/auth";
-import { getAuthUserId } from "@/lib/authSession";
+import { getAuthUserId, signOutAll } from "@/lib/authSession";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 const inputClass =
   "rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all";
@@ -72,6 +74,12 @@ export default function AccountPage() {
   const [namePending, startNameTransition] = useTransition();
   const [emailPending, startEmailTransition] = useTransition();
   const [passwordPending, startPasswordTransition] = useTransition();
+  const [deletePending, startDeleteTransition] = useTransition();
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteMsg, setDeleteMsg] = useState<{ type: "error" | "success"; text: string } | null>(
+    null
+  );
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -139,9 +147,12 @@ export default function AccountPage() {
       }
 
       await supabase.from("students").update({ name: trimmed }).eq("user_id", userId);
-      await supabase.from("mentors").update({ mentor_name: trimmed }).eq("user_id", userId);
 
       const session = getSession();
+      if (session?.role === "mentor" && session.id) {
+        await supabase.from("mentors").update({ mentor_name: trimmed }).eq("id", session.id);
+      }
+
       if (session) {
         persistSession({ ...session, name: trimmed });
         window.dispatchEvent(new CustomEvent("ftc-session-updated"));
@@ -245,6 +256,39 @@ export default function AccountPage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+    });
+  };
+
+  const handleDeleteAccount = () => {
+    if (!deletePassword) {
+      setDeleteMsg({ type: "error", text: "Enter your password to confirm deletion." });
+      return;
+    }
+    setDeleteMsg(null);
+
+    startDeleteTransition(async () => {
+      const { error: reauthErr } = await supabase.auth.signInWithPassword({
+        email,
+        password: deletePassword,
+      });
+
+      if (reauthErr) {
+        setDeleteMsg({ type: "error", text: "Password is incorrect." });
+        return;
+      }
+
+      const res = await fetch("/api/auth/delete-account", { method: "POST" });
+      const data = (await res.json()) as { error?: string };
+
+      if (!res.ok) {
+        setDeleteMsg({ type: "error", text: data.error ?? "Failed to delete account." });
+        return;
+      }
+
+      setDeleteDialogOpen(false);
+      await signOutAll();
+      router.push("/login");
+      router.refresh();
     });
   };
 
@@ -444,8 +488,65 @@ export default function AccountPage() {
               )}
             </button>
           </form>
+
+          <div className="h-px bg-slate-800/80" />
+
+          <div className="flex flex-col gap-4 rounded-xl border border-red-500/15 bg-red-500/5 p-5">
+            <div>
+              <h2 className="text-sm font-semibold text-red-300">Delete account</h2>
+              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                Permanently removes your login. Mentor or co-mentor codes you claimed become
+                available again. Student codes your mentor added for you are released; classes you
+                joined on your own are removed.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass}>Password</label>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Confirm with your password"
+                disabled={deletePending}
+                autoComplete="current-password"
+                className={inputClass}
+              />
+            </div>
+            {deleteMsg && <StatusMessage type={deleteMsg.type} message={deleteMsg.text} />}
+            <button
+              type="button"
+              onClick={() => setDeleteDialogOpen(true)}
+              disabled={deletePending || !deletePassword}
+              className="flex items-center justify-center gap-2 rounded-lg border border-red-500/25 bg-red-500/10 px-5 py-2.5 text-sm font-semibold text-red-400 transition-all hover:bg-red-500/15 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deletePending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Delete account
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="Delete your account?"
+        message="This cannot be undone. Your login will be removed and linked codes will be released or deleted as described above."
+        confirmLabel="Delete account"
+        onConfirm={handleDeleteAccount}
+        onCancel={() => {
+          if (!deletePending) setDeleteDialogOpen(false);
+        }}
+        pending={deletePending}
+        variant="danger"
+      />
     </div>
   );
 }

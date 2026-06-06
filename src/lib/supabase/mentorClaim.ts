@@ -12,6 +12,10 @@ function classOwnerId(mentor: MentorClaimRow): string {
   return mentor.created_by ?? mentor.id;
 }
 
+function normalizeName(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
 /** True if this login already owns or co-mentors in the same class as `mentor`. */
 export async function userAlreadyHasClassAccess(
   admin: SupabaseClient,
@@ -41,6 +45,10 @@ export async function userAlreadyHasClassAccess(
   return Boolean(coRow);
 }
 
+/**
+ * Find an unclaimed mentor row by personal sign-in code only.
+ * Class codes (student join codes) must not claim mentor workspaces.
+ */
 export async function findUnclaimedMentor(
   admin: SupabaseClient,
   code: string
@@ -56,22 +64,42 @@ export async function findUnclaimedMentor(
   }
 
   const mentorMatch = (byMentorCode?.[0] as MentorClaimRow | undefined) ?? null;
-  if (mentorMatch) {
-    return { mentor: mentorMatch };
-  }
+  return { mentor: mentorMatch };
+}
 
-  const { data: byClassCode, error: classCodeErr } = await admin
+/**
+ * Co-mentors sometimes claim the class-owner row by mistake (e.g. wrong code).
+ * If this user is on the owner row but is claiming a co-mentor slot with a
+ * matching name, clear the mistaken owner link so the co-mentor slot can be claimed.
+ */
+export async function tryRepairMistakenOwnerClaim(
+  admin: SupabaseClient,
+  userId: string,
+  coMentorSlot: MentorClaimRow,
+  profileName?: string
+): Promise<boolean> {
+  const ownerId = coMentorSlot.created_by;
+  if (!ownerId) return false;
+
+  const { data: ownerRow } = await admin
     .from("mentors")
-    .select("id, mentor_name, name, user_id, created_by")
-    .eq("class_code", code)
-    .is("created_by", null)
-    .limit(1);
+    .select("id, user_id")
+    .eq("id", ownerId)
+    .maybeSingle();
 
-  if (classCodeErr) {
-    return { mentor: null, lookupError: classCodeErr.message };
-  }
+  if (!ownerRow || ownerRow.user_id !== userId) return false;
 
-  return { mentor: (byClassCode?.[0] as MentorClaimRow | undefined) ?? null };
+  const slotName = normalizeName(coMentorSlot.mentor_name || coMentorSlot.name);
+  const userName = normalizeName(profileName);
+  if (!slotName || !userName || slotName !== userName) return false;
+
+  const { error } = await admin
+    .from("mentors")
+    .update({ user_id: null })
+    .eq("id", ownerId)
+    .eq("user_id", userId);
+
+  return !error;
 }
 
 export async function linkMentorToUser(
@@ -97,6 +125,51 @@ export async function linkMentorToUser(
   }
 
   await cleanupStaleCoMentorSlots(admin, mentorId);
+
+  return { ok: true };
+}
+
+/** Class owner or co-mentor may clear a mistaken sign-in on a row in their class. */
+export async function clearMentorAccountLink(
+  admin: SupabaseClient,
+  requesterUserId: string,
+  mentorRowId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const { data: target, error: targetErr } = await admin
+    .from("mentors")
+    .select("id, user_id, created_by")
+    .eq("id", mentorRowId)
+    .maybeSingle();
+
+  if (targetErr || !target) {
+    return { ok: false, error: "Mentor row not found." };
+  }
+
+  const ownerId = (target.created_by as string | null) ?? (target.id as string);
+
+  const { data: requesterRows } = await admin
+    .from("mentors")
+    .select("id, created_by, user_id")
+    .eq("user_id", requesterUserId);
+
+  const canManage = (requesterRows ?? []).some((row) => {
+    const r = row as { id: string; created_by?: string | null };
+    return r.id === ownerId || r.created_by === ownerId;
+  });
+
+  if (!canManage) {
+    return { ok: false, error: "You do not have permission to reset this mentor link." };
+  }
+
+  const { data: cleared, error: clearErr } = await admin
+    .from("mentors")
+    .update({ user_id: null })
+    .eq("id", mentorRowId)
+    .select("id");
+
+  if (clearErr || !cleared?.length) {
+    return { ok: false, error: clearErr?.message ?? "Failed to reset mentor link." };
+  }
 
   return { ok: true };
 }

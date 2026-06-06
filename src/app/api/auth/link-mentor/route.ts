@@ -9,6 +9,7 @@ import {
   databaseKeyErrorMessage,
   findUnclaimedMentor,
   linkMentorToUser,
+  tryRepairMistakenOwnerClaim,
   userAlreadyHasClassAccess,
 } from "@/lib/supabase/mentorClaim";
 
@@ -64,34 +65,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Invalid mentor code. Use the mentor or co-mentor sign-in code from the class dashboard.",
-      },
-      { status: 400 }
-    );
-  }
-
-  if (mentorLookup.mentor.user_id === user.id) {
-    return NextResponse.json(
-      {
-        error:
-          "This workspace is already linked to your account. Use Sign in to enter your class.",
-      },
-      { status: 400 }
-    );
-  }
-
-  if (mentorLookup.mentor.user_id) {
-    return NextResponse.json(
-      { error: "This mentor code has already been claimed." },
-      { status: 400 }
-    );
-  }
-
-  if (await userAlreadyHasClassAccess(admin, user.id, mentorLookup.mentor)) {
-    return NextResponse.json(
-      {
-        error:
-          "You're already part of this class. Use Sign in — you don't need to link it again.",
+          "Invalid mentor code. Use your personal co-mentor sign-in code from the class dashboard — not the student class code.",
       },
       { status: 400 }
     );
@@ -107,6 +81,42 @@ export async function POST(request: Request) {
     profile?.display_name?.trim() ||
     mentorLookup.mentor.mentor_name?.trim() ||
     mentorLookup.mentor.name;
+
+  if (mentorLookup.mentor.user_id === user.id) {
+    return NextResponse.json(
+      {
+        error:
+          "This workspace is already linked to your account. Use Sign in to enter your class.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (mentorLookup.mentor.user_id) {
+    return NextResponse.json(
+      { error: "This mentor code has already been claimed by someone else." },
+      { status: 400 }
+    );
+  }
+
+  if (await userAlreadyHasClassAccess(admin, user.id, mentorLookup.mentor)) {
+    const repaired = await tryRepairMistakenOwnerClaim(
+      admin,
+      user.id,
+      mentorLookup.mentor,
+      displayName
+    );
+
+    if (!repaired) {
+      return NextResponse.json(
+        {
+          error:
+            "You're already part of this class. Use Sign in — you don't need to link it again. If you were added as a co-mentor but see the wrong role, ask the class owner to reset your sign-in on the Mentors tab.",
+        },
+        { status: 400 }
+      );
+    }
+  }
 
   const linked = await linkMentorToUser(
     admin,

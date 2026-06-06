@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Invalid mentor code. Use your mentor or co-mentor sign-in code (not the student class code).",
+            "Invalid mentor code. Use your personal mentor or co-mentor sign-in code from the dashboard — not the student class code.",
         },
         { status: 400 }
       );

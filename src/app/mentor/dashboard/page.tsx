@@ -969,6 +969,10 @@ function CodeManager({
     id: string;
     displayName: string;
   } | null>(null);
+  const [pendingReset, setPendingReset] = useState<{
+    id: string;
+    displayName: string;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const session = typeof window !== "undefined" ? getSession() : null;
@@ -1050,6 +1054,36 @@ function CodeManager({
     });
   };
 
+  const requestResetLink = (id: string, displayName: string) => {
+    setPendingReset({ id, displayName });
+  };
+
+  const cancelResetLink = () => {
+    if (isPending) return;
+    setPendingReset(null);
+  };
+
+  const confirmResetLink = () => {
+    if (!pendingReset || isPending) return;
+
+    startTransition(async () => {
+      const res = await fetch("/api/auth/reset-mentor-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mentorRowId: pendingReset.id }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Failed to reset sign-in.");
+        setPendingReset(null);
+        return;
+      }
+      setPendingReset(null);
+      setError("");
+      load();
+    });
+  };
+
   const toggleShow = (id: string) =>
     setShowCodes((prev) => {
       const next = new Set(prev);
@@ -1100,9 +1134,21 @@ function CodeManager({
         ) : (
           <ul className="divide-y divide-slate-800/60">
             {rows.map((row) => {
-              const mentorRow = row as MentorRow & { user_id?: string | null };
-              const displayName = mentorRow.mentor_name ?? mentorRow.name;
-              const teamName = mentorRow.mentor_name ? mentorRow.name : null;
+              const mentorRow = row as MentorRow & {
+                user_id?: string | null;
+                created_by?: string | null;
+              };
+              const ownerId = classOwner(session);
+              const ownerRow = rows.find((r) => r.id === ownerId) as MentorRow | undefined;
+              const classTeamName = ownerRow?.name ?? session?.teamName ?? null;
+              const isOwnerRow = table === "mentors" && !mentorRow.created_by;
+              const slotName = mentorRow.name;
+              const displayName = mentorRow.mentor_name ?? slotName;
+              const teamName = isOwnerRow
+                ? mentorRow.mentor_name
+                  ? classTeamName
+                  : null
+                : classTeamName;
               const isLinked = Boolean(mentorRow.user_id);
               const isYou = session?.id === row.id;
               return (
@@ -1121,12 +1167,25 @@ function CodeManager({
                         You
                       </span>
                     )}
+                    {isOwnerRow && (
+                      <span className="ml-2 text-[10px] font-medium uppercase tracking-wide text-sky-400/90">
+                        Owner
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-slate-500 truncate">
                     {teamName && <span className="mr-2">{teamName}</span>}
                     <span className="font-mono">{showCodes.has(row.id) ? row.code : maskCode(row.code)}</span>
-                    {!isLinked && table === "mentors" && (
-                      <span className="ml-2 text-amber-500/80">· Awaiting signup</span>
+                    {table === "mentors" && (
+                      <span
+                        className={
+                          isLinked
+                            ? "ml-2 text-emerald-500/80"
+                            : "ml-2 text-amber-500/80"
+                        }
+                      >
+                        · {isLinked ? "Signed in" : "Awaiting signup"}
+                      </span>
                     )}
                   </p>
                 </div>
@@ -1141,9 +1200,20 @@ function CodeManager({
                     <Eye className="h-3.5 w-3.5" />
                   )}
                 </button>
+                {table === "mentors" && isLinked && !isYou && (
+                  <button
+                    type="button"
+                    onClick={() => requestResetLink(row.id, displayName)}
+                    disabled={isPending || pendingReset !== null || pendingDelete !== null}
+                    className="rounded px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-500 hover:bg-amber-500/10 hover:text-amber-400 transition-colors disabled:opacity-50"
+                    title="Clear sign-in so they can claim their personal code again"
+                  >
+                    Reset
+                  </button>
+                )}
                 <button
                   onClick={(e) => requestDelete(row.id, displayName, e.currentTarget)}
-                  disabled={isPending || pendingDelete !== null}
+                  disabled={isPending || pendingDelete !== null || pendingReset !== null}
                   className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
                   title={`Delete ${label.toLowerCase()}`}
                 >
@@ -1168,6 +1238,19 @@ function CodeManager({
         onCancel={cancelDelete}
         pending={isPending}
         returnFocusRef={deleteTriggerRef}
+      />
+
+      <ConfirmDialog
+        open={pendingReset !== null}
+        title="Reset sign-in?"
+        message={
+          pendingReset
+            ? `Clear the sign-in for ${pendingReset.displayName}? They can link again with their personal co-mentor code.`
+            : ""
+        }
+        onConfirm={confirmResetLink}
+        onCancel={cancelResetLink}
+        pending={isPending}
       />
 
       {/* Add form */}

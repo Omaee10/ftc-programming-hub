@@ -96,6 +96,24 @@ public final class ChallengeRubrics {
         return out;
     }
 
+    /** Encoder/setMode challenges — {@code DcMotorSimple} only supports setPower/setDirection. */
+    private static RubricRule encoderCapableMotorRequired() {
+        return Rules.required(
+            "DcMotor declared (encoder-capable)",
+            "Encoder APIs require DcMotor or DcMotorEx — DcMotorSimple has no setMode() or getCurrentPosition().",
+            "Declare `private DcMotor driveMotor;` or `private DcMotorEx driveMotor;`.",
+            TreeHelpers::declaresEncoderCapableMotorField);
+    }
+
+    /** Velocity PID / flywheel challenges — only {@code DcMotorEx} exposes setVelocity/getVelocity. */
+    private static RubricRule dcMotorExRequired(String tip) {
+        return Rules.required(
+            "DcMotorEx declared",
+            "Velocity APIs require DcMotorEx, not DcMotor or DcMotorSimple.",
+            tip,
+            TreeHelpers::declaresDcMotorExField);
+    }
+
     private static RubricRule hwLiteral(String literal) {
         return Rules.required(
             "Hardware name \"" + literal + "\"",
@@ -179,9 +197,9 @@ public final class ChallengeRubrics {
     private static List<RubricRule> challenge1() {
         return Rules.of(
             Rules.required("DcMotor declared",
-                "A DcMotor or DcMotorEx field is declared.",
-                "Declare the motor as a class field: `private DcMotor leftMotor;`",
-                ctx -> declaresField(ctx, "DcMotor") || declaresField(ctx, "DcMotorEx")),
+                "A DcMotor, DcMotorEx, or DcMotorSimple field is declared.",
+                "Declare the motor as a class field: `private DcMotor leftMotor;` (or DcMotorEx / DcMotorSimple).",
+                TreeHelpers::declaresDcMotorField),
             Rules.required("gamepad1.left_stick_y read",
                 "The left joystick Y-axis value is read from gamepad1.",
                 "Read the stick: `double power = -gamepad1.left_stick_y;`",
@@ -212,6 +230,7 @@ public final class ChallengeRubrics {
     /** Challenge 2 — Encoder Basics. */
     private static List<RubricRule> challenge2() {
         return Rules.of(
+            encoderCapableMotorRequired(),
             Rules.required("Encoder reset",
                 "STOP_AND_RESET_ENCODER zeroes the encoder before use.",
                 "motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);",
@@ -350,8 +369,8 @@ public final class ChallengeRubrics {
         return Rules.of(
             Rules.required("Two DcMotor fields declared",
                 "Tank drive needs a left and a right motor.",
-                "Declare two DcMotor fields, e.g. leftMotor and rightMotor.",
-                ctx -> declaresField(ctx, "DcMotor") && TreeHelpers.countMethodCalls(ctx, "get") >= 2),
+                "Declare two motor fields (DcMotor, DcMotorEx, or DcMotorSimple), e.g. leftMotor and rightMotor.",
+                ctx -> TreeHelpers.countDcMotorFields(ctx) >= 2),
             Rules.required("gamepad1.left_stick_y read",
                 "Left stick drives the left side.",
                 "double leftPower = -gamepad1.left_stick_y;",
@@ -431,6 +450,7 @@ public final class ChallengeRubrics {
     /** Challenge 9 — Telemetry Dashboard. */
     private static List<RubricRule> challenge9() {
         return Rules.of(
+            encoderCapableMotorRequired(),
             Rules.required("ElapsedTime tracks runtime",
                 "Timer measures total OpMode elapsed time.",
                 "ElapsedTime runtime = new ElapsedTime();",
@@ -503,6 +523,7 @@ public final class ChallengeRubrics {
     /** Challenge 12 — Motor Zero Power Behavior. */
     private static List<RubricRule> challenge12() {
         return Rules.of(
+            encoderCapableMotorRequired(),
             Rules.required("setZeroPowerBehavior() called",
                 "Explicitly choose BRAKE or FLOAT mode.",
                 "motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);",
@@ -546,6 +567,7 @@ public final class ChallengeRubrics {
     /** Challenge 14 — Encoder-Based Drive Distance. */
     private static List<RubricRule> challenge14() {
         return Rules.of(
+            encoderCapableMotorRequired(),
             Rules.required("Encoder reset",
                 "STOP_AND_RESET_ENCODER before the move.",
                 "motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);",
@@ -595,6 +617,7 @@ public final class ChallengeRubrics {
     /** Challenge 16 — REV Touch Sensor Homing. */
     private static List<RubricRule> challenge16() {
         return Rules.of(
+            encoderCapableMotorRequired(),
             Rules.required("TouchSensor declared",
                 "Limit switch retrieved from hardwareMap.",
                 "TouchSensor touchSensor = hardwareMap.get(TouchSensor.class, \"touch_sensor\");",
@@ -726,10 +749,7 @@ public final class ChallengeRubrics {
     /** Challenge 22 — DcMotorEx Velocity Control. */
     private static List<RubricRule> challenge22() {
         return Rules.of(
-            Rules.required("DcMotorEx declared",
-                "Velocity control requires DcMotorEx, not DcMotor.",
-                "DcMotorEx shooter = hardwareMap.get(DcMotorEx.class, \"shooter\");",
-                ctx -> declaresField(ctx, "DcMotorEx")),
+            dcMotorExRequired("DcMotorEx shooter = hardwareMap.get(DcMotorEx.class, \"shooter\");"),
             Rules.required("setVelocity() called",
                 "Velocity (ticks/sec) commanded via setVelocity.",
                 "shooter.setVelocity(1500);",
@@ -748,6 +768,7 @@ public final class ChallengeRubrics {
     /** Challenge 23 — Simple P Controller. */
     private static List<RubricRule> challenge23() {
         return Rules.of(
+            encoderCapableMotorRequired(),
             Rules.required("Error term computed (target - current)",
                 "Sign convention matters — error must be target - current.",
                 "int error = targetPosition - currentPosition;",
@@ -772,6 +793,7 @@ public final class ChallengeRubrics {
     /** Challenge 24 — Encoder Ticks to Degrees. */
     private static List<RubricRule> challenge24() {
         return Rules.of(
+            encoderCapableMotorRequired(),
             Rules.required("ticksToDegrees() helper",
                 "Convert encoder ticks to degrees.",
                 "private double ticksToDegrees(int ticks) { return ticks * 360.0 / (TICKS_PER_REV * GEAR_RATIO); }",
@@ -813,6 +835,7 @@ public final class ChallengeRubrics {
     /** Challenge 26 — PIDF Velocity Loop. */
     private static List<RubricRule> challenge26() {
         return Rules.of(
+            dcMotorExRequired("DcMotorEx shooter = hardwareMap.get(DcMotorEx.class, \"shooter_motor\");"),
             Rules.required("Velocity error computed",
                 "Error is target TPS minus measured velocity.",
                 "double error = targetTps - shooter.getVelocity();",
@@ -1408,10 +1431,7 @@ public final class ChallengeRubrics {
     /** Challenge 53 — Robot velocity magnitude. */
     private static List<RubricRule> challenge53() {
         return Rules.of(
-            Rules.required("DcMotorEx declared",
-                "Velocity APIs require DcMotorEx.",
-                "DcMotorEx forwardMotor = hardwareMap.get(DcMotorEx.class, ...);",
-                ctx -> declaresField(ctx, "DcMotorEx")),
+            dcMotorExRequired("DcMotorEx forwardMotor = hardwareMap.get(DcMotorEx.class, ...);"),
             Rules.required("getVelocity() called",
                 "Read forward and strafe wheel speeds.",
                 "double fwdTPS = forwardMotor.getVelocity();",

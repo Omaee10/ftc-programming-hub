@@ -102,6 +102,52 @@ public final class TreeHelpers {
         return seen[0];
     }
 
+    /**
+     * Counts fields/locals typed as any FTC DC motor interface
+     * ({@code DcMotorSimple}, {@code DcMotor}, or {@code DcMotorEx}) — suitable
+     * for basic power/direction challenges only.
+     */
+    public static int countDcMotorFields(RubricContext ctx) {
+        return countMotorFieldsMatching(ctx, TreeHelpers::isBasicDcMotorType);
+    }
+
+    /** True when at least one basic motor field exists (any of the three types). */
+    public static boolean declaresDcMotorField(RubricContext ctx) {
+        return countDcMotorFields(ctx) > 0;
+    }
+
+    /**
+     * Counts fields/locals typed as {@code DcMotor} or {@code DcMotorEx}.
+     * {@code DcMotorSimple} lacks encoder APIs ({@code setMode},
+     * {@code getCurrentPosition}, {@code setZeroPowerBehavior}, etc.).
+     */
+    public static int countEncoderCapableDcMotorFields(RubricContext ctx) {
+        return countMotorFieldsMatching(ctx, TreeHelpers::isEncoderCapableDcMotorType);
+    }
+
+    /** True when a {@code DcMotor} or {@code DcMotorEx} field is declared. */
+    public static boolean declaresEncoderCapableMotorField(RubricContext ctx) {
+        return countEncoderCapableDcMotorFields(ctx) > 0;
+    }
+
+    /** True when a {@code DcMotorEx} field is declared (velocity/current APIs). */
+    public static boolean declaresDcMotorExField(RubricContext ctx) {
+        return countMotorFieldsMatching(ctx, TreeHelpers::isVelocityCapableDcMotorType) > 0;
+    }
+
+    private static int countMotorFieldsMatching(RubricContext ctx, java.util.function.Predicate<String> typeTest) {
+        if (!ctx.astAvailable()) return 0;
+        var count = new int[1];
+        new TreeScanner<Void, Void>() {
+            @Override public Void visitVariable(VariableTree node, Void p) {
+                Tree type = node.getType();
+                if (type != null && typeTest.test(simpleTypeName(type.toString()))) count[0]++;
+                return super.visitVariable(node, p);
+            }
+        }.scan(ctx.tree(), null);
+        return count[0];
+    }
+
     /** Does the main class extend / implement {@code parentName}? */
     public static boolean extendsClass(RubricContext ctx, String parentName) {
         if (!ctx.astAvailable()) return false;
@@ -415,6 +461,11 @@ public final class TreeHelpers {
      * Returns true if {@code actualType} matches {@code target} either as a
      * simple name (last segment after a dot), a fully-qualified name, or a
      * suffix match. Tolerant of generics: {@code DcMotor<X>} matches DcMotor.
+     *
+     * <p>Also understands the FTC DC motor hierarchy:
+     * {@code DcMotorSimple} ← {@code DcMotor} ← {@code DcMotorEx}.
+     * Checks for {@code DcMotor} accept {@code DcMotorEx} but not
+     * {@code DcMotorSimple}; {@code DcMotorEx} checks stay strict.
      */
     public static boolean matchesType(String actualType, String target) {
         if (actualType == null || target == null) return false;
@@ -422,12 +473,49 @@ public final class TreeHelpers {
         String t = stripGenerics(target);
         if (a.equals(t)) return true;
         if (a.endsWith("." + t)) return true;
-        int dot = a.lastIndexOf('.');
-        String simple = dot < 0 ? a : a.substring(dot + 1);
+        String simple = simpleTypeName(a);
         if (simple.equals(t)) return true;
-        int dot2 = t.lastIndexOf('.');
-        String simpleT = dot2 < 0 ? t : t.substring(dot2 + 1);
-        return simple.equals(simpleT);
+        String simpleT = simpleTypeName(t);
+        if (simple.equals(simpleT)) return true;
+        return matchesDcMotorHierarchy(simple, simpleT);
+    }
+
+    private static String simpleTypeName(String typeName) {
+        String stripped = stripGenerics(typeName);
+        int dot = stripped.lastIndexOf('.');
+        return dot < 0 ? stripped : stripped.substring(dot + 1);
+    }
+
+    private static boolean isDcMotorFamily(String simpleName) {
+        return isBasicDcMotorType(simpleName);
+    }
+
+    private static boolean isBasicDcMotorType(String simpleName) {
+        return "DcMotorSimple".equals(simpleName)
+                || "DcMotor".equals(simpleName)
+                || "DcMotorEx".equals(simpleName);
+    }
+
+    private static boolean isEncoderCapableDcMotorType(String simpleName) {
+        return "DcMotor".equals(simpleName) || "DcMotorEx".equals(simpleName);
+    }
+
+    private static boolean isVelocityCapableDcMotorType(String simpleName) {
+        return "DcMotorEx".equals(simpleName);
+    }
+
+    /**
+     * FTC motor interfaces: {@code DcMotorSimple} ← {@code DcMotor} ← {@code DcMotorEx}.
+     * {@code CRServo} also extends {@code DcMotorSimple} but is excluded here.
+     */
+    private static boolean matchesDcMotorHierarchy(String actual, String target) {
+        if (!isDcMotorFamily(actual) || !isDcMotorFamily(target)) return false;
+        return switch (target) {
+            case "DcMotorEx" -> isVelocityCapableDcMotorType(actual);
+            case "DcMotor" -> isEncoderCapableDcMotorType(actual);
+            case "DcMotorSimple" -> "DcMotorSimple".equals(actual);
+            default -> false;
+        };
     }
 
     private static String stripGenerics(String name) {
