@@ -1177,13 +1177,13 @@ function CodeManager({
                 mentorRow as MentorRow & { linkedDisplayName?: string | null }
               ).linkedDisplayName;
               const displayName = isOwnerRow
-                ? linkedDisplayName || classTeamName || mentorRow.mentor_name || slotName
+                ? classTeamName || slotName
                 : mentorRow.mentor_name ?? slotName;
               const teamName = isOwnerRow ? null : classTeamName;
               const isLinked = Boolean(mentorRow.user_id);
               const isYou = session?.id === row.id;
               const signedInLabel =
-                isLinked && linkedDisplayName && linkedDisplayName !== displayName
+                isLinked && linkedDisplayName
                   ? `Signed in as ${linkedDisplayName}`
                   : "Signed in";
               return (

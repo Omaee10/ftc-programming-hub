@@ -16,6 +16,22 @@ function normalizeName(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }
 
+function namesMatch(
+  left: string | null | undefined,
+  right: string | null | undefined
+): boolean {
+  const a = normalizeName(left);
+  const b = normalizeName(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  const aFirst = a.split(/\s+/)[0] ?? "";
+  const bFirst = b.split(/\s+/)[0] ?? "";
+  if (aFirst.length >= 3 && aFirst === bFirst) return true;
+
+  return a.includes(b) || b.includes(a);
+}
+
 /** True if this login already owns or co-mentors in the same class as `mentor`. */
 export async function userAlreadyHasClassAccess(
   admin: SupabaseClient,
@@ -72,14 +88,32 @@ export async function findUnclaimedMentor(
  * If this user is on the owner row but is claiming a co-mentor slot with a
  * matching name, clear the mistaken owner link so the co-mentor slot can be claimed.
  */
+/** Co-mentor row for this user in the class, whether already linked or still unclaimed. */
+export async function findCoMentorRowForUser(
+  admin: SupabaseClient,
+  ownerId: string,
+  userId: string,
+  profileName?: string
+): Promise<MentorClaimRow | null> {
+  const { data: linkedRow } = await admin
+    .from("mentors")
+    .select("id, mentor_name, name, user_id, created_by")
+    .eq("created_by", ownerId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (linkedRow) return linkedRow as MentorClaimRow;
+
+  return findMatchingCoMentorSlot(admin, ownerId, profileName ?? "");
+}
+
 /** Find an unclaimed co-mentor slot in this class whose label matches the user's profile name. */
 export async function findMatchingCoMentorSlot(
   admin: SupabaseClient,
   ownerId: string,
   profileName: string
 ): Promise<MentorClaimRow | null> {
-  const userName = normalizeName(profileName);
-  if (!userName) return null;
+  if (!profileName.trim()) return null;
 
   const { data: coSlots } = await admin
     .from("mentors")
@@ -90,10 +124,25 @@ export async function findMatchingCoMentorSlot(
   return (
     (coSlots ?? []).find((row) => {
       const slot = row as MentorClaimRow;
-      const slotName = normalizeName(slot.mentor_name || slot.name);
-      return slotName === userName;
+      const slotName = slot.mentor_name || slot.name;
+      return namesMatch(slotName, profileName);
     }) as MentorClaimRow | undefined
   ) ?? null;
+}
+
+async function clearMistakenOwnerLink(
+  admin: SupabaseClient,
+  ownerId: string,
+  userId: string
+): Promise<boolean> {
+  const { data: cleared, error } = await admin
+    .from("mentors")
+    .update({ user_id: null, mentor_name: null })
+    .eq("id", ownerId)
+    .eq("user_id", userId)
+    .select("id");
+
+  return !error && Boolean(cleared?.length);
 }
 
 /**
@@ -126,16 +175,14 @@ export async function transferMistakenOwnerClaimToCoMentor(
 
   if (!resolvedName) return false;
 
-  const coSlot = await findMatchingCoMentorSlot(admin, ownerId, resolvedName);
+  const coSlot = await findCoMentorRowForUser(admin, ownerId, userId, resolvedName);
   if (!coSlot) return false;
 
-  const { error: clearErr } = await admin
-    .from("mentors")
-    .update({ user_id: null, mentor_name: null })
-    .eq("id", ownerId)
-    .eq("user_id", userId);
+  if (coSlot.user_id === userId) {
+    return clearMistakenOwnerLink(admin, ownerId, userId);
+  }
 
-  if (clearErr) return false;
+  if (!(await clearMistakenOwnerLink(admin, ownerId, userId))) return false;
 
   return (await linkMentorToUser(admin, coSlot.id, userId, resolvedName)).ok;
 }
@@ -154,12 +201,6 @@ export async function repairClassMentorLinks(
   if (!ownerRow?.user_id) return;
 
   const userId = ownerRow.user_id as string;
-  const transferred = await transferMistakenOwnerClaimToCoMentor(
-    admin,
-    ownerId,
-    userId
-  );
-  if (transferred) return;
 
   const { data: profile } = await admin
     .from("profiles")
@@ -168,13 +209,18 @@ export async function repairClassMentorLinks(
     .maybeSingle();
 
   const linkedName = profile?.display_name?.trim() || "";
-  if (!linkedName) return;
+  const coRow = await findCoMentorRowForUser(admin, ownerId, userId, linkedName);
 
-  const staleName = (ownerRow.mentor_name as string | null)?.trim() || "";
-  if (staleName && normalizeName(staleName) !== normalizeName(linkedName)) {
+  if (coRow) {
+    await transferMistakenOwnerClaimToCoMentor(admin, ownerId, userId, linkedName);
+    return;
+  }
+
+  // Linked on the owner row but no co-mentor slot — keep team name, not a personal name.
+  if (ownerRow.mentor_name) {
     await admin
       .from("mentors")
-      .update({ mentor_name: linkedName })
+      .update({ mentor_name: null })
       .eq("id", ownerId)
       .eq("user_id", userId);
   }
@@ -197,9 +243,8 @@ export async function tryRepairMistakenOwnerClaim(
 
   if (!ownerRow || ownerRow.user_id !== userId) return false;
 
-  const slotName = normalizeName(coMentorSlot.mentor_name || coMentorSlot.name);
-  const userName = normalizeName(profileName);
-  if (!slotName || !userName || slotName !== userName) return false;
+  const slotName = coMentorSlot.mentor_name || coMentorSlot.name;
+  if (!namesMatch(slotName, profileName)) return false;
 
   return transferMistakenOwnerClaimToCoMentor(admin, ownerId, userId, profileName);
 }

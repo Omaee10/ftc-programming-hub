@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
+import { repairClassMentorLinks } from "@/lib/supabase/mentorClaim";
 
 export async function GET(): Promise<NextResponse> {
   const supabase = await createClient();
@@ -52,8 +54,29 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({ error: mentorsErr.message }, { status: 500 });
   }
 
+  if (hasServiceRoleKey()) {
+    const admin = createAdminClient();
+    const ownerIds = new Set<string>();
+    for (const row of mentors ?? []) {
+      const parentId = row.created_by as string | null;
+      ownerIds.add(parentId ?? (row.id as string));
+    }
+    for (const ownerId of ownerIds) {
+      await repairClassMentorLinks(admin, ownerId);
+    }
+  }
+
+  const { data: refreshedMentors, error: refreshErr } = await supabase
+    .from("mentors")
+    .select("id, name, mentor_name, class_name, created_by")
+    .eq("user_id", user.id);
+
+  if (refreshErr) {
+    return NextResponse.json({ error: refreshErr.message }, { status: 500 });
+  }
+
   const mentorItems = [];
-  for (const row of mentors ?? []) {
+  for (const row of refreshedMentors ?? []) {
     const parentId = (row.created_by as string | null) ?? undefined;
     let personalName = (row.mentor_name as string | null) ?? (row.name as string);
     let teamName = row.name as string;
