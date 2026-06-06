@@ -1144,10 +1144,17 @@ function CodeManager({
                 const studentRow = row as StudentRow;
                 const displayName = studentRow.name;
                 const isLinked = Boolean(studentRow.user_id);
+                const hasCode = Boolean(studentRow.code);
+                const addedAfterLoginPage =
+                  isItkanClass
+                  && !isLinked
+                  && hasCode
+                  && isNewLoginStudent(studentRow.created_at);
                 const awaitingSignup =
-                  isItkanClass && !isLinked && Boolean(studentRow.code);
-                const newAccount =
-                  awaitingSignup && isNewLoginStudent(studentRow.created_at);
+                  isItkanClass
+                  && !isLinked
+                  && hasCode
+                  && !isNewLoginStudent(studentRow.created_at);
 
                 return (
                   <li
@@ -1171,7 +1178,7 @@ function CodeManager({
                         {awaitingSignup && (
                           <span className="ml-2 text-amber-500/80">· Awaiting signup</span>
                         )}
-                        {newAccount && (
+                        {addedAfterLoginPage && (
                           <span className="ml-2 text-sky-400/80">· new account</span>
                         )}
                       </p>

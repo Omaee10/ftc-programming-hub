@@ -202,8 +202,8 @@ export async function transferMistakenOwnerClaimToCoMentor(
 
 const ITKAN_OWNER_NAME = "Wadood Mohammed";
 
-/** Students added on/after this date use the server login + signup flow. */
-export const NEW_LOGIN_SYSTEM_SINCE = "2026-06-05T00:00:00.000Z";
+/** Students added on/after 3151781 (email/password auth + class picker onboarding). */
+export const NEW_LOGIN_SYSTEM_SINCE = "2026-06-05T05:19:26.000Z";
 
 export function isItkanRoboticsClass(teamLabel: string): boolean {
   const normalized = teamLabel.trim().toLowerCase();
