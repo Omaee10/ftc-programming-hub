@@ -24,6 +24,7 @@ import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
 import { supabase } from "@/lib/supabase";
+import { fetchOverviewData } from "@/lib/mentorDashboardApi";
 import DashboardDocSearch from "@/components/DashboardDocSearch";
 import {
   filterOutAssigned,
@@ -168,60 +169,36 @@ function MentorDashboard() {
   const [studentCount, setStudentCount] = useState<number | null>(null);
   const [challengeCount, setChallengeCount] = useState<number | null>(null);
 
-  const loadClassTitle = useCallback(async () => {
+  const loadOverview = useCallback(async () => {
     const session = getSession();
-    if (!session) return;
+    if (!session || session.role !== "mentor") return;
 
-    const ownerId = session.parentMentorId ?? session.id;
-    const { data } = await supabase
-      .from("mentors")
-      .select("class_name")
-      .eq("id", ownerId)
-      .single();
+    try {
+      const data = await fetchOverviewData(session);
+      setStudentCount(data.studentCount);
+      setPendingCount(data.pendingCount);
+      setChallengeCount(data.challengeCount);
 
-    const fromDb = (data as { class_name?: string | null } | null)?.class_name?.trim();
-    if (fromDb) {
-      setClassTitle(fromDb);
-      return;
-    }
+      const fromDb = data.className?.trim();
+      if (fromDb) {
+        setClassTitle(fromDb);
+        return;
+      }
 
-    const fromSession = session.className?.trim();
-    if (fromSession) {
-      setClassTitle(fromSession);
+      const fromSession = session.className?.trim();
+      if (fromSession) {
+        setClassTitle(fromSession);
+      }
+    } catch {
+      // Keep null counts if the request fails.
     }
   }, []);
 
   useEffect(() => {
-    loadClassTitle();
-    window.addEventListener("ftc-session-updated", loadClassTitle);
-    return () => window.removeEventListener("ftc-session-updated", loadClassTitle);
-  }, [loadClassTitle]);
-
-  useEffect(() => {
-    const session = getSession();
-    if (!session) return;
-    const ownerId = session.parentMentorId ?? session.id;
-    (async () => {
-      const [{ count: pending }, { count: students }, { count: challenges }] =
-        await Promise.all([
-          supabase
-            .from("challenge_submissions")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pending"),
-          supabase
-            .from("students")
-            .select("id", { count: "exact", head: true })
-            .eq("mentor_id", ownerId),
-          supabase
-            .from("challenges")
-            .select("id", { count: "exact", head: true })
-            .eq("created_by", ownerId),
-        ]);
-      setPendingCount(pending ?? 0);
-      setStudentCount(students ?? 0);
-      setChallengeCount(challenges ?? 0);
-    })();
-  }, []);
+    void loadOverview();
+    window.addEventListener("ftc-session-updated", loadOverview);
+    return () => window.removeEventListener("ftc-session-updated", loadOverview);
+  }, [loadOverview]);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",

@@ -11,12 +11,20 @@ import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
 import { withTimeout } from "@/lib/withTimeout";
 
 export type MentorDashboardScope =
+  | "overview"
   | "progress"
   | "homework"
   | "mentors"
   | "students"
   | "challenges"
   | "submissions";
+
+export type OverviewPayload = {
+  className: string | null;
+  studentCount: number;
+  pendingCount: number;
+  challengeCount: number;
+};
 
 export type ProgressPayload = {
   students: StudentRow[];
@@ -73,6 +81,10 @@ async function postMentorDashboard<T>(
     throw new Error(data.error ?? `Request failed (${res.status})`);
   }
   return data;
+}
+
+export function fetchOverviewData(session: Session): Promise<OverviewPayload> {
+  return postMentorDashboard("overview", session);
 }
 
 export function fetchProgressData(session: Session): Promise<ProgressPayload> {

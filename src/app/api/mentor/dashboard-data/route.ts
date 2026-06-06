@@ -7,6 +7,7 @@ import { repairItkanOwnerSlotOnce } from "@/lib/supabase/mentorClaim";
 import type { MentorDashboardScope } from "@/lib/mentorDashboardApi";
 
 const SCOPES: MentorDashboardScope[] = [
+  "overview",
   "progress",
   "homework",
   "mentors",
@@ -70,6 +71,59 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   switch (scope) {
+    case "overview": {
+      const authorIds = classChallengeAuthorIds(session);
+
+      const { data: classStudents } = await supabase
+        .from("students")
+        .select("id")
+        .eq("mentor_id", ownerId);
+
+      const studentIds = (classStudents ?? []).map((row) => row.id as string);
+
+      const [
+        { count: studentCount },
+        { count: challengeCount },
+        { count: pendingCount },
+        { data: ownerMentor },
+      ] = await Promise.all([
+        supabase
+          .from("students")
+          .select("id", { count: "exact", head: true })
+          .eq("mentor_id", ownerId),
+        authorIds.length > 0
+          ? supabase
+              .from("challenges")
+              .select("id", { count: "exact", head: true })
+              .in("created_by", authorIds)
+          : Promise.resolve({ count: 0, error: null }),
+        studentIds.length > 0
+          ? supabase
+              .from("challenge_submissions")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "pending")
+              .in("student_id", studentIds)
+          : Promise.resolve({ count: 0, error: null }),
+        supabase
+          .from("mentors")
+          .select("class_name, name")
+          .eq("id", ownerId)
+          .single(),
+      ]);
+
+      const className =
+        (ownerMentor?.class_name as string | null)?.trim()
+        || (ownerMentor?.name as string | null)?.trim()
+        || null;
+
+      return NextResponse.json({
+        className,
+        studentCount: studentCount ?? 0,
+        pendingCount: pendingCount ?? 0,
+        challengeCount: challengeCount ?? 0,
+      });
+    }
+
     case "progress": {
       const authorIds = classChallengeAuthorIds(session);
       const [{ data: students }, { data: progress }, { data: homework }, { data: challenges }] =
