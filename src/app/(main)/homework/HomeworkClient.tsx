@@ -115,7 +115,7 @@ function HomeworkCard({
 
 export default function HomeworkClient() {
   const router = useRouter();
-  const { assignments, hydrated } = useHomeworkAssignments();
+  const { assignments, hydrated, loadError, refresh } = useHomeworkAssignments();
   const [dbChallenges, setDbChallenges] = useState<Challenge[]>([]);
 
   useEffect(() => {
@@ -163,6 +163,17 @@ export default function HomeworkClient() {
               className="h-24 animate-pulse rounded-lg border border-slate-800/60 bg-slate-900/40"
             />
           ))}
+        </div>
+      ) : loadError ? (
+        <div className="rounded-lg border border-red-500/20 bg-red-950/20 px-6 py-10 text-center">
+          <p className="text-sm text-red-300/90">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="mt-3 text-xs text-slate-400 underline hover:text-slate-200 transition-colors"
+          >
+            Try again
+          </button>
         </div>
       ) : assignments.length === 0 ? (
         <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 px-6 py-12 text-center">

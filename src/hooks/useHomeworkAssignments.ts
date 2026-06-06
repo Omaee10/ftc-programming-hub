@@ -1,91 +1,212 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useSyncExternalStore, useEffect, useCallback } from "react";
 import { supabase, type HomeworkAssignmentRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
-import { withTimeout } from "@/lib/withTimeout";
+import { formatLoadError, withTimeout } from "@/lib/withTimeout";
 
 import { classOwner } from "@/lib/classChallenges";
 
-export function useHomeworkAssignments() {
-  const [assignments, setAssignments] = useState<HomeworkAssignmentRow[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+type HomeworkCacheKey = string;
 
-  const load = useCallback(async () => {
-    const session = getSession();
-    if (!session) {
-      setAssignments([]);
-      setHydrated(true);
-      return;
-    }
+interface HomeworkStoreSnapshot {
+  assignments: HomeworkAssignmentRow[];
+  hydrated: boolean;
+  loadError: string | null;
+  cacheKey: HomeworkCacheKey | null;
+}
 
+const EMPTY_SNAPSHOT: HomeworkStoreSnapshot = {
+  assignments: [],
+  hydrated: false,
+  loadError: null,
+  cacheKey: null,
+};
+
+let storeSnapshot: HomeworkStoreSnapshot = EMPTY_SNAPSHOT;
+let loadInFlight: Promise<void> | null = null;
+const storeListeners = new Set<() => void>();
+
+function publishStore(next: HomeworkStoreSnapshot): void {
+  if (
+    storeSnapshot.assignments === next.assignments &&
+    storeSnapshot.hydrated === next.hydrated &&
+    storeSnapshot.loadError === next.loadError &&
+    storeSnapshot.cacheKey === next.cacheKey
+  ) {
+    return;
+  }
+  storeSnapshot = next;
+  storeListeners.forEach((cb) => cb());
+}
+
+function getStoreSnapshot(): HomeworkStoreSnapshot {
+  return storeSnapshot;
+}
+
+function getServerStoreSnapshot(): HomeworkStoreSnapshot {
+  return EMPTY_SNAPSHOT;
+}
+
+function subscribeToStore(callback: () => void): () => void {
+  storeListeners.add(callback);
+  return () => storeListeners.delete(callback);
+}
+
+function cacheKeyForSession(): HomeworkCacheKey | null {
+  const session = getSession();
+  if (!session?.id) return null;
+  if (session.role === "student") return `student:${session.id}`;
+  if (session.role === "mentor") {
+    return `mentor:${classOwner(session)}`;
+  }
+  return null;
+}
+
+async function fetchStudentHomework(studentId: string): Promise<HomeworkAssignmentRow[]> {
+  const res = await withTimeout(
+    fetch(`/api/student/homework?studentId=${encodeURIComponent(studentId)}`, {
+      credentials: "include",
+    }),
+    TAB_LOADER_TIMEOUT_MS,
+    "Loading homework"
+  );
+
+  const body = (await res.json()) as {
+    error?: string;
+    assignments?: HomeworkAssignmentRow[];
+  };
+
+  if (!res.ok) {
+    throw new Error(body.error ?? "Failed to load homework.");
+  }
+
+  return body.assignments ?? [];
+}
+
+async function fetchMentorHomework(ownerId: string): Promise<HomeworkAssignmentRow[]> {
+  const { data: students } = await withTimeout(
+    Promise.resolve(
+      supabase.from("students").select("id").eq("mentor_id", ownerId)
+    ),
+    TAB_LOADER_TIMEOUT_MS,
+    "Loading students"
+  );
+
+  const studentIds = ((students ?? []) as { id: string }[]).map((s) => s.id);
+  if (studentIds.length === 0) return [];
+
+  const { data, error } = await withTimeout(
+    Promise.resolve(
+      supabase
+        .from("homework_assignments")
+        .select("*")
+        .in("student_id", studentIds)
+        .order("assigned_at", { ascending: false })
+    ),
+    TAB_LOADER_TIMEOUT_MS,
+    "Loading homework"
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as HomeworkAssignmentRow[];
+}
+
+async function ensureHomeworkLoaded(key: HomeworkCacheKey): Promise<void> {
+  if (storeSnapshot.cacheKey !== key) {
+    publishStore({
+      assignments: [],
+      hydrated: false,
+      loadError: null,
+      cacheKey: key,
+    });
+    loadInFlight = null;
+  }
+
+  if (storeSnapshot.hydrated && storeSnapshot.cacheKey === key) return;
+
+  if (loadInFlight) {
+    await loadInFlight;
+    return;
+  }
+
+  const loadKey = key;
+  loadInFlight = (async () => {
     try {
-      if (session.role === "student") {
-        const { data, error } = await withTimeout(
-          Promise.resolve(
-            supabase
-              .from("homework_assignments")
-              .select("*")
-              .eq("student_id", session.id)
-              .order("assigned_at", { ascending: false })
-          ),
-          TAB_LOADER_TIMEOUT_MS,
-          "Loading homework"
-        );
+      let assignments: HomeworkAssignmentRow[] = [];
 
-        if (error) {
-          console.error("Failed to load homework assignments:", error.message);
-          setAssignments([]);
-        } else {
-          setAssignments((data ?? []) as HomeworkAssignmentRow[]);
-        }
-      } else if (session.role === "mentor") {
-        const ownerId = classOwner(session);
-        const { data: students } = await withTimeout(
-          Promise.resolve(
-            supabase.from("students").select("id").eq("mentor_id", ownerId)
-          ),
-          TAB_LOADER_TIMEOUT_MS,
-          "Loading students"
-        );
-
-        const studentIds = ((students ?? []) as { id: string }[]).map((s) => s.id);
-        if (studentIds.length === 0) {
-          setAssignments([]);
-          return;
-        }
-
-        const { data, error } = await withTimeout(
-          Promise.resolve(
-            supabase
-              .from("homework_assignments")
-              .select("*")
-              .in("student_id", studentIds)
-              .order("assigned_at", { ascending: false })
-          ),
-          TAB_LOADER_TIMEOUT_MS,
-          "Loading homework"
-        );
-
-        if (error) {
-          console.error("Failed to load class homework:", error.message);
-          setAssignments([]);
-        } else {
-          setAssignments((data ?? []) as HomeworkAssignmentRow[]);
-        }
+      if (loadKey.startsWith("student:")) {
+        const studentId = loadKey.slice("student:".length);
+        assignments = await fetchStudentHomework(studentId);
+      } else if (loadKey.startsWith("mentor:")) {
+        const ownerId = loadKey.slice("mentor:".length);
+        assignments = await fetchMentorHomework(ownerId);
       }
+
+      if (storeSnapshot.cacheKey !== loadKey) return;
+
+      publishStore({
+        assignments,
+        hydrated: true,
+        loadError: null,
+        cacheKey: loadKey,
+      });
     } catch (error) {
       console.error("Failed to load homework assignments:", error);
-      setAssignments([]);
+      if (storeSnapshot.cacheKey !== loadKey) return;
+
+      publishStore({
+        assignments: [],
+        hydrated: true,
+        loadError: formatLoadError(error),
+        cacheKey: loadKey,
+      });
     } finally {
-      setHydrated(true);
+      if (loadInFlight) loadInFlight = null;
     }
-  }, []);
+  })();
+
+  await loadInFlight;
+}
+
+export function useHomeworkAssignments() {
+  const workspaceSession = useWorkspaceSession();
+  const { assignments, hydrated, loadError } = useSyncExternalStore(
+    subscribeToStore,
+    getStoreSnapshot,
+    getServerStoreSnapshot
+  );
+
+  const cacheKey = workspaceSession
+    ? workspaceSession.role === "student"
+      ? `student:${workspaceSession.id}`
+      : workspaceSession.role === "mentor"
+        ? `mentor:${classOwner(workspaceSession)}`
+        : null
+    : null;
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!cacheKey) return;
+    void ensureHomeworkLoaded(cacheKey);
+  }, [cacheKey]);
+
+  const refresh = useCallback(async () => {
+    const key = cacheKeyForSession();
+    if (!key) return;
+    publishStore({
+      assignments: storeSnapshot.assignments,
+      hydrated: false,
+      loadError: null,
+      cacheKey: key,
+    });
+    loadInFlight = null;
+    await ensureHomeworkLoaded(key);
+  }, []);
 
   const assignedIds = new Set(assignments.map((a) => a.challenge_id));
 
@@ -130,15 +251,19 @@ export function useHomeworkAssignments() {
         return;
       }
 
-      setAssignments((prev) =>
-        prev.map((a) =>
-          a.challenge_id === challengeId
-            ? { ...a, completed: true, completed_at: now, code_snapshot: code }
-            : a
-        )
+      const next = assignments.map((a) =>
+        a.challenge_id === challengeId
+          ? { ...a, completed: true, completed_at: now, code_snapshot: code }
+          : a
       );
+      publishStore({
+        assignments: next,
+        hydrated: true,
+        loadError: null,
+        cacheKey: storeSnapshot.cacheKey,
+      });
     },
-    []
+    [assignments]
   );
 
   const assignHomework = useCallback(
@@ -168,10 +293,10 @@ export function useHomeworkAssignments() {
         return { error: error.message };
       }
 
-      await load();
+      await refresh();
       return { error: null };
     },
-    [load]
+    [refresh]
   );
 
   const unassignHomework = useCallback(
@@ -185,18 +310,23 @@ export function useHomeworkAssignments() {
         return { error: error.message };
       }
 
-      setAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+      const next = assignments.filter((a) => a.id !== assignmentId);
+      publishStore({
+        assignments: next,
+        hydrated: true,
+        loadError: null,
+        cacheKey: storeSnapshot.cacheKey,
+      });
       return { error: null };
     },
-    []
+    [assignments]
   );
-
-  const refresh = load;
 
   return {
     assignments,
     assignedIds,
-    hydrated,
+    hydrated: cacheKey ? hydrated : false,
+    loadError,
     isAssigned,
     getAssignment,
     isHomeworkComplete,
