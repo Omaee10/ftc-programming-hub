@@ -125,21 +125,31 @@ interface ProgressStoreSnapshot {
 }
 
 let storeStudentId: string | null = null;
-let storeRecords: ProgressRecord[] = [];
-let storeHydrated = false;
 let syncInFlight: Promise<void> | null = null;
 const storeListeners = new Set<() => void>();
 
-function notifyStore() {
+// useSyncExternalStore requires a stable snapshot reference — only replace when
+// records or hydrated actually change (same pattern as useChallengeProgress).
+const EMPTY_SNAPSHOT: ProgressStoreSnapshot = { records: [], hydrated: false };
+let storeSnapshot: ProgressStoreSnapshot = EMPTY_SNAPSHOT;
+
+function publishStore(records: ProgressRecord[], hydrated: boolean): void {
+  if (
+    storeSnapshot.records === records &&
+    storeSnapshot.hydrated === hydrated
+  ) {
+    return;
+  }
+  storeSnapshot = { records, hydrated };
   storeListeners.forEach((cb) => cb());
 }
 
 function getStoreSnapshot(): ProgressStoreSnapshot {
-  return { records: storeRecords, hydrated: storeHydrated };
+  return storeSnapshot;
 }
 
 function getServerStoreSnapshot(): ProgressStoreSnapshot {
-  return { records: [], hydrated: false };
+  return EMPTY_SNAPSHOT;
 }
 
 function subscribeToStore(callback: () => void): () => void {
@@ -148,35 +158,33 @@ function subscribeToStore(callback: () => void): () => void {
 }
 
 function patchStoreRecord(id: number, patch: Partial<ProgressRecord>): void {
-  const exists = storeRecords.find((r) => r.challenge_id === id);
-  if (exists) {
-    storeRecords = storeRecords.map((r) =>
-      r.challenge_id === id ? { ...r, ...patch, challenge_id: id } : r
-    );
-  } else {
-    storeRecords = [
-      ...storeRecords,
-      {
-        challenge_id: id,
-        completed: false,
-        code_snapshot: null,
-        updated_at: null,
-        ...patch,
-      },
-    ];
-  }
-  notifyStore();
+  const records = storeSnapshot.records;
+  const exists = records.find((r) => r.challenge_id === id);
+  const next = exists
+    ? records.map((r) =>
+        r.challenge_id === id ? { ...r, ...patch, challenge_id: id } : r
+      )
+    : [
+        ...records,
+        {
+          challenge_id: id,
+          completed: false,
+          code_snapshot: null,
+          updated_at: null,
+          ...patch,
+        },
+      ];
+  publishStore(next, storeSnapshot.hydrated);
 }
 
 async function ensureProgressLoaded(studentId: string): Promise<void> {
   if (storeStudentId !== studentId) {
     storeStudentId = studentId;
-    storeRecords = [];
-    storeHydrated = false;
+    publishStore([], false);
     syncInFlight = null;
   }
 
-  if (storeHydrated) return;
+  if (storeSnapshot.hydrated) return;
   if (syncInFlight) {
     await syncInFlight;
     return;
@@ -189,14 +197,12 @@ async function ensureProgressLoaded(studentId: string): Promise<void> {
         TAB_LOADER_TIMEOUT_MS,
         "Loading progress"
       );
-      storeRecords = synced;
+      publishStore(synced, true);
     } catch (error) {
       console.error("Failed to sync progress:", error);
-      storeRecords = mergeLocalIntoRecords([], studentId);
+      publishStore(mergeLocalIntoRecords([], studentId), true);
     } finally {
-      storeHydrated = true;
       syncInFlight = null;
-      notifyStore();
     }
   })();
 
