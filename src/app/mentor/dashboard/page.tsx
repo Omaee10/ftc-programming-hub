@@ -33,6 +33,7 @@ import {
   fetchMentorsData,
   fetchProgressData,
   fetchStudentsData,
+  deleteClassMember,
   fetchSubmissionsData,
 } from "@/lib/mentorDashboardApi";
 import { challenges as staticChallenges } from "@/data/challenges";
@@ -1060,11 +1061,27 @@ function CodeManager({
 
   const confirmDelete = () => {
     if (!pendingDelete || isPending) return;
+    const session = getSession();
+    if (!session || session.role !== "mentor") {
+      setError("No mentor workspace selected.");
+      return;
+    }
 
     startTransition(async () => {
-      await supabase.from(table).delete().eq("id", pendingDelete.id);
+      setError("");
+      const { error: deleteErr } = await deleteClassMember(
+        session,
+        table === "students" ? "student" : "mentor",
+        pendingDelete.id
+      );
+
+      if (deleteErr) {
+        setError(deleteErr);
+        return;
+      }
+
       setPendingDelete(null);
-      load();
+      await load();
     });
   };
 
@@ -1077,6 +1094,12 @@ function CodeManager({
 
   return (
     <div className="space-y-6">
+      {error && (
+        <p className="rounded-lg border border-red-500/20 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          {error}
+        </p>
+      )}
+
       {/* Your Code card — mentors tab only */}
       {table === "mentors" && session && (() => {
         const myRow = rows.find((r) => r.id === session.id) as MentorRow | undefined;

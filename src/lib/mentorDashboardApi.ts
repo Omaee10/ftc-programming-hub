@@ -110,3 +110,32 @@ export function fetchChallengesData(session: Session): Promise<ChallengesPayload
 export function fetchSubmissionsData(session: Session): Promise<SubmissionsPayload> {
   return postMentorDashboard("submissions", session);
 }
+
+export async function deleteClassMember(
+  session: Session,
+  type: "student" | "mentor",
+  memberId: string
+): Promise<{ error: string | null }> {
+  const res = await withTimeout(
+    fetch("/api/mentor/delete-member", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        memberId,
+        workspaceId: session.id,
+        parentMentorId: session.parentMentorId,
+      }),
+    }),
+    TAB_LOADER_TIMEOUT_MS,
+    "Deleting member"
+  );
+
+  const data = (await res.json()) as { error?: string };
+  if (!res.ok) {
+    return { error: data.error ?? `Delete failed (${res.status})` };
+  }
+
+  return { error: null };
+}
