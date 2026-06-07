@@ -95,16 +95,14 @@ const navigation: NavSection[] = [
         icon: Code2,
       },
       {
-        label: "Challenge Answer Key",
-        href: "/challenges/answer-key",
-        icon: KeyRound,
-        mentorOnly: true,
-        badge: "Mentor",
-      },
-      {
         label: "Code Playground",
         href: "/playground",
         icon: PenLine,
+      },
+      {
+        label: "Challenge Answer Key",
+        href: "/challenges/answer-key",
+        icon: KeyRound,
         mentorOnly: true,
         badge: "Mentor",
       },

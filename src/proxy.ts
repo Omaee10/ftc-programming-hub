@@ -149,25 +149,10 @@ function routeGuard(
     return copyCookies(sessionResponse, NextResponse.next());
   }
 
-  if (pathname.startsWith("/playground")) {
-    if (!user) {
-      return copyCookies(
-        sessionResponse,
-        NextResponse.redirect(new URL("/login", request.url))
-      );
-    }
-    if (role !== "mentor") {
-      return copyCookies(
-        sessionResponse,
-        NextResponse.redirect(new URL("/challenges", request.url))
-      );
-    }
-    return copyCookies(sessionResponse, NextResponse.next());
-  }
-
   const isMainApp =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/challenges") ||
+    pathname.startsWith("/playground") ||
     pathname.startsWith("/homework") ||
     pathname.startsWith("/docs");
 

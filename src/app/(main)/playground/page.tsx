@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import PlaygroundGuard from "./PlaygroundGuard";
+import PlaygroundWorkspace from "@/components/PlaygroundWorkspace";
 
 export const metadata: Metadata = {
   title: "Code Playground",
   description:
-    "Mentor sandbox for free-form FTC code — Java and Blocks modes with compile-only checks.",
+    "Free-form FTC code editor with Java and Blocks modes — compile-only checks, no challenge rubric.",
 };
 
 export default function PlaygroundPage() {
-  return <PlaygroundGuard />;
+  return <PlaygroundWorkspace />;
 }
