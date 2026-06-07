@@ -227,6 +227,11 @@ F["ftc_set_position"] = (block) =>
     "0"
   )});`;
 
+F["ftc_servo_position"] = (block) => [
+  `${safeId(block.getFieldValue("VAR"), "servo")}.getPosition()`,
+  ATOMIC,
+];
+
 // ── Gamepad ─────────────────────────────────────────────────────────────
 
 F["ftc_gamepad_axis"] = (block) => [

@@ -63,6 +63,7 @@ const compare = (a: VWrap, OP: string, b: VWrap): VWrap => ({
 const and = (a: VWrap, b: VWrap): VWrap => ({ block: { type: "ftc_and", inputs: { A: a, B: b } } });
 const not = (v: VWrap): VWrap => ({ block: { type: "ftc_not", inputs: { VALUE: v } } });
 const motorPos = (VAR: string): VWrap => ({ block: { type: "ftc_motor_position", fields: { VAR } } });
+const servoPos = (VAR: string): VWrap => ({ block: { type: "ftc_servo_position", fields: { VAR } } });
 const motorVel = (VAR: string): VWrap => ({ block: { type: "ftc_motor_velocity", fields: { VAR } } });
 const isBusy = (VAR: string): VWrap => ({ block: { type: "ftc_motor_isbusy", fields: { VAR } } });
 const timerSec = (NAME: string): VWrap => ({ block: { type: "ftc_timer_seconds", fields: { NAME } } });
@@ -227,8 +228,10 @@ export const BLOCK_SOLUTIONS: Record<number, WorkspaceState> = {
     dev("Servo", "blocker_servo", "blockerServo"),
     wait(),
     whileActive([
-      ifDo(button("a"), [setPos("blockerServo", num(1.0))], [setPos("blockerServo", num(0.0))]),
-      teleAdd("Pos", num(0)),
+      ifDo(button("a"), [setPos("blockerServo", num(0.0))]),
+      ifDo(button("b"), [setPos("blockerServo", num(1.0))]),
+      ifDo(button("x"), [setPos("blockerServo", num(0.5))]),
+      teleAdd("Position", servoPos("blockerServo")),
       teleUpd(),
     ]),
   ]),

@@ -73,6 +73,7 @@ export const CATEGORY_OF: Record<string, BlockCategory> = {
   ftc_motor_isbusy: "Motors",
 
   ftc_set_position: "Servos",
+  ftc_servo_position: "Servos",
 
   ftc_gamepad_axis: "Gamepad",
   ftc_gamepad_trigger: "Gamepad",
@@ -446,6 +447,14 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     nextStatement: null,
     colour: C.Servos,
     tooltip: "Move a Servo to a position in [0.0, 1.0].",
+  },
+  {
+    type: "ftc_servo_position",
+    message0: "position of %1",
+    args0: [{ type: "field_ftc_name", name: "VAR", text: "servo" }],
+    output: "Number",
+    colour: C.Servos,
+    tooltip: "servo.getPosition() — last commanded position in [0.0, 1.0].",
   },
 
   // ── Gamepad ─────────────────────────────────────────────────────────────
@@ -1009,6 +1018,9 @@ export const FIELD_TOOLTIPS: Record<string, Record<string, string>> = {
   ftc_set_position: {
     VAR: "Which servo to move.",
     VALUE: "Servo position from 0.0 to 1.0.",
+  },
+  ftc_servo_position: {
+    VAR: "Which servo to read — returns the last set position (0.0 to 1.0).",
   },
   ftc_touch_pressed: { VAR: "Which touch sensor to read." },
   ftc_gamepad_axis: {

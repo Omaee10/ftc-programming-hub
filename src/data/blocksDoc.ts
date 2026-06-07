@@ -461,6 +461,13 @@ export const BLOCKS_DOC: DocCategory[] = [
         miniWorkspaceKey: "servo_set_position",
       },
       {
+        name: "Position of (Servo)",
+        description:
+          "Reads the servo's last commanded position (0.0–1.0) via getPosition(). Plug into Telemetry Add to display it on the Driver Station — it is not a physical sensor.",
+        example: "telemetry.addData(\"Position\", servo.getPosition());",
+        miniWorkspaceKey: "servo_get_position",
+      },
+      {
         name: "Set Power (CRServo)",
         description:
           "Spins a continuous-rotation servo like a motor. Use 1.0 for full forward, −1.0 for full reverse, and 0.0 to stop. CRServos do not have position control.",
