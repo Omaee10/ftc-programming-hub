@@ -260,27 +260,45 @@ export function useHomeworkAssignments() {
   );
 
   const markHomeworkComplete = useCallback(
-    async (challengeId: number, code: string) => {
+    async (
+      challengeId: number,
+      code: string
+    ): Promise<{ ok: boolean; error: string | null }> => {
       const session = getSession();
-      if (!session || session.role !== "student") return;
-
-      const now = new Date().toISOString();
-      const { error } = await supabase
-        .from("homework_assignments")
-        .update({
-          completed: true,
-          completed_at: now,
-          code_snapshot: code,
-        })
-        .eq("student_id", session.id)
-        .eq("challenge_id", challengeId);
-
-      if (error) {
-        console.error("Failed to mark homework complete:", error.message);
-        return;
+      if (!session || session.role !== "student") {
+        return { ok: false, error: "Sign in as a student to save homework." };
       }
 
-      const next = assignments.map((a) =>
+      let res: Response;
+      try {
+        res = await fetch("/api/student/homework", {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentId: session.id,
+            challengeId,
+            code,
+          }),
+        });
+      } catch {
+        return { ok: false, error: "Network error — could not save homework." };
+      }
+
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        completed_at?: string;
+      };
+
+      if (!res.ok) {
+        const message = body.error ?? "Failed to mark homework complete.";
+        console.error("Failed to mark homework complete:", message);
+        return { ok: false, error: message };
+      }
+
+      const now = body.completed_at ?? new Date().toISOString();
+      const current = getStoreSnapshot().assignments;
+      const next = current.map((a) =>
         a.challenge_id === challengeId
           ? { ...a, completed: true, completed_at: now, code_snapshot: code }
           : a
@@ -291,8 +309,12 @@ export function useHomeworkAssignments() {
         loadError: null,
         cacheKey: storeSnapshot.cacheKey,
       });
+      if (storeSnapshot.cacheKey) {
+        writeSessionCache(storeSnapshot.cacheKey, next);
+      }
+      return { ok: true, error: null };
     },
-    [assignments]
+    []
   );
 
   const assignHomework = useCallback(

@@ -616,7 +616,9 @@ export default function ChallengeWorkspace({
   challenge: Challenge;
   homeworkMode?: boolean;
   homeworkCompleted?: boolean;
-  onHomeworkComplete?: (code: string) => Promise<void>;
+  onHomeworkComplete?: (
+    code: string
+  ) => Promise<{ ok: boolean; error: string | null } | void>;
   backHref?: string;
   backLabel?: string;
   /** When set, render a locked, read-only reference solution (mentor answer key). */
@@ -1247,7 +1249,25 @@ export default function ChallengeWorkspace({
     if (grade === "good") {
       void (async () => {
         if (homeworkMode && onHomeworkComplete) {
-          await onHomeworkComplete(submissionCode);
+          try {
+            const hwResult = await onHomeworkComplete(submissionCode);
+            if (hwResult && !hwResult.ok) {
+              appendEntry({
+                type: "warning",
+                message: hwResult.error ?? "Could not save homework completion.",
+              });
+            } else {
+              appendEntry({
+                type: "info",
+                message: "Homework marked complete.",
+              });
+            }
+          } catch {
+            appendEntry({
+              type: "warning",
+              message: "Could not save homework completion — use Mark Homework Complete.",
+            });
+          }
         } else if (!homeworkMode) {
           markCompleteLocal(challenge.id);
           await saveCode(submissionCode);
@@ -1604,7 +1624,9 @@ export default function ChallengeWorkspace({
                       }
                       onComplete={
                         homeworkMode && onHomeworkComplete
-                          ? async () => onHomeworkComplete(await resolveSubmissionCode())
+                          ? async () => {
+                              await onHomeworkComplete(await resolveSubmissionCode());
+                            }
                           : undefined
                       }
                       completeLabel={homeworkMode ? "Mark Homework Complete" : "Mark as Complete"}
