@@ -8,9 +8,9 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { BLOCKS_DOC } from "@/data/blocksDoc";
+import { DOC_WORKSPACES } from "@/data/blocksDocWorkspaces";
 import { MINI_WORKSPACES } from "@/data/blocksDocMiniWorkspaces";
 import { FULL_TOOLBOX } from "@/lib/blockly/ftcBlocks";
-import SnippetEditor from "@/components/SnippetEditor";
 
 // ── Blockly loaded lazily (browser-only) ────────────────────────────────────
 const BlocklyWorkspace = dynamic(() => import("@/components/BlocklyWorkspace"), {
@@ -70,22 +70,6 @@ const CATEGORIES: { id: CategoryId; label: string; intro: string }[] = [
   },
 ];
 
-const SNIPPET_DEFAULT = "// Try a small Java snippet here — no compiler on this panel.\n";
-
-function snippetStorageKey(categoryId: string) {
-  return `blocks-doc-snippet-${categoryId}`;
-}
-
-function loadSnippet(categoryId: string): string {
-  if (typeof window === "undefined") return SNIPPET_DEFAULT;
-  try {
-    const saved = localStorage.getItem(snippetStorageKey(categoryId));
-    return saved ?? SNIPPET_DEFAULT;
-  } catch {
-    return SNIPPET_DEFAULT;
-  }
-}
-
 // ── Page component ────────────────────────────────────────────────────────────
 export default function BlocksDocsPage() {
   const [activeCategory, setActiveCategory] = useState<CategoryId>("math");
@@ -138,34 +122,8 @@ export default function BlocksDocsPage() {
 
   const category = CATEGORIES.find((c) => c.id === activeCategory)!;
   const docData = BLOCKS_DOC.find((d) => d.id === activeCategory);
-
-  const [snippetCode, setSnippetCode] = useState(() => loadSnippet(activeCategory));
-  const snippetSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setSnippetCode(loadSnippet(activeCategory));
-  }, [activeCategory]);
-
-  const handleSnippetChange = (next: string) => {
-    setSnippetCode(next);
-    if (snippetSaveTimer.current) clearTimeout(snippetSaveTimer.current);
-    snippetSaveTimer.current = setTimeout(() => {
-      try {
-        localStorage.setItem(snippetStorageKey(activeCategory), next);
-      } catch {
-        // ignore quota / private mode errors
-      }
-    }, 400);
-  };
-
-  const handleSnippetReset = () => {
-    setSnippetCode(SNIPPET_DEFAULT);
-    try {
-      localStorage.removeItem(snippetStorageKey(activeCategory));
-    } catch {
-      // ignore
-    }
-  };
+  const workspace = DOC_WORKSPACES[activeCategory];
+  const [exampleResetSignal, setExampleResetSignal] = useState(0);
 
   const expandedDoc = expandedChallenge
     ? BLOCKS_DOC.find((d) => d.id === expandedChallenge.catId)
@@ -389,7 +347,7 @@ export default function BlocksDocsPage() {
                   onClick={() => setExpandedChallenge(null)}
                   className="shrink-0 ml-2 rounded px-2 py-0.5 text-[10px] border border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 transition-colors"
                 >
-                  ← Snippet pad
+                  ← Example
                 </button>
               </div>
               {/* Editable challenge workspace */}
@@ -411,28 +369,36 @@ export default function BlocksDocsPage() {
             </>
           ) : (
             <>
-              {/* Snippet pad toolbar */}
+              {/* Example mode toolbar */}
               <div className="flex h-8 shrink-0 items-center gap-2 border-b border-slate-800/60 bg-slate-950/80 px-3">
                 <span className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
-                  Java snippet pad
+                  Example — {category.label}
                 </span>
                 <span className="text-[10px] text-slate-700">
-                  No compiler — just for quick notes
+                  No compiler — drag blocks to experiment
                 </span>
                 <button
-                  onClick={handleSnippetReset}
+                  onClick={() => setExampleResetSignal((n) => n + 1)}
                   className="ml-auto shrink-0 rounded px-2 py-0.5 text-[10px] border border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 transition-colors"
                 >
                   Reset
                 </button>
               </div>
-              {/* Editable Java snippet editor */}
+              {/* Editable example workspace */}
               <div className="min-h-0 flex-1">
-                <SnippetEditor
-                  key={activeCategory}
-                  value={snippetCode}
-                  onChange={handleSnippetChange}
-                />
+                {workspace && (
+                  <BlocklyWorkspace
+                    key={activeCategory}
+                    toolbox={FULL_TOOLBOX}
+                    initialState={workspace}
+                    starterState={workspace}
+                    resetSignal={exampleResetSignal}
+                    dark={true}
+                    visible={true}
+                    readOnly={false}
+                    onChange={() => {}}
+                  />
+                )}
               </div>
             </>
           )}
