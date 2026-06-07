@@ -16,6 +16,7 @@ import {
   Shield,
 } from "lucide-react";
 import { signInViaApi } from "@/lib/authSession";
+import AuthContributorsFooter from "@/components/AuthContributorsFooter";
 import CodeInput from "@/components/CodeInput";
 
 export default function SignupPage() {
@@ -100,7 +101,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-950 px-4">
+    <div className="relative flex min-h-screen bg-slate-950 px-4">
       <div className="m-auto w-full max-w-sm py-16">
         <div className="mb-10 flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 border border-slate-700/60">
@@ -303,6 +304,7 @@ export default function SignupPage() {
           </Link>
         </p>
       </div>
+      <AuthContributorsFooter />
     </div>
   );
 }

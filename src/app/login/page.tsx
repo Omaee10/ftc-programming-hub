@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Trophy, Lock, AlertCircle, Loader2, ArrowRight, Mail, CheckCircle2 } from "lucide-react";
 import { signInViaApi } from "@/lib/authSession";
+import AuthContributorsFooter from "@/components/AuthContributorsFooter";
 
 function LoginForm() {
   const router = useRouter();
@@ -38,7 +39,7 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-950 px-4">
+    <div className="relative flex min-h-screen bg-slate-950 px-4">
       <div className="m-auto w-full max-w-sm py-16">
         <div className="mb-10 flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 border border-slate-700/60">
@@ -141,6 +142,7 @@ function LoginForm() {
           </Link>
         </p>
       </div>
+      <AuthContributorsFooter />
     </div>
   );
 }
