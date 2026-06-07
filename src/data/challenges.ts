@@ -310,7 +310,7 @@ import org.firstinspires.ftc.teamcode.MecanumDrive;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.acmerobotics.roadrunner.Action;
-import com.acmerobotics.roadrunner.ftc.Actions;
+import com.acmerobotics.roadrunner.Actions;
 
 @Autonomous(name = "RR Spline Auto", group = "Challenge 4")
 public class RRSplineAuto extends LinearOpMode {
@@ -357,7 +357,7 @@ public class RRSplineAuto extends LinearOpMode {
     tags: ["Pedro Pathing", "PathChain", "Bézier", "Autonomous"],
     objectives: [
       "Create a Pedro Pathing Follower instance and set a starting pose.",
-      "Build a PathChain with pathBuilder(), chaining BezierCurve and BezierLine segments.",
+      "Build a PathChain with new PathBuilder(), chaining BezierCurve and BezierLine segments.",
       "Apply linear, constant, and tangent heading interpolations per segment.",
       "Call follower.followPath() and update the follower in the OpMode loop.",
       "Detect path completion with follower.atParametricEnd().",
@@ -370,17 +370,18 @@ public class RRSplineAuto extends LinearOpMode {
 
 **Leg 3 (Bézier Curve):** Curve back to origin \`(0, 0)\` with control point \`(36, -15)\`. Interpolate heading from **90°** back to **0°**.
 
-**Prerequisites:** Pedro Pathing Quickstart must be installed. \`Follower\`, \`PathChain\`, \`BezierCurve\`, \`BezierLine\`, \`Point\`, and \`Pose\` classes come from the Pedro library.`,
+**Prerequisites:** Pedro Pathing Quickstart must be installed. \`Follower\`, \`PathChain\`, \`PathBuilder\`, \`BezierCurve\`, \`BezierLine\`, \`Point\`, and \`Pose\` come from the Pedro library (\`Pose\` is in \`com.pedropathing.pathgen\`).`,
     starterCode: `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.pedropathing.follower.Follower;
+import com.pedropathing.pathgen.PathBuilder;
 import com.pedropathing.pathgen.PathChain;
 import com.pedropathing.pathgen.BezierCurve;
 import com.pedropathing.pathgen.BezierLine;
 import com.pedropathing.pathgen.Point;
-import com.pedropathing.localization.Pose;
+import com.pedropathing.pathgen.Pose;
 
 @Autonomous(name = "Pedro Chain Auto", group = "Challenge 5")
 public class PedroChainAuto extends LinearOpMode {
@@ -413,6 +414,7 @@ public class PedroChainAuto extends LinearOpMode {
 }`,
     hints: [
       "`new Follower(hardwareMap)` — the constructor automatically reads constants from `RobotConstants.java`. Make sure those are configured first.",
+      "Build the chain with `new PathBuilder().addPath(...).setLinearHeadingInterpolation(...).addPath(...).build()` — not `follower.pathBuilder()`.",
       "For Leg 1 start: `new Point(0, 0, Point.CARTESIAN)`, control: `new Point(10, 15, Point.CARTESIAN)`, end: `new Point(24, 0, Point.CARTESIAN)`.",
       "`setLinearHeadingInterpolation(startHeading, endHeading)` — pass raw radian values. `0` = 0°, `Math.PI / 2` = 90°.",
       "`setConstantHeadingInterpolation(heading)` keeps the robot at a fixed angle for the entire segment.",
@@ -3787,7 +3789,7 @@ In telemetry, display each pose's x, y, and heading in both radians (\`pose.getH
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.pedropathing.localization.Pose;
+import com.pedropathing.pathgen.Pose;
 
 @Autonomous(name = "Pose Construction", group = "Challenge 44")
 public class PoseConstruction extends LinearOpMode {
@@ -3879,7 +3881,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.pathgen.PathChain;
 import com.pedropathing.pathgen.BezierLine;
 import com.pedropathing.pathgen.Point;
-import com.pedropathing.localization.Pose;
+import com.pedropathing.pathgen.Pose;
 
 @Autonomous(name = "BezierLine Follow", group = "Challenge 45")
 public class BezierLineFollow extends LinearOpMode {
@@ -3967,7 +3969,7 @@ import com.pedropathing.pathgen.PathChain;
 import com.pedropathing.pathgen.BezierCurve;
 import com.pedropathing.pathgen.BezierLine;
 import com.pedropathing.pathgen.Point;
-import com.pedropathing.localization.Pose;
+import com.pedropathing.pathgen.Pose;
 
 @Autonomous(name = "Tape Detour", group = "Challenge 46")
 public class TapeDetour extends LinearOpMode {
@@ -4061,7 +4063,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.pathgen.PathChain;
 import com.pedropathing.pathgen.BezierLine;
 import com.pedropathing.pathgen.Point;
-import com.pedropathing.localization.Pose;
+import com.pedropathing.pathgen.Pose;
 
 @Autonomous(name = "Reversed Path", group = "Challenge 47")
 public class ReversedPath extends LinearOpMode {
@@ -4152,7 +4154,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.pathgen.PathChain;
-import com.pedropathing.localization.Pose;
+import com.pedropathing.pathgen.Pose;
 
 @Autonomous(name = "Dynamic Paths", group = "Challenge 48")
 public class DynamicPaths extends LinearOpMode {

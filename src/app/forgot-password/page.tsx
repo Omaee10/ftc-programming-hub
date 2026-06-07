@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { clearSession } from "@/lib/auth";
-import CodeInput from "@/components/CodeInput";
 
 const inputClass =
   "rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all";
@@ -55,7 +54,7 @@ export default function ForgotPasswordPage() {
       }
 
       setStep("reset");
-      setInfo("We sent a 6-digit security code to your email. Enter it below with your new password.");
+      setInfo("We sent a security code to your email. Enter it below with your new password.");
     });
   };
 
@@ -82,8 +81,8 @@ export default function ForgotPasswordPage() {
     const trimmedEmail = email.trim();
     const trimmedCode = code.trim();
 
-    if (trimmedCode.length !== 6) {
-      setError("Enter the full 6-digit security code from your email.");
+    if (!/^\d{6,10}$/.test(trimmedCode)) {
+      setError("Enter the full security code from your email.");
       return;
     }
     if (!newPassword) {
@@ -212,10 +211,19 @@ export default function ForgotPasswordPage() {
           </form>
         ) : (
           <form onSubmit={handleResetPassword} className="flex flex-col gap-5">
-            <div className="flex flex-col gap-3">
-              <label className={`${labelClass} text-center`}>Security Code</label>
-              <CodeInput value={code} onChange={setCode} disabled={isPending} />
-              <p className="text-center text-xs text-slate-600">
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass}>Security Code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="Code from your email"
+                disabled={isPending}
+                className={`w-full text-center font-mono text-lg tracking-[0.25em] ${inputClass}`}
+              />
+              <p className="text-xs text-slate-600">
                 Sent to <span className="text-slate-400">{email.trim()}</span>
               </p>
             </div>
@@ -263,7 +271,7 @@ export default function ForgotPasswordPage() {
               type="submit"
               disabled={
                 isPending ||
-                code.trim().length !== 6 ||
+                !/^\d{6,10}$/.test(code.trim()) ||
                 !newPassword ||
                 !confirmPassword
               }
