@@ -172,6 +172,34 @@ export async function gradeViaService<T = unknown>(payload: {
   return json;
 }
 
+/** Compile-only check for the free-form Code Playground (no rubric). */
+export async function compileViaService<T = unknown>(code: string): Promise<T> {
+  const configError = graderMisconfigured();
+  if (configError) throw new GraderError(configError, 503);
+
+  const key = cacheKey(0, code, "compileOnly");
+  const cached = cacheGet<T>(key);
+  if (cached) return cached;
+
+  const res = await fetchWithTimeout(
+    `${GRADER_URL}/compile`,
+    {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ code, challengeId: 0, compileOnly: true }),
+    },
+    GRADER_TIMEOUT_MS
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw graderResponseError(res.status, text);
+  }
+  const json = (await res.json()) as T;
+  cacheSet(key, json);
+  return json;
+}
+
 export async function requirementsViaService<T = unknown>(
   challengeId: number,
   mentorRules?: unknown[]

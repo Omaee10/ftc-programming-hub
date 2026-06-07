@@ -31,6 +31,9 @@ public final class Grader {
 
     public GradedResultJson grade(CompileRequest req) {
         String source = req.code() == null ? "" : req.code();
+        if (req.compileOnly()) {
+            return compileOnly(source);
+        }
         CompileResult cr = compiler.compile(source);
         RubricContext ctx = new RubricContext(cr, source, stripComments(source));
 
@@ -74,6 +77,34 @@ public final class Grader {
                 score,
                 Verdict.build(grade, score, failedRequired(universalResults, requiredResults),
                               failedImprovements(universalResults, improvementResults))
+        );
+    }
+
+    /** Syntax + type-check only — used by the free-form Code Playground. */
+    private GradedResultJson compileOnly(String source) {
+        CompileResult cr = compiler.compile(source);
+        boolean ok = !cr.hasFatalError();
+        String grade = ok ? "good" : "wrong";
+        GradedResultJson.ScoreJson score = new GradedResultJson.ScoreJson(
+                new GradedResultJson.ScoreJson.Bucket(0, 0),
+                new GradedResultJson.ScoreJson.Bucket(0, 0)
+        );
+        GradedResultJson.VerdictJson verdict = ok
+                ? new GradedResultJson.VerdictJson(
+                        "Compiles Successfully",
+                        "No syntax or type errors found.")
+                : new GradedResultJson.VerdictJson(
+                        "Does Not Compile",
+                        "Fix the errors above and run compile again.");
+        return new GradedResultJson(
+                grade,
+                toSyntaxJson(cr.diagnostics()),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                score,
+                verdict
         );
     }
 

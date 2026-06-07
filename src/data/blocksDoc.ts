@@ -32,7 +32,7 @@ export interface DocCategory {
   /** Hex colour used for the left-border accent. */
   colour: string;
   blocks: BlockDoc[];
-  /** Two mini coding challenges shown at the bottom of the category panel. */
+  /** Practice challenges shown at the bottom of the category panel. */
   challenges: DocChallenge[];
 }
 
@@ -860,21 +860,30 @@ export const BLOCKS_DOC: DocCategory[] = [
       {
         name: "Touch Sensor — Is Pressed",
         description:
-          "Returns true when the digital touch sensor button is physically pressed. Use in an if block to trigger actions on contact.",
-        example: "if (touchSensor.isPressed()) { motor.setPower(0); }",
+          "Returns true when the digital touch sensor button is physically pressed. Use in an if block to trigger actions on contact — commonly wired as a limit switch on an arm or slide.",
+        example: "if (limitSwitch.isPressed()) { motor.setPower(0); }",
         miniWorkspaceKey: "sensor_touch",
+      },
+      {
+        name: "Distance Sensor — Range (cm)",
+        description:
+          "Returns how far an object is from the sensor in centimeters. Compare against a threshold to stop before hitting a wall or to detect game pieces.",
+        example: "double cm = distanceSensor.getDistance(DistanceUnit.CM);",
+        miniWorkspaceKey: "sensor_distance",
       },
       {
         name: "Color Sensor — ARGB",
         description:
           "Returns the alpha, red, green, and blue channel values (0–255 each) from a REV color sensor. Compare channels to detect specific colors.",
         example: "int red = colorSensor.red();\nint blue = colorSensor.blue();",
+        miniWorkspaceKey: "sensor_color_channel",
       },
       {
         name: "Color Sensor — LED",
         description:
           "Turns the color sensor's built-in LED on or off. The LED must be on to reflect light off a surface for accurate color readings.",
         example: "colorSensor.enableLed(true);",
+        miniWorkspaceKey: "sensor_color_led",
       },
       {
         name: "IMU — Heading (Yaw)",
@@ -882,6 +891,7 @@ export const BLOCKS_DOC: DocCategory[] = [
           "Reads the robot's current yaw angle in degrees from the REV IMU (built into the Control Hub). Positive values are counter-clockwise.",
         example:
           "YawPitchRollAngles angles = imu.getRobotYawPitchRollAngles();\ndouble heading = angles.getYaw(AngleUnit.DEGREES);",
+        miniWorkspaceKey: "sensor_imu_yaw",
       },
     ],
     challenges: [
@@ -954,6 +964,252 @@ export const BLOCKS_DOC: DocCategory[] = [
                               type: "ftc_wait_for_start",
                               next: {
                                 block: { type: "ftc_while_active" },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        prompt:
+          "Turn on the color sensor LED before waitForStart. Inside the loop, if the red channel is greater than 150, run the intake motor at 0.8 power — otherwise stop it.",
+        hint: "Set Color Sensor LED on in init → If (Compare: red channel > 150) → Set Power 0.8, Else → Set Power 0.",
+        starterWorkspace: {
+          blocks: {
+            languageVersion: 0,
+            blocks: [
+              {
+                type: "ftc_runopmode",
+                x: 24, y: 24, deletable: false,
+                inputs: {
+                  BODY: {
+                    block: {
+                      type: "ftc_get_hardware",
+                      fields: { TYPE: "ColorSensor", CONFIG: "color_sensor", VAR: "colorSensor" },
+                      next: {
+                        block: {
+                          type: "ftc_get_hardware",
+                          fields: { TYPE: "DcMotorEx", CONFIG: "intake", VAR: "intake" },
+                          next: {
+                            block: {
+                              type: "ftc_init_telemetry",
+                              fields: { MSG: "Ready" },
+                              next: {
+                                block: {
+                                  type: "ftc_wait_for_start",
+                                  next: {
+                                    block: { type: "ftc_while_active" },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        prompt:
+          "Keep the color sensor LED on and display the red and blue channel values labeled \"Red\" and \"Blue\" on telemetry every loop frame.",
+        hint: "Set LED on before waitForStart. Inside the loop: Telemetry Add (Red, red channel) → Telemetry Add (Blue, blue channel) → Telemetry Update.",
+        starterWorkspace: {
+          blocks: {
+            languageVersion: 0,
+            blocks: [
+              {
+                type: "ftc_runopmode",
+                x: 24, y: 24, deletable: false,
+                inputs: {
+                  BODY: {
+                    block: {
+                      type: "ftc_get_hardware",
+                      fields: { TYPE: "ColorSensor", CONFIG: "color_sensor", VAR: "colorSensor" },
+                      next: {
+                        block: {
+                          type: "ftc_init_telemetry",
+                          fields: { MSG: "Ready" },
+                          next: {
+                            block: {
+                              type: "ftc_wait_for_start",
+                              next: {
+                                block: { type: "ftc_while_active" },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        prompt:
+          "If the front distance sensor reads less than 10 cm, stop the drive motor. Otherwise let the driver control it with negated left stick Y.",
+        hint: "If (Compare: distance in cm < 10) → Set Power 0, Else → Set Power (negate left stick Y). Use an If/Else inside while active.",
+        starterWorkspace: {
+          blocks: {
+            languageVersion: 0,
+            blocks: [
+              {
+                type: "ftc_runopmode",
+                x: 24, y: 24, deletable: false,
+                inputs: {
+                  BODY: {
+                    block: {
+                      type: "ftc_get_hardware",
+                      fields: { TYPE: "DistanceSensor", CONFIG: "front_range", VAR: "rangeSensor" },
+                      next: {
+                        block: {
+                          type: "ftc_get_hardware",
+                          fields: { TYPE: "DcMotorEx", CONFIG: "drive", VAR: "drive" },
+                          next: {
+                            block: {
+                              type: "ftc_init_telemetry",
+                              fields: { MSG: "Ready" },
+                              next: {
+                                block: {
+                                  type: "ftc_wait_for_start",
+                                  next: {
+                                    block: { type: "ftc_while_active" },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        prompt:
+          "Show the front distance sensor reading in centimeters labeled \"Distance\" on the Driver Station every loop frame.",
+        hint: "Inside while active: Telemetry Add with caption \"Distance\" and the distance-in-cm block as the value, then Telemetry Update.",
+        starterWorkspace: {
+          blocks: {
+            languageVersion: 0,
+            blocks: [
+              {
+                type: "ftc_runopmode",
+                x: 24, y: 24, deletable: false,
+                inputs: {
+                  BODY: {
+                    block: {
+                      type: "ftc_get_hardware",
+                      fields: { TYPE: "DistanceSensor", CONFIG: "front_range", VAR: "rangeSensor" },
+                      next: {
+                        block: {
+                          type: "ftc_init_telemetry",
+                          fields: { MSG: "Ready" },
+                          next: {
+                            block: {
+                              type: "ftc_wait_for_start",
+                              next: {
+                                block: { type: "ftc_while_active" },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        prompt:
+          "Display the robot's IMU heading in degrees labeled \"Heading\" on telemetry every loop frame.",
+        hint: "Get IMU from hardwareMap during init. Inside while active: Telemetry Add (Heading, heading in degrees block) → Telemetry Update.",
+        starterWorkspace: {
+          blocks: {
+            languageVersion: 0,
+            blocks: [
+              {
+                type: "ftc_runopmode",
+                x: 24, y: 24, deletable: false,
+                inputs: {
+                  BODY: {
+                    block: {
+                      type: "ftc_get_hardware",
+                      fields: { TYPE: "IMU", CONFIG: "imu", VAR: "imu" },
+                      next: {
+                        block: {
+                          type: "ftc_init_telemetry",
+                          fields: { MSG: "Ready" },
+                          next: {
+                            block: {
+                              type: "ftc_wait_for_start",
+                              next: {
+                                block: { type: "ftc_while_active" },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        prompt:
+          "If the IMU heading is greater than 45 degrees, stop the drive motor. Otherwise let the driver control it with negated left stick Y.",
+        hint: "If (Compare: heading in degrees > 45) → Set Power 0, Else → Set Power (negate left stick Y). Put the If/Else inside while active.",
+        starterWorkspace: {
+          blocks: {
+            languageVersion: 0,
+            blocks: [
+              {
+                type: "ftc_runopmode",
+                x: 24, y: 24, deletable: false,
+                inputs: {
+                  BODY: {
+                    block: {
+                      type: "ftc_get_hardware",
+                      fields: { TYPE: "IMU", CONFIG: "imu", VAR: "imu" },
+                      next: {
+                        block: {
+                          type: "ftc_get_hardware",
+                          fields: { TYPE: "DcMotorEx", CONFIG: "drive", VAR: "drive" },
+                          next: {
+                            block: {
+                              type: "ftc_init_telemetry",
+                              fields: { MSG: "Ready" },
+                              next: {
+                                block: {
+                                  type: "ftc_wait_for_start",
+                                  next: {
+                                    block: { type: "ftc_while_active" },
+                                  },
+                                },
                               },
                             },
                           },

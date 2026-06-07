@@ -10,13 +10,20 @@ import java.util.List;
  * challengeId:    integer id of the challenge being graded
  * mentorRules:    optional rule DSL submitted by mentors who created the challenge.
  *                 When present these are layered on top of the universal rules.
+ * compileOnly:    when true, run javac only — skip universal and challenge rubric checks.
  */
 public record CompileRequest(
         String code,
         @JsonProperty("challengeId") int challengeId,
-        @JsonProperty("mentorRules") List<MentorRuleSpec> mentorRules
+        @JsonProperty("mentorRules") List<MentorRuleSpec> mentorRules,
+        @JsonProperty("compileOnly") boolean compileOnly
 ) {
     public CompileRequest {
         if (mentorRules == null) mentorRules = List.of();
+    }
+
+    /** Back-compat for callers that omit {@code compileOnly}. */
+    public CompileRequest(String code, int challengeId, List<MentorRuleSpec> mentorRules) {
+        this(code, challengeId, mentorRules, false);
     }
 }

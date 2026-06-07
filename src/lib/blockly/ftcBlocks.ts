@@ -30,6 +30,7 @@ export type BlockCategory =
   | "Servos"
   | "Gamepad"
   | "Telemetry"
+  | "Sensors"
   | "Logic"
   | "Math"
   | "Variables"
@@ -42,6 +43,7 @@ export const CATEGORY_COLOUR: Record<BlockCategory, string> = {
   Servos: "#a5825b",
   Gamepad: "#a5a55b",
   Telemetry: "#5ba5a5",
+  Sensors: "#5b80a5",
   Logic: "#5b80a5",
   Math: "#a55b5b",
   Variables: "#9b5ba5",
@@ -89,7 +91,12 @@ export const CATEGORY_OF: Record<string, BlockCategory> = {
   ftc_and: "Logic",
   ftc_not: "Logic",
   ftc_boolean: "Logic",
-  ftc_touch_pressed: "Logic",
+
+  ftc_touch_pressed: "Sensors",
+  ftc_color_channel: "Sensors",
+  ftc_color_led: "Sensors",
+  ftc_distance: "Sensors",
+  ftc_imu_yaw: "Sensors",
 
   ftc_number: "Math",
   ftc_arith: "Math",
@@ -299,6 +306,9 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
           ["Servo", "Servo"],
           ["CRServo", "CRServo"],
           ["TouchSensor", "TouchSensor"],
+          ["ColorSensor", "ColorSensor"],
+          ["DistanceSensor", "DistanceSensor"],
+          ["IMU", "IMU"],
         ],
       },
       { type: "field_input", name: "CONFIG", text: "left_motor" },
@@ -672,8 +682,64 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     message0: "%1 is pressed",
     args0: [{ type: "field_ftc_name", name: "VAR", text: "touchSensor" }],
     output: "Boolean",
-    colour: C.Logic,
+    colour: C.Sensors,
     tooltip: "TouchSensor.isPressed().",
+  },
+  {
+    type: "ftc_color_channel",
+    message0: "%1 %2",
+    args0: [
+      { type: "field_ftc_name", name: "VAR", text: "colorSensor" },
+      {
+        type: "field_dropdown",
+        name: "CHANNEL",
+        options: [
+          ["red", "red"],
+          ["green", "green"],
+          ["blue", "blue"],
+          ["alpha", "alpha"],
+        ],
+      },
+    ],
+    output: "Number",
+    inputsInline: true,
+    colour: C.Sensors,
+    tooltip: "ColorSensor channel value (0–255).",
+  },
+  {
+    type: "ftc_color_led",
+    message0: "set %1 LED %2",
+    args0: [
+      { type: "field_ftc_name", name: "VAR", text: "colorSensor" },
+      {
+        type: "field_dropdown",
+        name: "STATE",
+        options: [
+          ["on", "true"],
+          ["off", "false"],
+        ],
+      },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: C.Sensors,
+    tooltip: "ColorSensor.enableLed() — turn the built-in LED on or off.",
+  },
+  {
+    type: "ftc_distance",
+    message0: "distance of %1 in cm",
+    args0: [{ type: "field_ftc_name", name: "VAR", text: "distanceSensor" }],
+    output: "Number",
+    colour: C.Sensors,
+    tooltip: "DistanceSensor.getDistance(DistanceUnit.CM).",
+  },
+  {
+    type: "ftc_imu_yaw",
+    message0: "heading of %1 in degrees",
+    args0: [{ type: "field_ftc_name", name: "VAR", text: "imu" }],
+    output: "Number",
+    colour: C.Sensors,
+    tooltip: "IMU yaw heading in degrees (counter-clockwise positive).",
   },
 
   // ── Math ────────────────────────────────────────────────────────────────
@@ -1040,6 +1106,16 @@ export const FIELD_TOOLTIPS: Record<string, Record<string, string>> = {
     VALUE: "Power from -1.0 (full reverse) to 1.0 (full forward).",
   },
   ftc_touch_pressed: { VAR: "Which touch sensor to read." },
+  ftc_color_channel: {
+    VAR: "Which color sensor to read.",
+    CHANNEL: "ARGB channel: red, green, blue, or alpha (0–255).",
+  },
+  ftc_color_led: {
+    VAR: "Which color sensor's LED to control.",
+    STATE: "Turn the built-in LED on or off.",
+  },
+  ftc_distance: { VAR: "Which distance sensor to read (centimeters)." },
+  ftc_imu_yaw: { VAR: "Which IMU to read heading from." },
   ftc_gamepad_axis: {
     PAD: "Which controller (gamepad 1 or gamepad 2).",
     AXIS: "Which joystick axis to read (-1.0 to 1.0).",
@@ -1135,6 +1211,7 @@ const CATEGORY_ORDER: BlockCategory[] = [
   "Servos",
   "Gamepad",
   "Telemetry",
+  "Sensors",
   "Logic",
   "Math",
   "Variables",

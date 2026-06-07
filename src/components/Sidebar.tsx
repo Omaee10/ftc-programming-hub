@@ -26,6 +26,7 @@ import {
   ActivitySquare,
   KeyRound,
   LayoutGrid,
+  PenLine,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 interface NavChild {
@@ -92,6 +93,12 @@ const navigation: NavSection[] = [
         label: "Coding Challenges",
         href: "/challenges",
         icon: Code2,
+      },
+      {
+        label: "Code Playground",
+        href: "/playground",
+        icon: PenLine,
+        badge: "New",
       },
       {
         label: "Challenge Answer Key",

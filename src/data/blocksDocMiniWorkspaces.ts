@@ -151,7 +151,27 @@ export const MINI_WORKSPACES: Record<string, WorkspaceState> = {
 
   sensor_touch: ws({
     type: "ftc_touch_pressed",
-    fields: { VAR: "touchSensor" },
+    fields: { VAR: "limitSwitch" },
+  }),
+
+  sensor_color_channel: ws({
+    type: "ftc_color_channel",
+    fields: { VAR: "colorSensor", CHANNEL: "red" },
+  }),
+
+  sensor_color_led: ws({
+    type: "ftc_color_led",
+    fields: { VAR: "colorSensor", STATE: "true" },
+  }),
+
+  sensor_distance: ws({
+    type: "ftc_distance",
+    fields: { VAR: "distanceSensor" },
+  }),
+
+  sensor_imu_yaw: ws({
+    type: "ftc_imu_yaw",
+    fields: { VAR: "imu" },
   }),
 
   // ── Math ────────────────────────────────────────────────────────────────

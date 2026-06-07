@@ -218,8 +218,8 @@ const DOC_DEFS: DocDef[] = [
       {
         id: "sensors",
         title: "Sensors",
-        snippet: "Touch sensor, color sensor ARGB, LED enable, IMU heading yaw",
-        terms: ["blocks", "sensors", "touch sensor", "is pressed", "color sensor", "argb", "red", "blue", "imu", "heading", "yaw", "gyro"],
+        snippet: "Touch sensor, distance sensor, color sensor ARGB, LED enable, IMU heading yaw",
+        terms: ["blocks", "sensors", "touch sensor", "limit switch", "is pressed", "distance sensor", "range", "color sensor", "argb", "red", "blue", "imu", "heading", "yaw", "gyro"],
       },
       {
         id: "gamepad",

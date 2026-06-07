@@ -187,6 +187,18 @@ export async function gradeCode(
 }
 
 /**
+ * Compile-only check for the free-form Code Playground — runs javac against
+ * the FTC SDK stubs with no challenge rubric or universal OpMode rules.
+ */
+export async function compileCode(code: string): Promise<GradedResult> {
+  return postJson<GradedResult>(
+    "/api/compile",
+    { code },
+    timeoutSignal(CLIENT_TIMEOUT_MS)
+  );
+}
+
+/**
  * Preview the rules that will run for a challenge — used by the "Code
  * Requirements" panel in the workspace before any code is submitted.
  */

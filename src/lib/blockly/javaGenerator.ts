@@ -337,6 +337,28 @@ F["ftc_touch_pressed"] = (block) => [
   ATOMIC,
 ];
 
+F["ftc_color_channel"] = (block) => {
+  const v = safeId(block.getFieldValue("VAR"), "colorSensor");
+  const channel = block.getFieldValue("CHANNEL") || "red";
+  return [`${v}.${channel}()`, ATOMIC];
+};
+
+F["ftc_color_led"] = (block) => {
+  const v = safeId(block.getFieldValue("VAR"), "colorSensor");
+  const state = block.getFieldValue("STATE") === "false" ? "false" : "true";
+  return `${v}.enableLed(${state});`;
+};
+
+F["ftc_distance"] = (block) => [
+  `${safeId(block.getFieldValue("VAR"), "distanceSensor")}.getDistance(DistanceUnit.CM)`,
+  ATOMIC,
+];
+
+F["ftc_imu_yaw"] = (block) => [
+  `${safeId(block.getFieldValue("VAR"), "imu")}.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES)`,
+  ATOMIC,
+];
+
 // ── Math ────────────────────────────────────────────────────────────────
 
 F["ftc_number"] = (block) => [String(block.getFieldValue("NUM")), ATOMIC];
