@@ -543,7 +543,7 @@ export const BLOCKS_DOC: DocCategory[] = [
                                   inputs: {
                                     DO: {
                                       block: {
-                                        type: "ftc_set_power",
+                                        type: "ftc_servo_set_power",
                                         fields: { VAR: "intake" },
                                       },
                                     },

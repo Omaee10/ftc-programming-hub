@@ -232,6 +232,13 @@ F["ftc_servo_position"] = (block) => [
   ATOMIC,
 ];
 
+F["ftc_servo_set_power"] = (block) =>
+  `${safeId(block.getFieldValue("VAR"), "servo")}.setPower(${val(
+    block,
+    "VALUE",
+    "0"
+  )});`;
+
 // ── Gamepad ─────────────────────────────────────────────────────────────
 
 F["ftc_gamepad_axis"] = (block) => [

@@ -83,7 +83,7 @@ export const MINI_WORKSPACES: Record<string, WorkspaceState> = {
   }),
 
   servo_set_power: ws({
-    type: "ftc_set_power",
+    type: "ftc_servo_set_power",
     fields: { VAR: "crServo" },
     inputs: { VALUE: { block: { type: "ftc_number", fields: { NUM: "1.0" } } } },
   }),

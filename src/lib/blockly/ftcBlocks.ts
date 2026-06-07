@@ -74,6 +74,7 @@ export const CATEGORY_OF: Record<string, BlockCategory> = {
 
   ftc_set_position: "Servos",
   ftc_servo_position: "Servos",
+  ftc_servo_set_power: "Servos",
 
   ftc_gamepad_axis: "Gamepad",
   ftc_gamepad_trigger: "Gamepad",
@@ -455,6 +456,18 @@ export const FTC_BLOCK_DEFS: Record<string, unknown>[] = [
     output: "Number",
     colour: C.Servos,
     tooltip: "servo.getPosition() — last commanded position in [0.0, 1.0].",
+  },
+  {
+    type: "ftc_servo_set_power",
+    message0: "set power of %1 to %2",
+    args0: [
+      { type: "field_ftc_name", name: "VAR", text: "servo" },
+      { type: "input_value", name: "VALUE", check: "Number" },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: C.Servos,
+    tooltip: "Spin a CRServo in [-1, 1]. Standard servos use Set Position instead.",
   },
 
   // ── Gamepad ─────────────────────────────────────────────────────────────
@@ -1022,6 +1035,10 @@ export const FIELD_TOOLTIPS: Record<string, Record<string, string>> = {
   ftc_servo_position: {
     VAR: "Which servo to read — returns the last set position (0.0 to 1.0).",
   },
+  ftc_servo_set_power: {
+    VAR: "Which CRServo to spin (continuous rotation).",
+    VALUE: "Power from -1.0 (full reverse) to 1.0 (full forward).",
+  },
   ftc_touch_pressed: { VAR: "Which touch sensor to read." },
   ftc_gamepad_axis: {
     PAD: "Which controller (gamepad 1 or gamepad 2).",
@@ -1154,6 +1171,7 @@ const NUMBER_SHADOW_INPUTS: Record<string, string[]> = {
   ftc_assign: ["VALUE"],
   ftc_change_by: ["VALUE"],
   ftc_set_power: ["VALUE"],
+  ftc_servo_set_power: ["VALUE"],
   ftc_set_position: ["VALUE"],
   ftc_set_target: ["VALUE"],
   ftc_set_velocity: ["VALUE"],

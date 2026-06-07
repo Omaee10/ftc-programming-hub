@@ -242,7 +242,7 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
   8: {
     toolbox: buildToolbox([
       ...HW,
-      "ftc_set_power",
+      "ftc_servo_set_power",
       "ftc_gamepad_trigger",
       "ftc_gamepad_button",
       ...LOGIC,
