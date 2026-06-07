@@ -1040,7 +1040,9 @@ export default function ChallengeWorkspace({
     setLastGrade(null);
 
     const filename = `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.java`;
+    let finishedGrading = false;
 
+    try {
     appendEntry({ type: "init", message: "FTC Hub Analyzer v3.0" });
     appendEntry({ type: "separator", message: "" });
 
@@ -1074,7 +1076,6 @@ export default function ChallengeWorkspace({
         sub: msg,
       });
       setLastGrade(null);
-      setIsRunning(false);
       return;
     }
 
@@ -1199,48 +1200,6 @@ export default function ChallengeWorkspace({
       });
     }
 
-    // ── Auto-complete + mentor submit on "Good" ───────────────────────
-    if (grade === "good") {
-      if (homeworkMode && onHomeworkComplete) {
-        await onHomeworkComplete(submissionCode);
-      } else if (!homeworkMode) {
-        markCompleteLocal(challenge.id);
-        await saveCode(submissionCode);
-        await markCompleteDB(challenge.id, submissionCode);
-        await delay(160);
-        appendEntry({
-          type: "info",
-          message: "Challenge marked complete — XP awarded.",
-        });
-      }
-
-      if (isMentorChallenge && submission?.status !== "graded") {
-        if (!studentSession?.id) {
-          await delay(160);
-          appendEntry({
-            type: "warning",
-            message:
-              "Sign in as a student and pick your class to submit for mentor review.",
-          });
-        } else if (!submissionCode.trim()) {
-          await delay(160);
-          appendEntry({
-            type: "warning",
-            message: "Could not serialize your Blocks workspace for submission.",
-          });
-        } else {
-          const { error: reviewErr } = await submitForMentorReview(submissionCode);
-          if (!reviewErr) {
-            await delay(160);
-            appendEntry({
-              type: "info",
-              message: "Submitted to your mentor for review.",
-            });
-          }
-        }
-      }
-    }
-
     // ── Populate live check statuses for the left panel ────────────────
     const statuses: Record<string, "pass" | "fail" | "warn"> = {};
     [...result.universalResults, ...result.requiredResults].forEach((r) => {
@@ -1254,9 +1213,6 @@ export default function ChallengeWorkspace({
     });
     setCheckStatuses(statuses);
 
-    // Build focused error / improvement lists for the left panel.
-    // Mirror the grader's own tier split: universal required-tier → errors,
-    // universal improvement/style-tier → suggestions (same as challenge checks).
     const syntaxErrors = result.syntaxIssues
       .filter((s) => s.severity === "error")
       .map((s) => ({ label: s.message, lines: s.lines }));
@@ -1274,15 +1230,61 @@ export default function ChallengeWorkspace({
       .map((r) => ({ label: r.label, tip: r.tip, lines: r.matchedLines }));
 
     setFailedErrors([...syntaxErrors, ...universalRequiredFails, ...challengeRequiredFails]);
-
-    const improveFails = [
+    setFailedImprovements([
       ...universalSoftFails,
-      ...result.improvementResults.filter((r) => !r.pass).map((r) => ({ label: r.label, tip: r.tip })),
-      ...result.styleResults.filter((r) => !r.pass).map((r) => ({ label: r.label, tip: r.tip })),
-    ];
-    setFailedImprovements(improveFails);
+      ...result.improvementResults
+        .filter((r) => !r.pass)
+        .map((r) => ({ label: r.label, tip: r.tip })),
+      ...result.styleResults
+        .filter((r) => !r.pass)
+        .map((r) => ({ label: r.label, tip: r.tip })),
+    ]);
     setLastGrade(grade);
+    finishedGrading = true;
     setIsRunning(false);
+
+    // ── Auto-complete + mentor submit on "Good" (non-blocking for UI) ──
+    if (grade === "good") {
+      void (async () => {
+        if (homeworkMode && onHomeworkComplete) {
+          await onHomeworkComplete(submissionCode);
+        } else if (!homeworkMode) {
+          markCompleteLocal(challenge.id);
+          await saveCode(submissionCode);
+          await markCompleteDB(challenge.id, submissionCode);
+          appendEntry({
+            type: "info",
+            message: "Challenge marked complete — XP awarded.",
+          });
+        }
+
+        if (isMentorChallenge && submission?.status !== "graded") {
+          if (!studentSession?.id) {
+            appendEntry({
+              type: "warning",
+              message:
+                "Sign in as a student and pick your class to submit for mentor review.",
+            });
+          } else if (!submissionCode.trim()) {
+            appendEntry({
+              type: "warning",
+              message: "Could not serialize your Blocks workspace for submission.",
+            });
+          } else {
+            const { error: reviewErr } = await submitForMentorReview(submissionCode);
+            if (!reviewErr) {
+              appendEntry({
+                type: "info",
+                message: "Submitted to your mentor for review.",
+              });
+            }
+          }
+        }
+      })();
+    }
+    } finally {
+      if (!finishedGrading) setIsRunning(false);
+    }
   }, [
     challenge,
     editorMode,
