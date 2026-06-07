@@ -880,36 +880,64 @@ export default function ChallengeWorkspace({
 
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  /** Java sent to the grader / mentor — generated from blocks when in Blocks mode. */
+  const resolveSubmissionCode = useCallback(async (): Promise<string> => {
+    if (editorMode === "blocks" && blocksConfig) {
+      try {
+        const { generateJava } = await import("@/lib/blockly/javaGenerator");
+        return generateJava(
+          blockStateRef.current ?? blocksConfig.starter,
+          blocksConfig.frame
+        );
+      } catch {
+        return "";
+      }
+    }
+    return code;
+  }, [editorMode, blocksConfig, code]);
+
+  const submitForMentorReview = useCallback(
+    async (snapshot: string): Promise<{ error: string | null }> => {
+      if (!studentSession?.id || !snapshot.trim()) {
+        return { error: null };
+      }
+      setSubmitting(true);
+      setSubmitError(null);
+      const { data, error } = await supabase
+        .from("challenge_submissions")
+        .upsert(
+          {
+            student_id: studentSession.id,
+            challenge_id: challenge.id,
+            code_snapshot: snapshot,
+            status: "pending",
+            grade: null,
+            feedback: null,
+            graded_at: null,
+            graded_by: null,
+          },
+          { onConflict: "student_id,challenge_id" }
+        )
+        .select()
+        .single();
+      setSubmitting(false);
+      if (error) {
+        setSubmitError(error.message);
+        return { error: error.message };
+      }
+      if (data) setSubmission(data as SubmissionRow);
+      setSubmitBanner(true);
+      setTimeout(() => setSubmitBanner(false), 4000);
+      return { error: null };
+    },
+    [studentSession?.id, challenge.id]
+  );
+
   const handleSubmitForReview = useCallback(async () => {
     if (!studentSession?.id || submitting) return;
-    setSubmitting(true);
-    setSubmitError(null);
-    const { data, error } = await supabase
-      .from("challenge_submissions")
-      .upsert(
-        {
-          student_id: studentSession.id,
-          challenge_id: challenge.id,
-          code_snapshot: code,
-          status: "pending",
-          grade: null,
-          feedback: null,
-          graded_at: null,
-          graded_by: null,
-        },
-        { onConflict: "student_id,challenge_id" }
-      )
-      .select()
-      .single();
-    setSubmitting(false);
-    if (error) {
-      setSubmitError(error.message);
-      return;
-    }
-    if (data) setSubmission(data as SubmissionRow);
-    setSubmitBanner(true);
-    setTimeout(() => setSubmitBanner(false), 4000);
-  }, [studentSession?.id, challenge.id, code, submitting]);
+    const snapshot = await resolveSubmissionCode();
+    await submitForMentorReview(snapshot);
+  }, [studentSession?.id, submitting, resolveSubmissionCode, submitForMentorReview]);
 
   // ── Resizable split ─────────────────────────────────────────────────────
   const [leftPct, setLeftPct] = useState(40);
@@ -1004,20 +1032,7 @@ export default function ChallengeWorkspace({
     await delay(180);
     appendEntry({ type: "running", message: `Compiling ${filename} with javac…` });
 
-    // In Blocks mode the visual workspace is compiled to hidden Java that the
-    // grader sees; the student/mentor never view this generated source.
-    let submissionCode = code;
-    if (editorMode === "blocks" && blocksConfig) {
-      try {
-        const { generateJava } = await import("@/lib/blockly/javaGenerator");
-        submissionCode = generateJava(
-          blockStateRef.current ?? blocksConfig.starter,
-          blocksConfig.frame
-        );
-      } catch {
-        submissionCode = "";
-      }
-    }
+    const submissionCode = await resolveSubmissionCode();
 
     // ── Real grader call ─────────────────────────────────────────────
     let result: GradedResult;
@@ -1162,12 +1177,34 @@ export default function ChallengeWorkspace({
       });
     }
 
-    // ── Auto-complete on "Good" ────────────────────────────────────────
+    // ── Auto-complete + mentor submit on "Good" ───────────────────────
     if (grade === "good") {
       if (homeworkMode && onHomeworkComplete) {
-        await onHomeworkComplete(code);
+        await onHomeworkComplete(submissionCode);
       } else if (!homeworkMode) {
-        await markComplete(challenge.id);
+        markCompleteLocal(challenge.id);
+        await saveCode(submissionCode);
+        await markCompleteDB(challenge.id);
+        await delay(160);
+        appendEntry({
+          type: "info",
+          message: "Challenge marked complete — XP awarded.",
+        });
+      }
+
+      if (
+        isMentorChallenge
+        && studentSession?.id
+        && submission?.status !== "graded"
+      ) {
+        const { error: reviewErr } = await submitForMentorReview(submissionCode);
+        if (!reviewErr) {
+          await delay(160);
+          appendEntry({
+            type: "info",
+            message: "Submitted to your mentor for review.",
+          });
+        }
       }
     }
 
@@ -1218,11 +1255,16 @@ export default function ChallengeWorkspace({
     challenge,
     isRunning,
     appendEntry,
-    markComplete,
+    markCompleteLocal,
+    markCompleteDB,
+    saveCode,
     homeworkMode,
     onHomeworkComplete,
-    editorMode,
-    blocksConfig,
+    resolveSubmissionCode,
+    isMentorChallenge,
+    studentSession?.id,
+    submission?.status,
+    submitForMentorReview,
   ]);
 
   // ── Left panel section toggles ─────────────────────────────────────────
@@ -1527,7 +1569,7 @@ export default function ChallengeWorkspace({
                       }
                       onComplete={
                         homeworkMode && onHomeworkComplete
-                          ? () => onHomeworkComplete(code)
+                          ? async () => onHomeworkComplete(await resolveSubmissionCode())
                           : undefined
                       }
                       completeLabel={homeworkMode ? "Mark Homework Complete" : "Mark as Complete"}
