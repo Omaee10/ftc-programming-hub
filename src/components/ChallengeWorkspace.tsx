@@ -52,7 +52,9 @@ import {
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { supabase, type SubmissionRow } from "@/lib/supabase";
-import { getSession, type Session } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { useWorkspaceSession } from "@/lib/useWorkspaceSession";
+import type { BlocklyWorkspaceHandle } from "./BlocklyWorkspace";
 import {
   clearCodeDraft,
   readCodeDraft,
@@ -662,16 +664,12 @@ export default function ChallengeWorkspace({
 
   // ── Mentor-challenge detection & submission state ────────────────────────
   const isMentorChallenge = !staticChallenges.find((c) => c.id === challenge.id);
-  const [studentSession, setStudentSession] = useState<Session | null>(null);
+  const workspaceSession = useWorkspaceSession();
+  const studentSession =
+    workspaceSession?.role === "student" ? workspaceSession : null;
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitBanner, setSubmitBanner] = useState(false);
-
-  // Resolve student session on client only (avoids SSR / hydration mismatch)
-  useEffect(() => {
-    const s = getSession();
-    if (s?.role === "student") setStudentSession(s);
-  }, []);
 
   // Load existing submission for this student + mentor challenge
   useEffect(() => {
@@ -718,6 +716,15 @@ export default function ChallengeWorkspace({
   const [pendingMode, setPendingMode] = useState<EditorMode | null>(null);
   const [blockResetSignal, setBlockResetSignal] = useState(0);
   const blockStateRef = useRef<WorkspaceState | null>(null);
+  const blockDraftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const blocklyHandleRef = useRef<BlocklyWorkspaceHandle | null>(null);
+  const editorModeRef = useRef(editorMode);
+  const blocksConfigRef = useRef(blocksConfig);
+  editorModeRef.current = editorMode;
+  blocksConfigRef.current = blocksConfig;
+  const registerBlocklyHandle = useCallback((handle: BlocklyWorkspaceHandle | null) => {
+    blocklyHandleRef.current = handle;
+  }, []);
 
   const requestModeSwitch = useCallback(
     (target: EditorMode) => {
@@ -745,7 +752,9 @@ export default function ChallengeWorkspace({
       try {
         const { generateJava } = await import("@/lib/blockly/javaGenerator");
         const generated = generateJava(
-          blockStateRef.current ?? blocksConfig.starter,
+          blocklyHandleRef.current?.getState()
+            ?? blockStateRef.current
+            ?? blocksConfig.starter,
           blocksConfig.frame
         );
         setCode(generated);
@@ -783,7 +792,10 @@ export default function ChallengeWorkspace({
     (state: WorkspaceState) => {
       if (answerKeyMode) return;
       blockStateRef.current = state;
-      saveBlockDraft(challenge.id, state);
+      clearTimeout(blockDraftTimer.current);
+      blockDraftTimer.current = setTimeout(() => {
+        saveBlockDraft(challenge.id, state);
+      }, 400);
     },
     [answerKeyMode, challenge.id]
   );
@@ -882,19 +894,29 @@ export default function ChallengeWorkspace({
 
   /** Java sent to the grader / mentor — generated from blocks when in Blocks mode. */
   const resolveSubmissionCode = useCallback(async (): Promise<string> => {
-    if (editorMode === "blocks" && blocksConfig) {
+    const mode = editorModeRef.current;
+    const config = blocksConfigRef.current;
+    if (mode === "blocks" && config) {
+      const liveState =
+        blocklyHandleRef.current?.getState()
+        ?? blockStateRef.current
+        ?? config.starter;
+      if (liveState) {
+        blockStateRef.current = liveState;
+        if (!answerKeyMode) {
+          clearTimeout(blockDraftTimer.current);
+          saveBlockDraft(challenge.id, liveState);
+        }
+      }
       try {
         const { generateJava } = await import("@/lib/blockly/javaGenerator");
-        return generateJava(
-          blockStateRef.current ?? blocksConfig.starter,
-          blocksConfig.frame
-        );
+        return generateJava(liveState, config.frame);
       } catch {
         return "";
       }
     }
-    return code;
-  }, [editorMode, blocksConfig, code]);
+    return codeRef.current;
+  }, [challenge.id, answerKeyMode]);
 
   const submitForMentorReview = useCallback(
     async (snapshot: string): Promise<{ error: string | null }> => {
@@ -1184,7 +1206,7 @@ export default function ChallengeWorkspace({
       } else if (!homeworkMode) {
         markCompleteLocal(challenge.id);
         await saveCode(submissionCode);
-        await markCompleteDB(challenge.id);
+        await markCompleteDB(challenge.id, submissionCode);
         await delay(160);
         appendEntry({
           type: "info",
@@ -1192,18 +1214,29 @@ export default function ChallengeWorkspace({
         });
       }
 
-      if (
-        isMentorChallenge
-        && studentSession?.id
-        && submission?.status !== "graded"
-      ) {
-        const { error: reviewErr } = await submitForMentorReview(submissionCode);
-        if (!reviewErr) {
+      if (isMentorChallenge && submission?.status !== "graded") {
+        if (!studentSession?.id) {
           await delay(160);
           appendEntry({
-            type: "info",
-            message: "Submitted to your mentor for review.",
+            type: "warning",
+            message:
+              "Sign in as a student and pick your class to submit for mentor review.",
           });
+        } else if (!submissionCode.trim()) {
+          await delay(160);
+          appendEntry({
+            type: "warning",
+            message: "Could not serialize your Blocks workspace for submission.",
+          });
+        } else {
+          const { error: reviewErr } = await submitForMentorReview(submissionCode);
+          if (!reviewErr) {
+            await delay(160);
+            appendEntry({
+              type: "info",
+              message: "Submitted to your mentor for review.",
+            });
+          }
         }
       }
     }
@@ -1251,8 +1284,8 @@ export default function ChallengeWorkspace({
     setLastGrade(grade);
     setIsRunning(false);
   }, [
-    code,
     challenge,
+    editorMode,
     isRunning,
     appendEntry,
     markCompleteLocal,
@@ -1720,6 +1753,7 @@ export default function ChallengeWorkspace({
                   visible={editorMode === "blocks"}
                   readOnly={answerKeyMode}
                   onChange={handleBlocksChange}
+                  registerHandle={registerBlocklyHandle}
                 />
               </div>
             )}

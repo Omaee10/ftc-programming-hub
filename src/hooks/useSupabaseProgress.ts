@@ -305,34 +305,38 @@ export function useSupabaseProgress(challengeId?: number) {
     [challengeId, records]
   );
 
-  const markComplete = useCallback(async (id: number): Promise<void> => {
-    const activeSession = getSession();
-    if (!activeSession || activeSession.role !== "student") return;
+  const markComplete = useCallback(
+    async (id: number, codeSnapshot?: string): Promise<void> => {
+      const activeSession = getSession();
+      if (!activeSession || activeSession.role !== "student") return;
 
-    const now = new Date().toISOString();
-    const existing = records.find((r) => r.challenge_id === id);
+      const now = new Date().toISOString();
+      const existing = getStoreSnapshot().records.find((r) => r.challenge_id === id);
+      const snapshot = codeSnapshot ?? existing?.code_snapshot ?? null;
 
-    const { error } = await supabase.from("student_challenge_progress").upsert(
-      {
-        student_id: activeSession.id,
-        challenge_id: id,
+      const { error } = await supabase.from("student_challenge_progress").upsert(
+        {
+          student_id: activeSession.id,
+          challenge_id: id,
+          completed: true,
+          code_snapshot: snapshot,
+          updated_at: now,
+        },
+        { onConflict: "student_id,challenge_id" }
+      );
+
+      if (error) {
+        console.error("Failed to save completion to cloud:", error.message);
+      }
+
+      patchStoreRecord(id, {
         completed: true,
-        code_snapshot: existing?.code_snapshot ?? null,
         updated_at: now,
-      },
-      { onConflict: "student_id,challenge_id" }
-    );
-
-    if (error) {
-      console.error("Failed to save completion to cloud:", error.message);
-    }
-
-    patchStoreRecord(id, {
-      completed: true,
-      updated_at: now,
-      code_snapshot: existing?.code_snapshot ?? null,
-    });
-  }, [records]);
+        code_snapshot: snapshot,
+      });
+    },
+    []
+  );
 
   const markIncomplete = useCallback(async (id: number): Promise<void> => {
     const activeSession = getSession();

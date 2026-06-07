@@ -9,7 +9,7 @@
  * the starter layout. The generated Java is produced elsewhere and never shown.
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import * as Blockly from "blockly/core";
 import { registerFtcBlocks, type ToolboxJson } from "@/lib/blockly/ftcBlocks";
 import type { WorkspaceState } from "@/data/blockChallenges";
@@ -30,7 +30,14 @@ interface BlocklyWorkspaceProps {
   /** Render a locked, non-editable canvas (mentor answer key). */
   readOnly?: boolean;
   onChange: (state: WorkspaceState) => void;
+  /** Called when the workspace is ready to serialize (works with next/dynamic). */
+  registerHandle?: (handle: BlocklyWorkspaceHandle | null) => void;
 }
+
+export type BlocklyWorkspaceHandle = {
+  /** Serialize the live canvas — bypasses the debounced onChange path. */
+  getState: () => WorkspaceState | null;
+};
 
 let themesBuilt = false;
 let ftcDarkTheme: Blockly.Theme | null = null;
@@ -77,26 +84,60 @@ function ensureThemes(): void {
   themesBuilt = true;
 }
 
-export default function BlocklyWorkspace({
-  toolbox,
-  initialState,
-  starterState,
-  resetSignal,
-  dark,
-  visible,
-  readOnly = false,
-  onChange,
-}: BlocklyWorkspaceProps) {
+const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorkspaceProps>(
+  function BlocklyWorkspace(
+    {
+      toolbox,
+      initialState,
+      starterState,
+      resetSignal,
+      dark,
+      visible,
+      readOnly = false,
+      onChange,
+      registerHandle,
+    },
+    ref
+  ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<Blockly.WorkspaceSvg | null>(null);
   const onChangeRef = useRef(onChange);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const loadingRef = useRef(false);
   const recalcRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  const serializeWorkspace = useCallback((): WorkspaceState | null => {
+    const ws = wsRef.current;
+    if (!ws || loadingRef.current) return null;
+    try {
+      return BK.serialization.workspaces.save(ws) as WorkspaceState;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const readLiveState = useCallback((): WorkspaceState | null => {
+    const state = serializeWorkspace();
+    if (state) onChangeRef.current(state);
+    return state;
+  }, [serializeWorkspace]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getState: readLiveState,
+    }),
+    [readLiveState]
+  );
+
+  useEffect(() => {
+    if (!registerHandle) return;
+    registerHandle({ getState: readLiveState });
+    return () => registerHandle(null);
+  }, [registerHandle, readLiveState]);
 
   const loadState = useCallback((state: WorkspaceState) => {
     const ws = wsRef.current;
@@ -186,15 +227,10 @@ export default function BlocklyWorkspace({
         scheduleRecalc();
         return;
       }
-      clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        try {
-          const state = BK.serialization.workspaces.save(ws) as WorkspaceState;
-          onChangeRef.current(state);
-        } catch {
-          /* ignore serialization hiccups */
-        }
-      }, 400);
+      // Sync parent immediately so submit/grade reads the live layout (draft
+      // persistence is debounced in ChallengeWorkspace).
+      const state = serializeWorkspace();
+      if (state) onChangeRef.current(state);
     };
     ws.addChangeListener(handleChange);
 
@@ -203,7 +239,6 @@ export default function BlocklyWorkspace({
     if (containerRef.current) ro.observe(containerRef.current);
 
     return () => {
-      clearTimeout(saveTimer.current);
       timers.forEach(clearTimeout);
       ro.disconnect();
       ws.removeChangeListener(handleChange);
@@ -258,4 +293,6 @@ export default function BlocklyWorkspace({
       <div ref={containerRef} className="absolute inset-0" />
     </div>
   );
-}
+});
+
+export default BlocklyWorkspace;
