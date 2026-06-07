@@ -55,10 +55,41 @@ function escapeStr(raw: string | null): string {
     .replace(/\r?\n/g, " ");
 }
 
+/** Blockly dropdown labels (e.g. "number") → Java types. */
+function javaType(raw: string | null): string {
+  const t = (raw ?? "double").trim();
+  switch (t) {
+    case "number":
+    case "Number":
+    case "double":
+      return "double";
+    case "boolean":
+      return "boolean";
+    case "string":
+    case "String":
+      return "String";
+    default:
+      return t.length > 0 ? t : "double";
+  }
+}
+
 function defaultFor(type: string): string {
-  if (type === "boolean") return "false";
-  if (type === "String") return '""';
+  const jt = javaType(type);
+  if (jt === "boolean") return "false";
+  if (jt === "String") return '""';
   return "0";
+}
+
+/** Drop round blocks that were snapped into the statement stack by mistake. */
+function scrubStatementCode(code: unknown): string {
+  if (Array.isArray(code)) return "";
+  if (typeof code !== "string") return "";
+  const t = code.trim();
+  if (t === "") return "";
+  // Bare identifier (e.g. "positive") or tuple coerced to "positive,99".
+  if (/^[A-Za-z_]\w*$/.test(t)) return "";
+  if (/^[A-Za-z_]\w*,\d+$/.test(t)) return "";
+  return code;
 }
 
 /** Prefix every non-blank line of `code` with `pad` spaces. */
@@ -96,13 +127,14 @@ function val(block: Blockly.Block, name: string, def = "0"): string {
 // Chain consecutive statement blocks with newlines; tolerate empty emitters
 // (field/const/helper-definition blocks emit "").
 g.scrub_ = function (block, code, thisOnly) {
+  const cleaned = scrubStatementCode(code);
   const nextBlock =
     block.nextConnection && block.nextConnection.targetBlock();
-  const nextCode = nextBlock && !thisOnly ? g.blockToCode(nextBlock) : "";
-  const nextStr = typeof nextCode === "string" ? nextCode : "";
-  if (code === "") return nextStr;
-  if (nextStr === "") return code;
-  return code + "\n" + nextStr;
+  const nextRaw = nextBlock && !thisOnly ? g.blockToCode(nextBlock) : "";
+  const nextStr = scrubStatementCode(nextRaw);
+  if (cleaned === "") return nextStr;
+  if (nextStr === "") return cleaned;
+  return cleaned + "\n" + nextStr;
 };
 
 const F = g.forBlock;
@@ -352,20 +384,20 @@ F["ftc_ternary"] = (block) => [
 // ── Variables ─────────────────────────────────────────────────────────────
 
 F["ftc_declare_var"] = (block) => {
-  const type = block.getFieldValue("VTYPE");
+  const type = javaType(block.getFieldValue("VTYPE"));
   const name = safeId(block.getFieldValue("NAME"), "value");
   return `${type} ${name} = ${val(block, "INIT", defaultFor(type))};`;
 };
 
 F["ftc_declare_field"] = (block) => {
-  const type = block.getFieldValue("VTYPE");
+  const type = javaType(block.getFieldValue("VTYPE"));
   const name = safeId(block.getFieldValue("NAME"), "value");
   addField(`private ${type} ${name} = ${val(block, "INIT", defaultFor(type))};`);
   return "";
 };
 
 F["ftc_declare_const"] = (block) => {
-  const type = block.getFieldValue("VTYPE");
+  const type = javaType(block.getFieldValue("VTYPE"));
   const name = safeId(block.getFieldValue("NAME"), "CONST");
   addField(
     `private static final ${type} ${name} = ${val(
