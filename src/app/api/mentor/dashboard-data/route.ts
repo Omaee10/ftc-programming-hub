@@ -126,11 +126,31 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     case "progress": {
       const authorIds = classChallengeAuthorIds(session);
-      const [{ data: students }, { data: progress }, { data: homework }, { data: challenges }] =
+
+      const { data: students } = await supabase
+        .from("students")
+        .select("*")
+        .eq("mentor_id", ownerId)
+        .order("name");
+
+      const studentIds = (students ?? []).map((row) => row.id as string);
+
+      // Filter by the class roster and skip blocks_snapshot (large jsonb) —
+      // unfiltered select("*") here was scanning the whole table per request.
+      const [{ data: progress }, { data: homework }, { data: challenges }] =
         await Promise.all([
-          supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-          supabase.from("student_challenge_progress").select("*"),
-          supabase.from("homework_assignments").select("*"),
+          studentIds.length > 0
+            ? supabase
+                .from("student_challenge_progress")
+                .select("id, student_id, challenge_id, completed, code_snapshot, updated_at")
+                .in("student_id", studentIds)
+            : Promise.resolve({ data: [], error: null }),
+          studentIds.length > 0
+            ? supabase
+                .from("homework_assignments")
+                .select("*")
+                .in("student_id", studentIds)
+            : Promise.resolve({ data: [], error: null }),
           authorIds.length > 0
             ? supabase.from("challenges").select("*").in("created_by", authorIds).order("id")
             : Promise.resolve({ data: [], error: null }),
