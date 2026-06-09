@@ -4,6 +4,7 @@ import { useSyncExternalStore, useEffect, useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { mergeLocalProgress, readLocalProgress } from "@/hooks/useChallengeProgress";
+import type { BlockState } from "@/lib/challengeBlockDrafts";
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
 import { withTimeout } from "@/lib/withTimeout";
 
@@ -11,6 +12,8 @@ interface ProgressRecord {
   challenge_id: number;
   completed: boolean;
   code_snapshot: string | null;
+  blocks_snapshot: BlockState | null;
+  blocks_updated_at: string | null;
   updated_at: string | null;
 }
 
@@ -38,6 +41,8 @@ function mergeLocalIntoRecords(
         challenge_id: id,
         completed: true,
         code_snapshot: null,
+        blocks_snapshot: null,
+        blocks_updated_at: null,
         updated_at: ts,
       });
     }
@@ -58,7 +63,9 @@ function isLocallyCompleted(studentId: string, challengeId: number): boolean {
 async function syncProgressWithLocal(studentId: string): Promise<ProgressRecord[]> {
   const { data, error } = await supabase
     .from("student_challenge_progress")
-    .select("challenge_id, completed, code_snapshot, updated_at")
+    .select(
+      "challenge_id, completed, code_snapshot, blocks_snapshot, blocks_updated_at, updated_at"
+    )
     .eq("student_id", studentId);
 
   if (error) {
@@ -94,7 +101,9 @@ async function syncProgressWithLocal(studentId: string): Promise<ProgressRecord[
     } else {
       const { data: refreshed } = await supabase
         .from("student_challenge_progress")
-        .select("challenge_id, completed, code_snapshot, updated_at")
+        .select(
+          "challenge_id, completed, code_snapshot, blocks_snapshot, blocks_updated_at, updated_at"
+        )
         .eq("student_id", studentId);
       if (refreshed) {
         return mergeLocalIntoRecords(refreshed as ProgressRecord[], studentId);
@@ -170,6 +179,8 @@ function patchStoreRecord(id: number, patch: Partial<ProgressRecord>): void {
           challenge_id: id,
           completed: false,
           code_snapshot: null,
+          blocks_snapshot: null,
+          blocks_updated_at: null,
           updated_at: null,
           ...patch,
         },
@@ -262,6 +273,8 @@ export function useSupabaseProgress(challengeId?: number) {
       : undefined;
   const loadedCode = challengeRecord?.code_snapshot ?? null;
   const loadedCodeUpdatedAt = challengeRecord?.updated_at ?? null;
+  const loadedBlocks = challengeRecord?.blocks_snapshot ?? null;
+  const loadedBlocksUpdatedAt = challengeRecord?.blocks_updated_at ?? null;
 
   const saveCode = useCallback(
     async (code: string): Promise<void> => {
@@ -285,6 +298,8 @@ export function useSupabaseProgress(challengeId?: number) {
           student_id: activeSession.id,
           challenge_id: challengeId,
           code_snapshot: code,
+          blocks_snapshot: existing?.blocks_snapshot ?? null,
+          blocks_updated_at: existing?.blocks_updated_at ?? null,
           completed,
           updated_at: now,
         },
@@ -305,6 +320,50 @@ export function useSupabaseProgress(challengeId?: number) {
     [challengeId, records]
   );
 
+  const saveBlocks = useCallback(
+    async (state: BlockState): Promise<void> => {
+      const activeSession = getSession();
+      if (
+        !activeSession ||
+        activeSession.role !== "student" ||
+        challengeId === undefined
+      ) {
+        return;
+      }
+
+      const existing = records.find((r) => r.challenge_id === challengeId);
+      const completed =
+        existing?.completed ||
+        isLocallyCompleted(activeSession.id, challengeId);
+
+      const now = new Date().toISOString();
+      const { error } = await supabase.from("student_challenge_progress").upsert(
+        {
+          student_id: activeSession.id,
+          challenge_id: challengeId,
+          blocks_snapshot: state,
+          blocks_updated_at: now,
+          code_snapshot: existing?.code_snapshot ?? null,
+          completed,
+          updated_at: existing?.updated_at ?? now,
+        },
+        { onConflict: "student_id,challenge_id" }
+      );
+
+      if (error) {
+        console.error("Failed to save blocks:", error.message);
+        return;
+      }
+
+      patchStoreRecord(challengeId, {
+        blocks_snapshot: state,
+        blocks_updated_at: now,
+        completed,
+      });
+    },
+    [challengeId, records]
+  );
+
   const markComplete = useCallback(
     async (id: number, codeSnapshot?: string): Promise<void> => {
       const activeSession = getSession();
@@ -320,6 +379,8 @@ export function useSupabaseProgress(challengeId?: number) {
           challenge_id: id,
           completed: true,
           code_snapshot: snapshot,
+          blocks_snapshot: existing?.blocks_snapshot ?? null,
+          blocks_updated_at: existing?.blocks_updated_at ?? null,
           updated_at: now,
         },
         { onConflict: "student_id,challenge_id" }
@@ -351,6 +412,8 @@ export function useSupabaseProgress(challengeId?: number) {
         challenge_id: id,
         completed: false,
         code_snapshot: existing?.code_snapshot ?? null,
+        blocks_snapshot: existing?.blocks_snapshot ?? null,
+        blocks_updated_at: existing?.blocks_updated_at ?? null,
         updated_at: now,
       },
       { onConflict: "student_id,challenge_id" }
@@ -374,8 +437,11 @@ export function useSupabaseProgress(challengeId?: number) {
     attemptedIds,
     loadedCode,
     loadedCodeUpdatedAt,
+    loadedBlocks,
+    loadedBlocksUpdatedAt,
     hydrated,
     saveCode,
+    saveBlocks,
     markComplete,
     markIncomplete,
   };

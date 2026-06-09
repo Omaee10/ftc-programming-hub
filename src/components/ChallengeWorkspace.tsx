@@ -72,6 +72,7 @@ import {
   clearBlockDraft,
   readBlockDraft,
   saveBlockDraft,
+  type BlockState,
 } from "@/lib/challengeBlockDrafts";
 import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
@@ -137,6 +138,23 @@ function chooseSavedCode(
   if (cloudCode) return cloudCode;
   if (local) return local.code;
   return starterCode;
+}
+
+function chooseSavedBlocks(
+  challengeId: number,
+  starter: WorkspaceState,
+  cloudBlocks: BlockState | null,
+  cloudUpdatedAt: string | null
+): WorkspaceState {
+  const local = readBlockDraft(challengeId);
+  if (cloudBlocks && local) {
+    const localTs = Date.parse(local.updatedAt);
+    const cloudTs = cloudUpdatedAt ? Date.parse(cloudUpdatedAt) : 0;
+    return (cloudTs >= localTs ? cloudBlocks : local.state) as WorkspaceState;
+  }
+  if (cloudBlocks) return cloudBlocks as WorkspaceState;
+  if (local) return local.state as WorkspaceState;
+  return starter;
 }
 
 /** Formats 1-indexed line numbers as a visible prefix (e.g. "Line 52: "). */
@@ -566,8 +584,11 @@ export default function ChallengeWorkspace({
     markComplete: markCompleteDB,
     markIncomplete: markIncompleteDB,
     saveCode,
+    saveBlocks,
     loadedCode,
     loadedCodeUpdatedAt,
+    loadedBlocks,
+    loadedBlocksUpdatedAt,
     hydrated: dbHydrated,
   } = useSupabaseProgress(challenge.id);
 
@@ -636,6 +657,11 @@ export default function ChallengeWorkspace({
   const [blockResetSignal, setBlockResetSignal] = useState(0);
   const blockStateRef = useRef<WorkspaceState | null>(null);
   const blockDraftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const blockCloudSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const restoredBlocksRef = useRef<number | null>(null);
+  const [resolvedBlocksState, setResolvedBlocksState] = useState<WorkspaceState | null>(
+    () => (answerKeyMode ? (answerKey?.blocks ?? null) : null)
+  );
   const blocklyHandleRef = useRef<BlocklyWorkspaceHandle | null>(null);
   const editorModeRef = useRef(editorMode);
   const blocksConfigRef = useRef(blocksConfig);
@@ -656,12 +682,25 @@ export default function ChallengeWorkspace({
     []
   );
 
+  const flushBlocksSnapshot = useCallback(() => {
+    if (answerKeyMode || !blocksConfig) return;
+    const state =
+      blocklyHandleRef.current?.getState()
+      ?? blockStateRef.current;
+    if (!state) return;
+    clearTimeout(blockDraftTimer.current);
+    clearTimeout(blockCloudSaveTimer.current);
+    saveBlockDraft(challenge.id, state);
+    void saveBlocks(state);
+  }, [answerKeyMode, blocksConfig, challenge.id, saveBlocks]);
+
   const confirmModeSwitch = useCallback(() => {
+    flushBlocksSnapshot();
     setPendingMode((target) => {
       if (target) setEditorMode(target);
       return null;
     });
-  }, []);
+  }, [flushBlocksSnapshot]);
 
   // Switching Blocks → Java with conversion: compile the current block layout to
   // Java (the same generator the grader uses) and load it into the Java editor,
@@ -684,28 +723,64 @@ export default function ChallengeWorkspace({
         // If generation fails, fall back to keeping the existing Java code.
       }
     }
+    flushBlocksSnapshot();
     setPendingMode(null);
     setEditorMode("java");
-  }, [blocksConfig, challenge.id, saveCode]);
-
-  // Initial Blockly state: the locked solution (answer key), a saved draft, or
-  // the challenge starter layout.
-  const blocksInitialState = useMemo<WorkspaceState | null>(() => {
-    if (answerKeyMode) return answerKey?.blocks ?? null;
-    if (!blocksConfig) return null;
-    const draft = readBlockDraft(challenge.id);
-    return draft?.state ?? blocksConfig.starter;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answerKeyMode, blocksConfig, challenge.id]);
+  }, [blocksConfig, challenge.id, flushBlocksSnapshot, saveCode]);
 
   useEffect(() => {
-    blockStateRef.current = blocksInitialState;
-  }, [blocksInitialState]);
+    restoredBlocksRef.current = null;
+    if (answerKeyMode) {
+      setResolvedBlocksState(answerKey?.blocks ?? null);
+    } else {
+      setResolvedBlocksState(null);
+    }
+  }, [challenge.id, answerKeyMode, answerKey?.blocks]);
+
+  useEffect(() => {
+    if (answerKeyMode || !blocksConfig) return;
+    const session = getSession();
+    const needsCloud = session?.role === "student";
+    if (needsCloud && !dbHydrated) return;
+    if (restoredBlocksRef.current === challenge.id) return;
+
+    const restored = chooseSavedBlocks(
+      challenge.id,
+      blocksConfig.starter,
+      loadedBlocks,
+      loadedBlocksUpdatedAt
+    );
+    setResolvedBlocksState(restored);
+    blockStateRef.current = restored;
+    restoredBlocksRef.current = challenge.id;
+  }, [
+    answerKeyMode,
+    blocksConfig,
+    challenge.id,
+    dbHydrated,
+    loadedBlocks,
+    loadedBlocksUpdatedAt,
+  ]);
 
   // Java is always the default mode; only offer blocks where supported.
   useEffect(() => {
     if (!blocksEnabled) setEditorMode("java");
   }, [blocksEnabled, challenge.id]);
+
+  const persistBlocks = useCallback(
+    (state: WorkspaceState, options?: { flushCloud?: boolean }) => {
+      saveBlockDraft(challenge.id, state);
+      clearTimeout(blockCloudSaveTimer.current);
+      if (options?.flushCloud) {
+        void saveBlocks(state);
+        return;
+      }
+      blockCloudSaveTimer.current = setTimeout(() => {
+        void saveBlocks(state);
+      }, 2000);
+    },
+    [challenge.id, saveBlocks]
+  );
 
   const handleBlocksChange = useCallback(
     (state: WorkspaceState) => {
@@ -713,10 +788,10 @@ export default function ChallengeWorkspace({
       blockStateRef.current = state;
       clearTimeout(blockDraftTimer.current);
       blockDraftTimer.current = setTimeout(() => {
-        saveBlockDraft(challenge.id, state);
+        persistBlocks(state);
       }, 400);
     },
-    [answerKeyMode, challenge.id]
+    [answerKeyMode, persistBlocks]
   );
 
   // Sync Monaco theme whenever the app theme changes
@@ -737,11 +812,12 @@ export default function ChallengeWorkspace({
     if (editorMode === "blocks" && blocksConfig) {
       clearBlockDraft(challenge.id);
       blockStateRef.current = blocksConfig.starter;
+      persistBlocks(blocksConfig.starter, { flushCloud: true });
       setBlockResetSignal((n) => n + 1);
     } else {
       resetCode();
     }
-  }, [editorMode, blocksConfig, challenge.id, resetCode]);
+  }, [editorMode, blocksConfig, challenge.id, persistBlocks, resetCode]);
 
   const persistCode = useCallback(
     (next: string, options?: { flushCloud?: boolean }) => {
@@ -799,6 +875,7 @@ export default function ChallengeWorkspace({
       clearTimeout(saveTimer.current);
       clearTimeout(cloudSaveTimer.current);
       persistCode(codeRef.current, { flushCloud: true });
+      flushBlocksSnapshot();
     };
 
     const onPageHide = () => flush();
@@ -807,7 +884,7 @@ export default function ChallengeWorkspace({
       window.removeEventListener("pagehide", onPageHide);
       flush();
     };
-  }, [answerKeyMode, challenge.id, persistCode]);
+  }, [answerKeyMode, challenge.id, flushBlocksSnapshot, persistCode]);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -824,7 +901,7 @@ export default function ChallengeWorkspace({
         blockStateRef.current = liveState;
         if (!answerKeyMode) {
           clearTimeout(blockDraftTimer.current);
-          saveBlockDraft(challenge.id, liveState);
+          persistBlocks(liveState, { flushCloud: true });
         }
       }
       try {
@@ -835,7 +912,7 @@ export default function ChallengeWorkspace({
       }
     }
     return codeRef.current;
-  }, [challenge.id, answerKeyMode]);
+  }, [challenge.id, answerKeyMode, persistBlocks]);
 
   const submitForMentorReview = useCallback(
     async (snapshot: string): Promise<{ error: string | null }> => {
@@ -1682,13 +1759,14 @@ export default function ChallengeWorkspace({
                 }}
               />
             </div>
-            {blocksEnabled && blocksInitialState && (answerKeyMode || blocksConfig) && (
+            {blocksEnabled && (answerKeyMode || blocksConfig) && (
               <div className={editorMode === "blocks" ? "h-full w-full" : "hidden"}>
+                {resolvedBlocksState ? (
                 <BlocklyWorkspace
                   key={challenge.id}
                   toolbox={FULL_TOOLBOX}
-                  initialState={blocksInitialState}
-                  starterState={blocksConfig?.starter ?? blocksInitialState}
+                  initialState={resolvedBlocksState}
+                  starterState={blocksConfig?.starter ?? resolvedBlocksState}
                   resetSignal={blockResetSignal}
                   dark={monacoTheme === "ftc-dark"}
                   visible={editorMode === "blocks"}
@@ -1696,6 +1774,9 @@ export default function ChallengeWorkspace({
                   onChange={handleBlocksChange}
                   registerHandle={registerBlocklyHandle}
                 />
+                ) : (
+                  <EditorSkeleton />
+                )}
               </div>
             )}
           </div>

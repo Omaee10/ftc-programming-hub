@@ -73,6 +73,8 @@ export interface ProgressRow {
   challenge_id: number;
   completed: boolean;
   code_snapshot: string | null;
+  blocks_snapshot: Record<string, unknown> | null;
+  blocks_updated_at: string | null;
   updated_at: string;
 }
 

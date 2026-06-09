@@ -3,7 +3,8 @@
  *
  * Mirrors {@link ./challengeCodeDrafts} but stores serialized Blockly JSON under
  * a separate key so the Blocks editor and the Java editor keep fully independent
- * drafts per challenge. Blocks drafts are local-only (no Supabase sync) for v1.
+ * drafts per challenge. Logged-in students also sync blocks to Supabase via
+ * {@link ../hooks/useSupabaseProgress}; local drafts remain the offline fallback.
  */
 
 import { getSession } from "@/lib/auth";

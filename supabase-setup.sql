@@ -89,14 +89,21 @@ CREATE TABLE IF NOT EXISTS challenges (
 -- both static challenges (IDs 1–999) and DB-created challenges (IDs 1000+) can
 -- be stored here without a FK violation.
 CREATE TABLE IF NOT EXISTS student_challenge_progress (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id    uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  challenge_id  integer NOT NULL,
-  completed     boolean NOT NULL DEFAULT false,
-  code_snapshot text,
-  updated_at    timestamptz DEFAULT now(),
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id        uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  challenge_id      integer NOT NULL,
+  completed         boolean NOT NULL DEFAULT false,
+  code_snapshot     text,
+  blocks_snapshot   jsonb,
+  blocks_updated_at timestamptz,
+  updated_at        timestamptz DEFAULT now(),
   UNIQUE (student_id, challenge_id)
 );
+
+-- ─── Migration: add blocks_snapshot to existing student_challenge_progress ────
+-- Run this in the Supabase SQL Editor if the table already exists:
+-- ALTER TABLE student_challenge_progress ADD COLUMN IF NOT EXISTS blocks_snapshot jsonb;
+-- ALTER TABLE student_challenge_progress ADD COLUMN IF NOT EXISTS blocks_updated_at timestamptz;
 
 -- Mentor-created challenge submissions (manual grading)
 CREATE TABLE IF NOT EXISTS challenge_submissions (
