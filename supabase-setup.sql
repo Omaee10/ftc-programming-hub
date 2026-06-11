@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 -- Migration for existing profiles table:
 -- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS account_type text CHECK (account_type IN ('student', 'mentor'));
+-- CREATE UNIQUE INDEX IF NOT EXISTS profiles_email_lower_unique ON profiles (lower(email));
 
 ALTER TABLE students ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE mentors  ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
@@ -192,6 +193,9 @@ ALTER TABLE mentors  ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users
 CREATE UNIQUE INDEX IF NOT EXISTS students_user_mentor_unique
   ON students (user_id, mentor_id)
   WHERE user_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_email_lower_unique
+  ON profiles (lower(email));
 
 -- ─── Row Level Security ───────────────────────────────────────────────────────
 ALTER TABLE profiles                   ENABLE ROW LEVEL SECURITY;

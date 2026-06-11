@@ -6,7 +6,7 @@
 import type { JavaFrame } from "@/lib/blockly/javaGenerator";
 import type { WorkspaceState } from "@/data/blockChallenges";
 
-/** Draft key used by challengeCodeDrafts / challengeBlockDrafts for the playground. */
+/** Draft key used by challengeCodeDrafts / challengeBlockDrafts and Supabase sync. */
 export const PLAYGROUND_DRAFT_ID = 9001;
 
 export const PLAYGROUND_STARTER_JAVA = `package org.firstinspires.ftc.teamcode;

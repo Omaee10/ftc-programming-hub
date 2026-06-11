@@ -10,6 +10,13 @@ import {
   linkMentorToUser,
   type MentorClaimRow,
 } from "@/lib/supabase/mentorClaim";
+import {
+  DUPLICATE_SIGNUP_EMAIL_MESSAGE,
+  findRegisteredSignupEmail,
+  isDuplicateProfileError,
+  normalizeSignupEmail,
+  signupAuthErrorMessage,
+} from "@/lib/supabase/signupEmail";
 
 interface SignupBody {
   email?: string;
@@ -70,7 +77,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const email = body.email?.trim().toLowerCase() ?? "";
+  const email = normalizeSignupEmail(body.email ?? "");
   const password = body.password ?? "";
   const name = body.name?.trim() ?? "";
   const accountType = body.accountType === "mentor" ? "mentor" : body.accountType === "student" ? "student" : null;
@@ -170,6 +177,18 @@ export async function POST(request: Request) {
     }
   }
 
+  const emailLookup = await findRegisteredSignupEmail(admin, email);
+  if (emailLookup.lookupError) {
+    return NextResponse.json(
+      { error: databaseKeyErrorMessage(emailLookup.lookupError) },
+      { status: 500 }
+    );
+  }
+
+  if (emailLookup.exists) {
+    return NextResponse.json({ error: DUPLICATE_SIGNUP_EMAIL_MESSAGE }, { status: 400 });
+  }
+
   const { data: authData, error: authErr } = await admin.auth.admin.createUser({
     email,
     password,
@@ -177,7 +196,7 @@ export async function POST(request: Request) {
   });
 
   if (authErr || !authData.user) {
-    const message = authErr?.message ?? "Failed to create account.";
+    const message = signupAuthErrorMessage(authErr?.message ?? "Failed to create account.");
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
@@ -206,10 +225,10 @@ export async function POST(request: Request) {
 
   if (profileErr) {
     await admin.auth.admin.deleteUser(userId);
-    return NextResponse.json(
-      { error: profileErr.message ?? "Failed to create profile." },
-      { status: 500 }
-    );
+    const profileMessage = isDuplicateProfileError(profileErr.message ?? "")
+      ? DUPLICATE_SIGNUP_EMAIL_MESSAGE
+      : (profileErr.message ?? "Failed to create profile.");
+    return NextResponse.json({ error: profileMessage }, { status: 400 });
   }
 
   if (studentCode) {

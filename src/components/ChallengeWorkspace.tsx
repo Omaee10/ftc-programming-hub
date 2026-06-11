@@ -58,9 +58,12 @@ import { useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import type { BlocklyWorkspaceHandle } from "./BlocklyWorkspace";
 import {
   clearCodeDraft,
-  readCodeDraft,
   saveCodeDraft,
 } from "@/lib/challengeCodeDrafts";
+import {
+  chooseSavedBlocks,
+  chooseSavedCode,
+} from "@/lib/chooseSavedWorkspace";
 import {
   getBlockConfig,
   isBlocksEnabled,
@@ -70,9 +73,7 @@ import type { ChallengeSolution } from "@/data/challengeSolutions";
 import { FULL_TOOLBOX } from "@/lib/blockly/ftcBlocks";
 import {
   clearBlockDraft,
-  readBlockDraft,
   saveBlockDraft,
-  type BlockState,
 } from "@/lib/challengeBlockDrafts";
 import MarkCompleteButton from "./MarkCompleteButton";
 import HintsAccordion from "./HintsAccordion";
@@ -121,40 +122,6 @@ function nowTime() {
 }
 function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
-}
-
-function chooseSavedCode(
-  challengeId: number,
-  starterCode: string,
-  cloudCode: string | null,
-  cloudUpdatedAt: string | null
-): string {
-  const local = readCodeDraft(challengeId);
-  if (cloudCode && local) {
-    const localTs = Date.parse(local.updatedAt);
-    const cloudTs = cloudUpdatedAt ? Date.parse(cloudUpdatedAt) : 0;
-    return cloudTs >= localTs ? cloudCode : local.code;
-  }
-  if (cloudCode) return cloudCode;
-  if (local) return local.code;
-  return starterCode;
-}
-
-function chooseSavedBlocks(
-  challengeId: number,
-  starter: WorkspaceState,
-  cloudBlocks: BlockState | null,
-  cloudUpdatedAt: string | null
-): WorkspaceState {
-  const local = readBlockDraft(challengeId);
-  if (cloudBlocks && local) {
-    const localTs = Date.parse(local.updatedAt);
-    const cloudTs = cloudUpdatedAt ? Date.parse(cloudUpdatedAt) : 0;
-    return (cloudTs >= localTs ? cloudBlocks : local.state) as WorkspaceState;
-  }
-  if (cloudBlocks) return cloudBlocks as WorkspaceState;
-  if (local) return local.state as WorkspaceState;
-  return starter;
 }
 
 /** Formats 1-indexed line numbers as a visible prefix (e.g. "Line 52: "). */
