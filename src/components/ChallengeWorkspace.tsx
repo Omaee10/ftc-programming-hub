@@ -64,6 +64,7 @@ import {
   chooseSavedBlocks,
   chooseSavedCode,
 } from "@/lib/chooseSavedWorkspace";
+import { CLOUD_SAVE_DEBOUNCE_MS } from "@/lib/cloudSaveDebounce";
 import {
   getBlockConfig,
   isBlocksEnabled,
@@ -557,6 +558,7 @@ export default function ChallengeWorkspace({
     loadedBlocks,
     loadedBlocksUpdatedAt,
     hydrated: dbHydrated,
+    snapshotsHydrated,
   } = useSupabaseProgress(challenge.id);
 
   const isCompleted = (id: number) =>
@@ -584,7 +586,7 @@ export default function ChallengeWorkspace({
     (async () => {
       const { data } = await supabase
         .from("challenge_submissions")
-        .select("*")
+        .select("id, status, grade, feedback, submitted_at, graded_at")
         .eq("student_id", studentSession.id)
         .eq("challenge_id", challenge.id)
         .maybeSingle();
@@ -708,7 +710,7 @@ export default function ChallengeWorkspace({
     if (answerKeyMode || !blocksConfig) return;
     const session = getSession();
     const needsCloud = session?.role === "student";
-    if (needsCloud && !dbHydrated) return;
+    if (needsCloud && (!dbHydrated || !snapshotsHydrated)) return;
     if (restoredBlocksRef.current === challenge.id) return;
 
     const restored = chooseSavedBlocks(
@@ -725,6 +727,7 @@ export default function ChallengeWorkspace({
     blocksConfig,
     challenge.id,
     dbHydrated,
+    snapshotsHydrated,
     loadedBlocks,
     loadedBlocksUpdatedAt,
   ]);
@@ -744,7 +747,7 @@ export default function ChallengeWorkspace({
       }
       blockCloudSaveTimer.current = setTimeout(() => {
         void saveBlocks(state);
-      }, 2000);
+      }, CLOUD_SAVE_DEBOUNCE_MS);
     },
     [challenge.id, saveBlocks]
   );
@@ -796,7 +799,7 @@ export default function ChallengeWorkspace({
       }
       cloudSaveTimer.current = setTimeout(() => {
         void saveCode(next);
-      }, 2000);
+      }, CLOUD_SAVE_DEBOUNCE_MS);
     },
     [challenge.id, saveCode]
   );
@@ -814,7 +817,7 @@ export default function ChallengeWorkspace({
     if (answerKeyMode) return;
     const session = getSession();
     const needsCloud = session?.role === "student";
-    if (needsCloud && !dbHydrated) return;
+    if (needsCloud && (!dbHydrated || !snapshotsHydrated)) return;
     if (restoredChallengeRef.current === challenge.id) return;
 
     const restored = chooseSavedCode(
@@ -831,6 +834,7 @@ export default function ChallengeWorkspace({
     challenge.id,
     challenge.starterCode,
     dbHydrated,
+    snapshotsHydrated,
     loadedCode,
     loadedCodeUpdatedAt,
   ]);

@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore, useEffect, useCallback } from "react";
 import { supabase, type HomeworkAssignmentRow } from "@/lib/supabase";
+import { HOMEWORK_LIST_COLUMNS } from "@/lib/supabase/progressColumns";
 import { getSession } from "@/lib/auth";
 import { useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
@@ -131,7 +132,7 @@ async function fetchMentorHomework(ownerId: string): Promise<HomeworkAssignmentR
     Promise.resolve(
       supabase
         .from("homework_assignments")
-        .select("*")
+        .select(HOMEWORK_LIST_COLUMNS)
         .in("student_id", studentIds)
         .order("assigned_at", { ascending: false })
     ),

@@ -5,12 +5,21 @@ import { supabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { mergeLocalProgress, readLocalProgress } from "@/hooks/useChallengeProgress";
 import type { BlockState } from "@/lib/challengeBlockDrafts";
+import {
+  PROGRESS_META_COLUMNS,
+  PROGRESS_SNAPSHOT_COLUMNS,
+} from "@/lib/supabase/progressColumns";
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
 import { withTimeout } from "@/lib/withTimeout";
 
-interface ProgressRecord {
+interface ProgressMetaRecord {
   challenge_id: number;
   completed: boolean;
+  blocks_updated_at: string | null;
+  updated_at: string | null;
+}
+
+interface ProgressSnapshot {
   code_snapshot: string | null;
   blocks_snapshot: BlockState | null;
   blocks_updated_at: string | null;
@@ -19,9 +28,9 @@ interface ProgressRecord {
 
 /** Merge local completions into cloud records so UI stays correct when cloud sync lags. */
 function mergeLocalIntoRecords(
-  dbRecords: ProgressRecord[],
+  dbRecords: ProgressMetaRecord[],
   studentId: string
-): ProgressRecord[] {
+): ProgressMetaRecord[] {
   const local = readLocalProgress(studentId);
   const byId = new Map(dbRecords.map((r) => [r.challenge_id, { ...r }]));
 
@@ -40,8 +49,6 @@ function mergeLocalIntoRecords(
       byId.set(id, {
         challenge_id: id,
         completed: true,
-        code_snapshot: null,
-        blocks_snapshot: null,
         blocks_updated_at: null,
         updated_at: ts,
       });
@@ -57,15 +64,12 @@ function isLocallyCompleted(studentId: string, challengeId: number): boolean {
 
 /**
  * Bidirectional sync between localStorage and Supabase for a student session.
- * - Pushes local completions that never reached the cloud (e.g. localhost-only work)
- * - Pulls cloud completions into this browser's localStorage
+ * Metadata only — code/blocks snapshots load lazily per open challenge.
  */
-async function syncProgressWithLocal(studentId: string): Promise<ProgressRecord[]> {
+async function syncProgressWithLocal(studentId: string): Promise<ProgressMetaRecord[]> {
   const { data, error } = await supabase
     .from("student_challenge_progress")
-    .select(
-      "challenge_id, completed, code_snapshot, blocks_snapshot, blocks_updated_at, updated_at"
-    )
+    .select(PROGRESS_META_COLUMNS)
     .eq("student_id", studentId);
 
   if (error) {
@@ -73,10 +77,9 @@ async function syncProgressWithLocal(studentId: string): Promise<ProgressRecord[
     return mergeLocalIntoRecords([], studentId);
   }
 
-  const dbRecords = (data ?? []) as ProgressRecord[];
+  const dbRecords = (data ?? []) as ProgressMetaRecord[];
   const local = readLocalProgress(studentId);
 
-  // Local → cloud: upload completions that exist in this browser but not in DB
   const localToPush = Object.entries(local).filter(([idStr]) => {
     const id = Number(idStr);
     const rec = dbRecords.find((r) => r.challenge_id === id);
@@ -101,17 +104,14 @@ async function syncProgressWithLocal(studentId: string): Promise<ProgressRecord[
     } else {
       const { data: refreshed } = await supabase
         .from("student_challenge_progress")
-        .select(
-          "challenge_id, completed, code_snapshot, blocks_snapshot, blocks_updated_at, updated_at"
-        )
+        .select(PROGRESS_META_COLUMNS)
         .eq("student_id", studentId);
       if (refreshed) {
-        return mergeLocalIntoRecords(refreshed as ProgressRecord[], studentId);
+        return mergeLocalIntoRecords(refreshed as ProgressMetaRecord[], studentId);
       }
     }
   }
 
-  // Cloud → local: download completions missing from this browser
   const cloudCompletions: Record<number, string> = {};
   for (const rec of dbRecords) {
     if (rec.completed && !(rec.challenge_id in local)) {
@@ -129,27 +129,35 @@ async function syncProgressWithLocal(studentId: string): Promise<ProgressRecord[
 // ─── Shared store — one sync per student, shared across all hook instances ───
 
 interface ProgressStoreSnapshot {
-  records: ProgressRecord[];
+  records: ProgressMetaRecord[];
+  snapshotsByChallenge: Record<number, ProgressSnapshot>;
+  snapshotStatusByChallenge: Record<number, "loading" | "done">;
   hydrated: boolean;
 }
 
 let storeStudentId: string | null = null;
 let syncInFlight: Promise<void> | null = null;
+const snapshotLoadsInFlight = new Map<number, Promise<void>>();
 const storeListeners = new Set<() => void>();
 
-// useSyncExternalStore requires a stable snapshot reference — only replace when
-// records or hydrated actually change (same pattern as useChallengeProgress).
-const EMPTY_SNAPSHOT: ProgressStoreSnapshot = { records: [], hydrated: false };
+const EMPTY_SNAPSHOT: ProgressStoreSnapshot = {
+  records: [],
+  snapshotsByChallenge: {},
+  snapshotStatusByChallenge: {},
+  hydrated: false,
+};
 let storeSnapshot: ProgressStoreSnapshot = EMPTY_SNAPSHOT;
 
-function publishStore(records: ProgressRecord[], hydrated: boolean): void {
+function publishStore(next: ProgressStoreSnapshot): void {
   if (
-    storeSnapshot.records === records &&
-    storeSnapshot.hydrated === hydrated
+    storeSnapshot.records === next.records &&
+    storeSnapshot.snapshotsByChallenge === next.snapshotsByChallenge &&
+    storeSnapshot.snapshotStatusByChallenge === next.snapshotStatusByChallenge &&
+    storeSnapshot.hydrated === next.hydrated
   ) {
     return;
   }
-  storeSnapshot = { records, hydrated };
+  storeSnapshot = next;
   storeListeners.forEach((cb) => cb());
 }
 
@@ -166,10 +174,10 @@ function subscribeToStore(callback: () => void): () => void {
   return () => storeListeners.delete(callback);
 }
 
-function patchStoreRecord(id: number, patch: Partial<ProgressRecord>): void {
+function patchMetaRecord(id: number, patch: Partial<ProgressMetaRecord>): void {
   const records = storeSnapshot.records;
   const exists = records.find((r) => r.challenge_id === id);
-  const next = exists
+  const nextRecords = exists
     ? records.map((r) =>
         r.challenge_id === id ? { ...r, ...patch, challenge_id: id } : r
       )
@@ -178,21 +186,45 @@ function patchStoreRecord(id: number, patch: Partial<ProgressRecord>): void {
         {
           challenge_id: id,
           completed: false,
-          code_snapshot: null,
-          blocks_snapshot: null,
           blocks_updated_at: null,
           updated_at: null,
           ...patch,
         },
       ];
-  publishStore(next, storeSnapshot.hydrated);
+  publishStore({ ...storeSnapshot, records: nextRecords });
+}
+
+function patchSnapshot(id: number, patch: Partial<ProgressSnapshot>): void {
+  const prev = storeSnapshot.snapshotsByChallenge[id] ?? {
+    code_snapshot: null,
+    blocks_snapshot: null,
+    blocks_updated_at: null,
+    updated_at: null,
+  };
+  publishStore({
+    ...storeSnapshot,
+    snapshotsByChallenge: {
+      ...storeSnapshot.snapshotsByChallenge,
+      [id]: { ...prev, ...patch },
+    },
+    snapshotStatusByChallenge: {
+      ...storeSnapshot.snapshotStatusByChallenge,
+      [id]: "done",
+    },
+  });
 }
 
 async function ensureProgressLoaded(studentId: string): Promise<void> {
   if (storeStudentId !== studentId) {
     storeStudentId = studentId;
-    publishStore([], false);
+    publishStore({
+      records: [],
+      snapshotsByChallenge: {},
+      snapshotStatusByChallenge: {},
+      hydrated: false,
+    });
     syncInFlight = null;
+    snapshotLoadsInFlight.clear();
   }
 
   if (storeSnapshot.hydrated) return;
@@ -208,16 +240,83 @@ async function ensureProgressLoaded(studentId: string): Promise<void> {
         TAB_LOADER_TIMEOUT_MS,
         "Loading progress"
       );
-      publishStore(synced, true);
+      publishStore({
+        ...storeSnapshot,
+        records: synced,
+        hydrated: true,
+      });
     } catch (error) {
       console.error("Failed to sync progress:", error);
-      publishStore(mergeLocalIntoRecords([], studentId), true);
+      publishStore({
+        ...storeSnapshot,
+        records: mergeLocalIntoRecords([], studentId),
+        hydrated: true,
+      });
     } finally {
       syncInFlight = null;
     }
   })();
 
   await syncInFlight;
+}
+
+async function ensureSnapshotsLoaded(
+  studentId: string,
+  challengeId: number
+): Promise<void> {
+  if (storeSnapshot.snapshotStatusByChallenge[challengeId] === "done") return;
+
+  const inFlight = snapshotLoadsInFlight.get(challengeId);
+  if (inFlight) {
+    await inFlight;
+    return;
+  }
+
+  publishStore({
+    ...storeSnapshot,
+    snapshotStatusByChallenge: {
+      ...storeSnapshot.snapshotStatusByChallenge,
+      [challengeId]: "loading",
+    },
+  });
+
+  const loadPromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from("student_challenge_progress")
+        .select(PROGRESS_SNAPSHOT_COLUMNS)
+        .eq("student_id", studentId)
+        .eq("challenge_id", challengeId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Failed to load challenge snapshots:", error.message);
+      }
+
+      const row = data as ProgressSnapshot | null;
+      publishStore({
+        ...getStoreSnapshot(),
+        snapshotsByChallenge: {
+          ...getStoreSnapshot().snapshotsByChallenge,
+          [challengeId]: {
+            code_snapshot: row?.code_snapshot ?? null,
+            blocks_snapshot: row?.blocks_snapshot ?? null,
+            blocks_updated_at: row?.blocks_updated_at ?? null,
+            updated_at: row?.updated_at ?? null,
+          },
+        },
+        snapshotStatusByChallenge: {
+          ...getStoreSnapshot().snapshotStatusByChallenge,
+          [challengeId]: "done",
+        },
+      });
+    } finally {
+      snapshotLoadsInFlight.delete(challengeId);
+    }
+  })();
+
+  snapshotLoadsInFlight.set(challengeId, loadPromise);
+  await loadPromise;
 }
 
 /**
@@ -229,11 +328,14 @@ async function ensureProgressLoaded(studentId: string): Promise<void> {
 export function useSupabaseProgress(challengeId?: number) {
   const [studentId, setStudentId] = useState<string | null>(null);
 
-  const { records, hydrated: storeHydrated } = useSyncExternalStore(
+  const store = useSyncExternalStore(
     subscribeToStore,
     getStoreSnapshot,
     getServerStoreSnapshot
   );
+
+  const { records, snapshotsByChallenge, snapshotStatusByChallenge, hydrated: storeHydrated } =
+    store;
 
   useEffect(() => {
     const syncStudentId = () => {
@@ -251,7 +353,17 @@ export function useSupabaseProgress(challengeId?: number) {
     void ensureProgressLoaded(studentId);
   }, [studentId]);
 
+  useEffect(() => {
+    if (!studentId || challengeId === undefined) return;
+    if (!storeHydrated) return;
+    void ensureSnapshotsLoaded(studentId, challengeId);
+  }, [studentId, challengeId, storeHydrated]);
+
   const hydrated = studentId ? storeHydrated : true;
+  const snapshotsHydrated =
+    !studentId ||
+    challengeId === undefined ||
+    snapshotStatusByChallenge[challengeId] === "done";
 
   const isCompleted = useCallback(
     (id: number): boolean => {
@@ -267,14 +379,12 @@ export function useSupabaseProgress(challengeId?: number) {
 
   const attemptedIds: number[] = records.map((r) => r.challenge_id);
 
-  const challengeRecord =
-    challengeId !== undefined
-      ? records.find((r) => r.challenge_id === challengeId)
-      : undefined;
-  const loadedCode = challengeRecord?.code_snapshot ?? null;
-  const loadedCodeUpdatedAt = challengeRecord?.updated_at ?? null;
-  const loadedBlocks = challengeRecord?.blocks_snapshot ?? null;
-  const loadedBlocksUpdatedAt = challengeRecord?.blocks_updated_at ?? null;
+  const snapshot =
+    challengeId !== undefined ? snapshotsByChallenge[challengeId] : undefined;
+  const loadedCode = snapshot?.code_snapshot ?? null;
+  const loadedCodeUpdatedAt = snapshot?.updated_at ?? null;
+  const loadedBlocks = snapshot?.blocks_snapshot ?? null;
+  const loadedBlocksUpdatedAt = snapshot?.blocks_updated_at ?? null;
 
   const saveCode = useCallback(
     async (code: string): Promise<void> => {
@@ -298,8 +408,6 @@ export function useSupabaseProgress(challengeId?: number) {
           student_id: activeSession.id,
           challenge_id: challengeId,
           code_snapshot: code,
-          blocks_snapshot: existing?.blocks_snapshot ?? null,
-          blocks_updated_at: existing?.blocks_updated_at ?? null,
           completed,
           updated_at: now,
         },
@@ -311,9 +419,9 @@ export function useSupabaseProgress(challengeId?: number) {
         return;
       }
 
-      patchStoreRecord(challengeId, {
+      patchMetaRecord(challengeId, { completed, updated_at: now });
+      patchSnapshot(challengeId, {
         code_snapshot: code,
-        completed,
         updated_at: now,
       });
     },
@@ -343,9 +451,7 @@ export function useSupabaseProgress(challengeId?: number) {
           challenge_id: challengeId,
           blocks_snapshot: state,
           blocks_updated_at: now,
-          code_snapshot: existing?.code_snapshot ?? null,
           completed,
-          updated_at: existing?.updated_at ?? now,
         },
         { onConflict: "student_id,challenge_id" }
       );
@@ -355,10 +461,13 @@ export function useSupabaseProgress(challengeId?: number) {
         return;
       }
 
-      patchStoreRecord(challengeId, {
+      patchMetaRecord(challengeId, {
+        completed,
+        blocks_updated_at: now,
+      });
+      patchSnapshot(challengeId, {
         blocks_snapshot: state,
         blocks_updated_at: now,
-        completed,
       });
     },
     [challengeId, records]
@@ -370,31 +479,38 @@ export function useSupabaseProgress(challengeId?: number) {
       if (!activeSession || activeSession.role !== "student") return;
 
       const now = new Date().toISOString();
-      const existing = getStoreSnapshot().records.find((r) => r.challenge_id === id);
-      const snapshot = codeSnapshot ?? existing?.code_snapshot ?? null;
+      const storeState = getStoreSnapshot();
+      const existingSnapshot = storeState.snapshotsByChallenge[id];
+      const snapshot = codeSnapshot ?? existingSnapshot?.code_snapshot ?? null;
 
-      const { error } = await supabase.from("student_challenge_progress").upsert(
-        {
-          student_id: activeSession.id,
-          challenge_id: id,
-          completed: true,
-          code_snapshot: snapshot,
-          blocks_snapshot: existing?.blocks_snapshot ?? null,
-          blocks_updated_at: existing?.blocks_updated_at ?? null,
-          updated_at: now,
-        },
-        { onConflict: "student_id,challenge_id" }
-      );
+      const payload: {
+        student_id: string;
+        challenge_id: number;
+        completed: boolean;
+        updated_at: string;
+        code_snapshot?: string | null;
+      } = {
+        student_id: activeSession.id,
+        challenge_id: id,
+        completed: true,
+        updated_at: now,
+      };
+      if (snapshot !== null) {
+        payload.code_snapshot = snapshot;
+      }
+
+      const { error } = await supabase
+        .from("student_challenge_progress")
+        .upsert(payload, { onConflict: "student_id,challenge_id" });
 
       if (error) {
         console.error("Failed to save completion to cloud:", error.message);
       }
 
-      patchStoreRecord(id, {
-        completed: true,
-        updated_at: now,
-        code_snapshot: snapshot,
-      });
+      patchMetaRecord(id, { completed: true, updated_at: now });
+      if (snapshot !== null) {
+        patchSnapshot(id, { code_snapshot: snapshot, updated_at: now });
+      }
     },
     []
   );
@@ -404,16 +520,11 @@ export function useSupabaseProgress(challengeId?: number) {
     if (!activeSession || activeSession.role !== "student") return;
 
     const now = new Date().toISOString();
-    const existing = records.find((r) => r.challenge_id === id);
-
     const { error } = await supabase.from("student_challenge_progress").upsert(
       {
         student_id: activeSession.id,
         challenge_id: id,
         completed: false,
-        code_snapshot: existing?.code_snapshot ?? null,
-        blocks_snapshot: existing?.blocks_snapshot ?? null,
-        blocks_updated_at: existing?.blocks_updated_at ?? null,
         updated_at: now,
       },
       { onConflict: "student_id,challenge_id" }
@@ -423,12 +534,8 @@ export function useSupabaseProgress(challengeId?: number) {
       console.error("Failed to reset completion in cloud:", error.message);
     }
 
-    patchStoreRecord(id, {
-      completed: false,
-      updated_at: now,
-      code_snapshot: existing?.code_snapshot ?? null,
-    });
-  }, [records]);
+    patchMetaRecord(id, { completed: false, updated_at: now });
+  }, []);
 
   return {
     isCompleted,
@@ -440,6 +547,7 @@ export function useSupabaseProgress(challengeId?: number) {
     loadedBlocks,
     loadedBlocksUpdatedAt,
     hydrated,
+    snapshotsHydrated,
     saveCode,
     saveBlocks,
     markComplete,

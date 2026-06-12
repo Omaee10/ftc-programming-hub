@@ -5,6 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
 import { repairItkanOwnerSlotOnce } from "@/lib/supabase/mentorClaim";
 import type { MentorDashboardScope } from "@/lib/mentorDashboardApi";
+import {
+  CHALLENGE_LIST_COLUMNS,
+  HOMEWORK_LIST_COLUMNS,
+  SUBMISSION_LIST_COLUMNS,
+} from "@/lib/supabase/progressColumns";
 
 const SCOPES: MentorDashboardScope[] = [
   "overview",
@@ -142,17 +147,21 @@ export async function POST(req: Request): Promise<NextResponse> {
           studentIds.length > 0
             ? supabase
                 .from("student_challenge_progress")
-                .select("id, student_id, challenge_id, completed, code_snapshot, updated_at")
+                .select("id, student_id, challenge_id, completed, updated_at")
                 .in("student_id", studentIds)
             : Promise.resolve({ data: [], error: null }),
           studentIds.length > 0
             ? supabase
                 .from("homework_assignments")
-                .select("*")
+                .select(HOMEWORK_LIST_COLUMNS)
                 .in("student_id", studentIds)
             : Promise.resolve({ data: [], error: null }),
           authorIds.length > 0
-            ? supabase.from("challenges").select("*").in("created_by", authorIds).order("id")
+            ? supabase
+                .from("challenges")
+                .select(CHALLENGE_LIST_COLUMNS)
+                .in("created_by", authorIds)
+                .order("id")
             : Promise.resolve({ data: [], error: null }),
         ]);
 
@@ -166,17 +175,31 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     case "homework": {
       const authorIds = classChallengeAuthorIds(session);
-      const [{ data: students }, { data: homework }, { data: challenges }] =
-        await Promise.all([
-          supabase.from("students").select("*").eq("mentor_id", ownerId).order("name"),
-          supabase
-            .from("homework_assignments")
-            .select("*")
-            .order("assigned_at", { ascending: false }),
-          authorIds.length > 0
-            ? supabase.from("challenges").select("*").in("created_by", authorIds).order("id")
-            : Promise.resolve({ data: [], error: null }),
-        ]);
+
+      const { data: students } = await supabase
+        .from("students")
+        .select("*")
+        .eq("mentor_id", ownerId)
+        .order("name");
+
+      const studentIds = (students ?? []).map((row) => row.id as string);
+
+      const [{ data: homework }, { data: challenges }] = await Promise.all([
+        studentIds.length > 0
+          ? supabase
+              .from("homework_assignments")
+              .select(HOMEWORK_LIST_COLUMNS)
+              .in("student_id", studentIds)
+              .order("assigned_at", { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
+        authorIds.length > 0
+          ? supabase
+              .from("challenges")
+              .select(CHALLENGE_LIST_COLUMNS)
+              .in("created_by", authorIds)
+              .order("id")
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
       return NextResponse.json({
         students: students ?? [],
@@ -226,7 +249,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       const { data: rows, error } = await supabase
         .from("challenges")
-        .select("*")
+        .select(CHALLENGE_LIST_COLUMNS)
         .in("created_by", authorIds)
         .order("id");
 
@@ -255,7 +278,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       const [{ data: submissions }, { data: challenges }] = await Promise.all([
         supabase
           .from("challenge_submissions")
-          .select("*")
+          .select(SUBMISSION_LIST_COLUMNS)
           .in("student_id", studentIds)
           .order("submitted_at", { ascending: false }),
         supabase.from("challenges").select("id, title"),

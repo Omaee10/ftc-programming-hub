@@ -10,6 +10,29 @@ import type {
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
 import { withTimeout } from "@/lib/withTimeout";
 
+export type MentorSnapshotRequest =
+  | { kind: "progress"; studentId: string; challengeId: number }
+  | { kind: "homework"; assignmentId: string }
+  | { kind: "submission"; submissionId: string };
+
+/** Progress row without large snapshot columns (mentor list views). */
+export type ProgressSummaryRow = Pick<
+  ProgressRow,
+  "id" | "student_id" | "challenge_id" | "completed" | "updated_at"
+>;
+
+/** Submission row without code body (mentor list views). */
+export type SubmissionSummaryRow = Omit<SubmissionRow, "code_snapshot">;
+
+/** Homework row without saved code (list views). */
+export type HomeworkSummaryRow = Omit<HomeworkAssignmentRow, "code_snapshot">;
+
+/** Challenge row without large text fields (mentor list views). */
+export type ChallengeSummaryRow = Pick<
+  ChallengeRow,
+  "id" | "title" | "difficulty" | "xp" | "created_by" | "created_at"
+>;
+
 export type MentorDashboardScope =
   | "overview"
   | "progress"
@@ -28,15 +51,15 @@ export type OverviewPayload = {
 
 export type ProgressPayload = {
   students: StudentRow[];
-  progress: ProgressRow[];
-  homework: HomeworkAssignmentRow[];
-  challenges: ChallengeRow[];
+  progress: ProgressSummaryRow[];
+  homework: HomeworkSummaryRow[];
+  challenges: ChallengeSummaryRow[];
 };
 
 export type HomeworkPayload = {
   students: StudentRow[];
-  challenges: ChallengeRow[];
-  homework: HomeworkAssignmentRow[];
+  challenges: ChallengeSummaryRow[];
+  homework: HomeworkSummaryRow[];
 };
 
 export type MentorsPayload = {
@@ -48,12 +71,12 @@ export type StudentsPayload = {
 };
 
 export type ChallengesPayload = {
-  rows: ChallengeRow[];
+  rows: ChallengeSummaryRow[];
 };
 
 export type SubmissionsPayload = {
   students: { id: string; name: string }[];
-  submissions: SubmissionRow[];
+  submissions: SubmissionSummaryRow[];
   challenges: { id: number; title: string }[];
 };
 
@@ -109,6 +132,32 @@ export function fetchChallengesData(session: Session): Promise<ChallengesPayload
 
 export function fetchSubmissionsData(session: Session): Promise<SubmissionsPayload> {
   return postMentorDashboard("submissions", session);
+}
+
+export async function fetchMentorSnapshotCode(
+  session: Session,
+  request: MentorSnapshotRequest
+): Promise<string | null> {
+  const res = await withTimeout(
+    fetch("/api/mentor/snapshots", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...request,
+        workspaceId: session.id,
+        parentMentorId: session.parentMentorId,
+      }),
+    }),
+    TAB_LOADER_TIMEOUT_MS,
+    "Loading saved code"
+  );
+
+  const data = (await res.json()) as { error?: string; code?: string | null };
+  if (!res.ok) {
+    throw new Error(data.error ?? `Request failed (${res.status})`);
+  }
+  return data.code ?? null;
 }
 
 export async function deleteClassMember(

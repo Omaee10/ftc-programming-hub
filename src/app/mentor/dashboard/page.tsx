@@ -22,7 +22,7 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { supabase, type MentorRow, type StudentRow, type ChallengeRow, type ProgressRow, type SubmissionRow, type HomeworkAssignmentRow } from "@/lib/supabase";
+import { supabase, type MentorRow, type StudentRow, type SubmissionRow } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { useTabLoader, useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import Link from "next/link";
@@ -31,13 +31,19 @@ import {
   fetchChallengesData,
   fetchHomeworkData,
   fetchMentorsData,
+  fetchOverviewData,
   fetchProgressData,
   fetchStudentsData,
   deleteClassMember,
   fetchSubmissionsData,
+  type ChallengeSummaryRow,
+  type HomeworkSummaryRow,
+  type ProgressSummaryRow,
+  type SubmissionSummaryRow,
 } from "@/lib/mentorDashboardApi";
+import LazySavedCode, { SubmissionCodePanel } from "@/components/LazySavedCode";
 import { challenges as staticChallenges } from "@/data/challenges";
-import { computeDisplayNumbers, rowToChallenge } from "@/lib/homeworkUtils";
+import { computeDisplayNumbers } from "@/lib/homeworkUtils";
 import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
 import {
   isItkanRoboticsClass,
@@ -61,12 +67,12 @@ const TABS: Tab[] = [
 
 interface StudentProgress {
   student: StudentRow;
-  records: ProgressRow[];
+  records: ProgressSummaryRow[];
   totalChallenges: number;
-  homework: HomeworkAssignmentRow[];
+  homework: HomeworkSummaryRow[];
 }
 
-type EnrichedSubmission = SubmissionRow & {
+type EnrichedSubmission = SubmissionSummaryRow & {
   studentName: string;
   challengeTitle: string;
 };
@@ -171,7 +177,7 @@ function TabButton({
 
 function ProgressTab() {
   const [data, setData] = useState<StudentProgress[]>([]);
-  const [dbChallenges, setDbChallenges] = useState<ChallengeRow[]>([]);
+  const [dbChallenges, setDbChallenges] = useState<ChallengeSummaryRow[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const dbIds = new Set(dbChallenges.map((c) => c.id));
@@ -185,10 +191,10 @@ function ProgressTab() {
   const { loading, sessionMissing, loadError, reload } = useTabLoader(async (s) => {
     const { students, progress, homework, challenges } = await fetchProgressData(s);
 
-    setDbChallenges(challenges as ChallengeRow[]);
+    setDbChallenges(challenges as ChallengeSummaryRow[]);
 
     const studentList = students as StudentRow[];
-    const homeworkRows = homework as HomeworkAssignmentRow[];
+    const homeworkRows = homework as HomeworkSummaryRow[];
 
     const allCh = [
       ...staticChallenges.map((c) => c.id),
@@ -203,7 +209,7 @@ function ProgressTab() {
           (h) => h.student_id === student.id
         );
         const homeworkIds = new Set(studentHomework.map((h) => h.challenge_id));
-        const studentRecords = ((progress ?? []) as ProgressRow[]).filter(
+        const studentRecords = ((progress ?? []) as ProgressSummaryRow[]).filter(
           (r) => r.student_id === student.id && !homeworkIds.has(r.challenge_id)
         );
 
@@ -329,15 +335,12 @@ function ProgressTab() {
                                   </span>
                                 )}
                               </p>
-                              {hw.code_snapshot && (
-                                <details className="mt-1.5 group">
-                                  <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300 select-none">
-                                    View saved code
-                                  </summary>
-                                  <pre className="mt-2 max-h-80 overflow-auto rounded-md border border-slate-800/80 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400 sidebar-scroll">
-                                    {hw.code_snapshot}
-                                  </pre>
-                                </details>
+                              {hw.completed && (
+                                <LazySavedCode
+                                  request={{ kind: "homework", assignmentId: hw.id }}
+                                  summaryClassName="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300 select-none"
+                                  preClassName="mt-2 max-h-80 overflow-auto rounded-md border border-slate-800/80 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400 sidebar-scroll"
+                                />
                               )}
                             </div>
                           </div>
@@ -371,15 +374,15 @@ function ProgressTab() {
                         >
                           {index + 1}. {ch.title}
                         </p>
-                        {rec?.code_snapshot && (
-                          <details className="mt-1">
-                            <summary className="cursor-pointer text-[10px] text-slate-600 hover:text-slate-400">
-                              View saved code
-                            </summary>
-                            <pre className="mt-1 max-h-32 overflow-auto rounded bg-slate-950 p-2 text-[10px] text-slate-400 font-mono">
-                              {rec.code_snapshot}
-                            </pre>
-                          </details>
+                        {(rec?.updated_at || done) && (
+                          <LazySavedCode
+                            request={{
+                              kind: "progress",
+                              studentId: student.id,
+                              challengeId: ch.id,
+                            }}
+                            showWhen={Boolean(rec)}
+                          />
                         )}
                       </div>
                     </div>
@@ -544,9 +547,9 @@ function ChallengeMultiPicker({
 
 function AssignHomeworkTab() {
   const [students, setStudents] = useState<StudentRow[]>([]);
-  const [dbChallenges, setDbChallenges] = useState<ChallengeRow[]>([]);
+  const [dbChallenges, setDbChallenges] = useState<ChallengeSummaryRow[]>([]);
   const [assignments, setAssignments] = useState<
-    (HomeworkAssignmentRow & { studentName: string; challengeTitle: string })[]
+    (HomeworkSummaryRow & { studentName: string; challengeTitle: string })[]
   >([]);
   const [selectedChallenges, setSelectedChallenges] = useState<Set<number>>(new Set());
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
@@ -569,7 +572,6 @@ function AssignHomeworkTab() {
     })),
     ...dbChallenges
       .filter((c) => !staticChallenges.find((s) => s.id === c.id))
-      .map(rowToChallenge)
       .sort((a, b) => a.id - b.id)
       .map((c) => ({ id: c.id, title: c.title, number: undefined as number | undefined })),
   ];
@@ -591,7 +593,7 @@ function AssignHomeworkTab() {
     const nameMap = new Map(studentList.map((st) => [st.id, st.name]));
 
     setAssignments(
-      ((hwRows ?? []) as HomeworkAssignmentRow[])
+      ((hwRows ?? []) as HomeworkSummaryRow[])
         .filter((h) => studentIds.has(h.student_id))
         .map((h) => ({
           ...h,
@@ -1371,7 +1373,7 @@ function CodeManager({
 // ─── Manage Challenges Tab ────────────────────────────────────────────────────
 
 function ManageChallengesTab() {
-  const [rows, setRows] = useState<ChallengeRow[]>([]);
+  const [rows, setRows] = useState<ChallengeSummaryRow[]>([]);
   const [isPending, startTransition] = useTransition();
 
   const { loading, session, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
@@ -1753,7 +1755,7 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
       })),
     ];
 
-    const enriched: EnrichedSubmission[] = ((subs ?? []) as SubmissionRow[]).map((sub) => ({
+    const enriched: EnrichedSubmission[] = ((subs ?? []) as SubmissionSummaryRow[]).map((sub) => ({
       ...sub,
       studentName:
         (students as { id: string; name: string }[]).find((st) => st.id === sub.student_id)
@@ -1903,9 +1905,7 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
 
                   {isExpanded && (
                     <div className="border-t border-slate-800 px-5 py-4 space-y-4">
-                      <pre className="max-h-64 overflow-auto rounded bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400">
-                        {sub.code_snapshot}
-                      </pre>
+                      <SubmissionCodePanel submissionId={sub.id} active={isExpanded} />
 
                       <div className="flex flex-col gap-3 sm:flex-row">
                         <div className="sm:w-44">
@@ -2007,9 +2007,7 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
 
                   {isExpanded && (
                     <div className="border-t border-slate-800 px-5 py-4 space-y-4">
-                      <pre className="max-h-64 overflow-auto rounded bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400">
-                        {sub.code_snapshot}
-                      </pre>
+                      <SubmissionCodePanel submissionId={sub.id} active={isExpanded} />
                       {sub.feedback && (
                         <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3">
                           <p className="mb-1 text-xs font-medium text-slate-500">Feedback</p>
@@ -2056,14 +2054,14 @@ export default function MentorDashboardPage() {
     window.history.replaceState(null, "", url.toString());
   };
 
-  // Fetch pending submission count for the tab badge (re-run when session hydrates).
+  // Lightweight pending count for the tab badge (count-only query, no code bodies).
   useEffect(() => {
     const s = getSession();
     if (!s?.id) return;
     (async () => {
       try {
-        const { submissions } = await fetchSubmissionsData(s);
-        setPendingCount(submissions.filter((sub) => sub.status === "pending").length);
+        const { pendingCount } = await fetchOverviewData(s);
+        setPendingCount(pendingCount);
       } catch {
         setPendingCount(0);
       }

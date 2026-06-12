@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { HomeworkAssignmentRow } from "@/lib/supabase";
+import { HOMEWORK_LIST_COLUMNS } from "@/lib/supabase/progressColumns";
 
 /** Load homework for a student workspace. RLS ensures only the signed-in owner can read rows. */
 export async function fetchStudentHomework(
@@ -8,7 +9,7 @@ export async function fetchStudentHomework(
 ): Promise<{ assignments: HomeworkAssignmentRow[]; error: string | null }> {
   const { data, error } = await supabase
     .from("homework_assignments")
-    .select("*")
+    .select(HOMEWORK_LIST_COLUMNS)
     .eq("student_id", studentId)
     .order("assigned_at", { ascending: false });
 

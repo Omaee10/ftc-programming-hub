@@ -49,6 +49,7 @@ import {
 } from "@/lib/chooseSavedWorkspace";
 import { getSession } from "@/lib/auth";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
+import { CLOUD_SAVE_DEBOUNCE_MS } from "@/lib/cloudSaveDebounce";
 import type { WorkspaceState } from "@/data/blockChallenges";
 import { FULL_TOOLBOX } from "@/lib/blockly/ftcBlocks";
 import {
@@ -257,6 +258,7 @@ export default function PlaygroundWorkspace() {
     loadedBlocks,
     loadedBlocksUpdatedAt,
     hydrated: dbHydrated,
+    snapshotsHydrated,
   } = useSupabaseProgress(PLAYGROUND_DRAFT_ID);
 
   const [code, setCode] = useState(() =>
@@ -299,7 +301,7 @@ export default function PlaygroundWorkspace() {
       }
       cloudSaveTimer.current = setTimeout(() => {
         void saveCode(next);
-      }, 2000);
+      }, CLOUD_SAVE_DEBOUNCE_MS);
     },
     [saveCode]
   );
@@ -314,7 +316,7 @@ export default function PlaygroundWorkspace() {
       }
       blockCloudSaveTimer.current = setTimeout(() => {
         void saveBlocks(state);
-      }, 2000);
+      }, CLOUD_SAVE_DEBOUNCE_MS);
     },
     [saveBlocks]
   );
@@ -333,7 +335,7 @@ export default function PlaygroundWorkspace() {
   useEffect(() => {
     const session = getSession();
     const needsCloud = session?.role === "student";
-    if (needsCloud && !dbHydrated) return;
+    if (needsCloud && (!dbHydrated || !snapshotsHydrated)) return;
     if (restoredBlocksRef.current) return;
 
     const restored = chooseSavedBlocks(
@@ -345,7 +347,7 @@ export default function PlaygroundWorkspace() {
     setResolvedBlocksState(restored);
     blockStateRef.current = restored;
     restoredBlocksRef.current = true;
-  }, [dbHydrated, loadedBlocks, loadedBlocksUpdatedAt]);
+  }, [dbHydrated, snapshotsHydrated, loadedBlocks, loadedBlocksUpdatedAt]);
 
   useEffect(() => {
     codeRef.current = code;
@@ -358,7 +360,7 @@ export default function PlaygroundWorkspace() {
   useEffect(() => {
     const session = getSession();
     const needsCloud = session?.role === "student";
-    if (needsCloud && !dbHydrated) return;
+    if (needsCloud && (!dbHydrated || !snapshotsHydrated)) return;
     if (restoredCodeRef.current) return;
 
     const restored = chooseSavedCode(
@@ -370,7 +372,7 @@ export default function PlaygroundWorkspace() {
     setCode(restored);
     editorRef.current?.setValue(restored);
     restoredCodeRef.current = true;
-  }, [dbHydrated, loadedCode, loadedCodeUpdatedAt]);
+  }, [dbHydrated, snapshotsHydrated, loadedCode, loadedCodeUpdatedAt]);
 
   useEffect(() => {
     const flush = () => {
