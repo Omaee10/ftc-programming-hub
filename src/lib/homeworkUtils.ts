@@ -7,6 +7,36 @@ import {
 } from "@/data/challenges";
 import type { ChallengeRow } from "@/lib/supabase";
 
+type ChallengeCardRow = Pick<
+  ChallengeRow,
+  | "id"
+  | "title"
+  | "difficulty"
+  | "description"
+  | "xp"
+  | "estimated_time"
+  | "tags"
+>;
+
+/** List/card views — skips instructions, starter code, hints, and rubric blobs. */
+export function rowToChallengeSummary(row: ChallengeCardRow): Challenge {
+  return {
+    id: row.id,
+    title: row.title,
+    difficulty: row.difficulty as Challenge["difficulty"],
+    description: row.description,
+    xp: row.xp,
+    estimatedTime: row.estimated_time,
+    tags: row.tags ?? [],
+    objectives: [],
+    instructions: "",
+    starterCode: "",
+    hints: [],
+    conceptsCovered: [],
+    mentorRules: undefined,
+  };
+}
+
 export function rowToChallenge(row: ChallengeRow): Challenge {
   return {
     id: row.id,

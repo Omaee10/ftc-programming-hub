@@ -1,5 +1,8 @@
 import type { Session } from "@/lib/auth";
-import { supabase, type ChallengeRow } from "@/lib/supabase";
+import type { Challenge } from "@/data/challenges";
+import { rowToChallengeSummary } from "@/lib/homeworkUtils";
+import { supabase } from "@/lib/supabase";
+import { CHALLENGE_CARD_COLUMNS } from "@/lib/supabase/progressColumns";
 
 /** Class owner mentor id (parent for co-mentors, self for owners). */
 export function classOwner(
@@ -53,7 +56,7 @@ export async function resolveStudentMentorOwnerId(
 /** Fetch mentor-authored challenges for the signed-in user (mentor or student). */
 export async function fetchClassChallenges(
   session: Session
-): Promise<ChallengeRow[]> {
+): Promise<Challenge[]> {
   let authorIds: string[];
 
   if (session.role === "mentor") {
@@ -69,7 +72,7 @@ export async function fetchClassChallenges(
 
   const { data, error } = await supabase
     .from("challenges")
-    .select("*")
+    .select(CHALLENGE_CARD_COLUMNS)
     .in("created_by", authorIds)
     .order("id", { ascending: true });
 
@@ -78,7 +81,7 @@ export async function fetchClassChallenges(
     return [];
   }
 
-  return (data ?? []) as ChallengeRow[];
+  return (data ?? []).map((row) => rowToChallengeSummary(row));
 }
 
 /** created_by value to store when a mentor saves a new challenge. */

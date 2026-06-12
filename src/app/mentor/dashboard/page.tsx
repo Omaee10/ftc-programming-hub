@@ -1736,42 +1736,49 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [gradeInputs, setGradeInputs] = useState<Record<string, { grade: string; feedback: string }>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const { loading, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
-    const { students, submissions: subs, challenges: dbChallenges } =
-      await fetchSubmissionsData(s);
-
-    if (!students || students.length === 0) {
-      setSubmissions([]);
-      onCountChange?.(0);
-      return;
-    }
-
+  const enrichSubmissions = (
+    subs: SubmissionSummaryRow[],
+    students: { id: string; name: string }[],
+    dbChallenges: { id: number; title: string }[]
+  ): EnrichedSubmission[] => {
     const allChallengeTitles = [
       ...staticChallenges.map((c) => ({ id: c.id, title: c.title })),
-      ...((dbChallenges ?? []) as { id: number; title: string }[]).map((c) => ({
-        id: c.id,
-        title: c.title,
-      })),
+      ...dbChallenges.map((c) => ({ id: c.id, title: c.title })),
     ];
 
-    const enriched: EnrichedSubmission[] = ((subs ?? []) as SubmissionSummaryRow[]).map((sub) => ({
+    return subs.map((sub) => ({
       ...sub,
       studentName:
-        (students as { id: string; name: string }[]).find((st) => st.id === sub.student_id)
-          ?.name ?? "Unknown",
+        students.find((st) => st.id === sub.student_id)?.name ?? "Unknown",
       challengeTitle:
         allChallengeTitles.find((c) => c.id === sub.challenge_id)?.title ??
         `Challenge ${sub.challenge_id}`,
     }));
+  };
 
-    setSubmissions(enriched);
+  const applySubmissionPage = (
+    payload: Awaited<ReturnType<typeof fetchSubmissionsData>>,
+    append: boolean
+  ) => {
+    const enriched = enrichSubmissions(
+      payload.submissions,
+      payload.students,
+      payload.challenges
+    );
 
-    const pendingCount = enriched.filter((sub) => sub.status === "pending").length;
-    onCountChange?.(pendingCount);
+    setSubmissions((prev) => (append ? [...prev, ...enriched] : enriched));
+    setHasMore(payload.hasMore);
+    setTotalCount(payload.totalCount);
+    setPage(payload.page);
+    onCountChange?.(payload.pendingCount);
 
     setGradeInputs((prev) => {
-      const next = { ...prev };
+      const next = append ? { ...prev } : {};
       enriched
         .filter((sub) => sub.status === "pending")
         .forEach((sub) => {
@@ -1781,7 +1788,37 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
         });
       return next;
     });
+  };
+
+  const { loading, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
+    const payload = await fetchSubmissionsData(s, { page: 0 });
+
+    if (!payload.students || payload.students.length === 0) {
+      setSubmissions([]);
+      setHasMore(false);
+      setTotalCount(0);
+      setPage(0);
+      onCountChange?.(0);
+      return;
+    }
+
+    applySubmissionPage(payload, false);
   });
+
+  const loadMore = async () => {
+    const s = getSession();
+    if (!s || loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const payload = await fetchSubmissionsData(s, { page: page + 1 });
+      applySubmissionPage(payload, true);
+    } catch (error) {
+      console.error("Failed to load more submissions:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const toggleExpand = (id: string) =>
     setExpandedIds((prev) => {
@@ -2022,6 +2059,29 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
               );
             })}
           </div>
+        </div>
+      )}
+
+      {hasMore && (
+        <div className="flex flex-col items-center gap-2 pt-2">
+          <p className="text-[11px] text-slate-600">
+            Showing {submissions.length} of {totalCount} submissions
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300 transition-colors hover:border-slate-600 hover:text-slate-100 disabled:opacity-50"
+          >
+            {loadingMore ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading…
+              </>
+            ) : (
+              "Load more submissions"
+            )}
+          </button>
         </div>
       )}
     </div>

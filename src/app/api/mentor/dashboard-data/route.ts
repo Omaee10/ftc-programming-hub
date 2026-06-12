@@ -8,8 +8,10 @@ import type { MentorDashboardScope } from "@/lib/mentorDashboardApi";
 import {
   CHALLENGE_LIST_COLUMNS,
   HOMEWORK_LIST_COLUMNS,
+  STUDENT_LIST_COLUMNS,
   SUBMISSION_LIST_COLUMNS,
 } from "@/lib/supabase/progressColumns";
+import { hasMorePages, parsePagination } from "@/lib/supabase/queryHelpers";
 
 const SCOPES: MentorDashboardScope[] = [
   "overview",
@@ -35,6 +37,8 @@ export async function POST(req: Request): Promise<NextResponse> {
     scope?: MentorDashboardScope;
     workspaceId?: string;
     parentMentorId?: string;
+    page?: number;
+    pageSize?: number;
   };
 
   try {
@@ -43,7 +47,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { scope, workspaceId, parentMentorId } = body;
+  const { scope, workspaceId, parentMentorId, page, pageSize } = body;
 
   if (!scope || !workspaceId || !SCOPES.includes(scope)) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
@@ -134,7 +138,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       const { data: students } = await supabase
         .from("students")
-        .select("*")
+        .select(STUDENT_LIST_COLUMNS)
         .eq("mentor_id", ownerId)
         .order("name");
 
@@ -178,7 +182,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       const { data: students } = await supabase
         .from("students")
-        .select("*")
+        .select(STUDENT_LIST_COLUMNS)
         .eq("mentor_id", ownerId)
         .order("name");
 
@@ -230,7 +234,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     case "students": {
       const { data: rows, error } = await supabase
         .from("students")
-        .select("*")
+        .select(STUDENT_LIST_COLUMNS)
         .eq("mentor_id", ownerId)
         .order("name");
 
@@ -261,6 +265,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "submissions": {
+      const authorIds = classChallengeAuthorIds(session);
+      const pagination = parsePagination(page, pageSize);
+
       const { data: students } = await supabase
         .from("students")
         .select("id, name")
@@ -271,23 +278,84 @@ export async function POST(req: Request): Promise<NextResponse> {
           students: [],
           submissions: [],
           challenges: [],
+          totalCount: 0,
+          pendingCount: 0,
+          hasMore: false,
+          page: pagination.page,
+          pageSize: pagination.pageSize,
         });
       }
 
       const studentIds = students.map((s) => s.id as string);
-      const [{ data: submissions }, { data: challenges }] = await Promise.all([
+
+      const [
+        { count: totalCount, error: countError },
+        { count: pendingCount, error: pendingError },
+      ] = await Promise.all([
         supabase
           .from("challenge_submissions")
-          .select(SUBMISSION_LIST_COLUMNS)
-          .in("student_id", studentIds)
-          .order("submitted_at", { ascending: false }),
-        supabase.from("challenges").select("id, title"),
+          .select("id", { count: "exact", head: true })
+          .in("student_id", studentIds),
+        supabase
+          .from("challenge_submissions")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending")
+          .in("student_id", studentIds),
       ]);
+
+      if (countError || pendingError) {
+        return NextResponse.json(
+          { error: countError?.message ?? pendingError?.message ?? "Count failed" },
+          { status: 500 }
+        );
+      }
+
+      const { data: submissions, error: submissionsError } = await supabase
+        .from("challenge_submissions")
+        .select(SUBMISSION_LIST_COLUMNS)
+        .in("student_id", studentIds)
+        .order("submitted_at", { ascending: false })
+        .range(pagination.from, pagination.to);
+
+      if (submissionsError) {
+        return NextResponse.json({ error: submissionsError.message }, { status: 500 });
+      }
+
+      const submissionRows = submissions ?? [];
+      const customChallengeIds = [
+        ...new Set(
+          submissionRows
+            .map((row) => row.challenge_id as number)
+            .filter((id) => id >= 1000)
+        ),
+      ];
+
+      let challenges: { id: number; title: string }[] = [];
+      if (customChallengeIds.length > 0 && authorIds.length > 0) {
+        const { data: challengeRows, error: challengesError } = await supabase
+          .from("challenges")
+          .select("id, title")
+          .in("id", customChallengeIds)
+          .in("created_by", authorIds);
+
+        if (challengesError) {
+          return NextResponse.json({ error: challengesError.message }, { status: 500 });
+        }
+
+        challenges = (challengeRows ?? []) as { id: number; title: string }[];
+      }
+
+      const total = totalCount ?? 0;
 
       return NextResponse.json({
         students,
-        submissions: submissions ?? [],
-        challenges: challenges ?? [],
+        submissions: submissionRows,
+        challenges,
+        totalCount: total,
+        pendingCount: pendingCount ?? 0,
+        hasMore: hasMorePages(total, pagination),
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       });
     }
 

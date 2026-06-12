@@ -23,7 +23,6 @@ import {
   type Difficulty,
 } from "@/data/challenges";
 import {
-  rowToChallenge,
   mergeChallenges,
   filterOutAssigned,
   computeDisplayNumbers,
@@ -159,9 +158,7 @@ export default function ChallengesClient() {
 
     setIsMentor(session.role === "mentor");
 
-    fetchClassChallenges(session).then((rows) => {
-      setDbChallenges(rows.map(rowToChallenge));
-    });
+    fetchClassChallenges(session).then(setDbChallenges);
   }, []);
 
   const allChallenges = mergeChallenges(dbChallenges);

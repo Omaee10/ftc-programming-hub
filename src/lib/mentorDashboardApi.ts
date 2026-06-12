@@ -78,11 +78,17 @@ export type SubmissionsPayload = {
   students: { id: string; name: string }[];
   submissions: SubmissionSummaryRow[];
   challenges: { id: number; title: string }[];
+  totalCount: number;
+  pendingCount: number;
+  hasMore: boolean;
+  page: number;
+  pageSize: number;
 };
 
 async function postMentorDashboard<T>(
   scope: MentorDashboardScope,
-  session: Session
+  session: Session,
+  extra?: Record<string, unknown>
 ): Promise<T> {
   const res = await withTimeout(
     fetch("/api/mentor/dashboard-data", {
@@ -93,6 +99,7 @@ async function postMentorDashboard<T>(
         scope,
         workspaceId: session.id,
         parentMentorId: session.parentMentorId,
+        ...extra,
       }),
     }),
     TAB_LOADER_TIMEOUT_MS,
@@ -130,8 +137,11 @@ export function fetchChallengesData(session: Session): Promise<ChallengesPayload
   return postMentorDashboard("challenges", session);
 }
 
-export function fetchSubmissionsData(session: Session): Promise<SubmissionsPayload> {
-  return postMentorDashboard("submissions", session);
+export function fetchSubmissionsData(
+  session: Session,
+  options?: { page?: number; pageSize?: number }
+): Promise<SubmissionsPayload> {
+  return postMentorDashboard("submissions", session, options);
 }
 
 export async function fetchMentorSnapshotCode(

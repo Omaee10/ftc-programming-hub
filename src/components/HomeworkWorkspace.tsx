@@ -7,6 +7,7 @@ import type { Challenge } from "@/data/challenges";
 import ChallengeWorkspace from "@/components/ChallengeWorkspace";
 import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
 import { supabase, type ChallengeRow } from "@/lib/supabase";
+import { CHALLENGE_DETAIL_COLUMNS } from "@/lib/supabase/progressColumns";
 import { getSession } from "@/lib/auth";
 import { rowToChallenge } from "@/lib/homeworkUtils";
 
@@ -44,7 +45,7 @@ export default function HomeworkWorkspace({
       try {
         const { data } = await supabase
           .from("challenges")
-          .select("*")
+          .select(CHALLENGE_DETAIL_COLUMNS)
           .eq("id", challengeId)
           .single();
         if (data) {

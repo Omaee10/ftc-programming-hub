@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getChallengeById, type Challenge } from "@/data/challenges";
 import { supabase, type ChallengeRow } from "@/lib/supabase";
+import { CHALLENGE_DETAIL_COLUMNS } from "@/lib/supabase/progressColumns";
 import { rowToChallenge } from "@/lib/homeworkUtils";
 import HomeworkWorkspace from "@/components/HomeworkWorkspace";
 
@@ -11,7 +12,7 @@ async function getChallenge(id: number): Promise<Challenge | null> {
   try {
     const { data } = await supabase
       .from("challenges")
-      .select("*")
+      .select(CHALLENGE_DETAIL_COLUMNS)
       .eq("id", id)
       .single();
 

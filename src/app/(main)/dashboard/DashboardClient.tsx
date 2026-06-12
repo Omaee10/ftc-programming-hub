@@ -23,16 +23,15 @@ import {
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
-import { supabase } from "@/lib/supabase";
-import { fetchOverviewData } from "@/lib/mentorDashboardApi";
-import DashboardDocSearch from "@/components/DashboardDocSearch";
 import {
   filterOutAssigned,
   computeDisplayNumbers,
   mergeChallenges,
-  rowToChallenge,
 } from "@/lib/homeworkUtils";
-import type { ChallengeRow } from "@/lib/supabase";
+import { fetchClassChallenges } from "@/lib/classChallenges";
+import { fetchOverviewData } from "@/lib/mentorDashboardApi";
+import DashboardDocSearch from "@/components/DashboardDocSearch";
+import type { Challenge } from "@/data/challenges";
 
 function calcStreak(completedDates: string[]): number {
   if (completedDates.length === 0) return 0;
@@ -326,26 +325,12 @@ export default function DashboardClient({ name }: { name?: string }) {
       ]).size
     : 0;
 
-  const [dbChallenges, setDbChallenges] = useState<ReturnType<typeof mergeChallenges>>([]);
+  const [dbChallenges, setDbChallenges] = useState<Challenge[]>([]);
   useEffect(() => {
     const session = getSession();
     if (!session) return;
-    const mentorOwnerId = session.role === "mentor"
-      ? (session.parentMentorId ?? session.id)
-      : session.mentorId ?? null;
 
-    if (!mentorOwnerId) return;
-
-    supabase
-      .from("challenges")
-      .select("*")
-      .eq("created_by", mentorOwnerId)
-      .order("id", { ascending: true })
-      .then(({ data }) => {
-        if (data) {
-          setDbChallenges((data as ChallengeRow[]).map(rowToChallenge));
-        }
-      });
+    fetchClassChallenges(session).then(setDbChallenges);
   }, []);
 
   const [displayName, setDisplayName] = useState<string>(name ?? "there");

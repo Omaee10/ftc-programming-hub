@@ -16,7 +16,6 @@ import { getSession } from "@/lib/auth";
 import type { HomeworkAssignmentRow } from "@/lib/supabase";
 import { fetchClassChallenges } from "@/lib/classChallenges";
 import {
-  rowToChallenge,
   resolveChallenge,
   formatDueDate,
   isOverdue,
@@ -137,9 +136,7 @@ export default function HomeworkClient({
     const session = getSession();
     if (!session || session.role !== "student") return;
 
-    fetchClassChallenges(session).then((rows) => {
-      setDbChallenges(rows.map((row) => rowToChallenge(row)));
-    });
+    fetchClassChallenges(session).then(setDbChallenges);
   }, []);
 
   const pending = list.filter((a) => !a.completed);
