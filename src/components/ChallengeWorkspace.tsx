@@ -913,10 +913,9 @@ export default function ChallengeWorkspace({
       flushBlocksSnapshotRef.current();
     };
 
-    const onPageHide = () => flush();
-    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pagehide", flush);
     return () => {
-      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pagehide", flush);
       flush();
     };
   }, [answerKeyMode, challenge.id]);
