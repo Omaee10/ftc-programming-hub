@@ -1,10 +1,9 @@
 import {
-  challenges as staticChallenges,
   getChallengeById,
-  difficultyOrder,
   type Challenge,
-  type Difficulty,
 } from "@/data/challenges";
+import { builtinChallengeSummaries } from "@/data/challengeMeta";
+import { difficultyOrder, type Difficulty } from "@/data/challengeConstants";
 import type { ChallengeRow } from "@/lib/supabase";
 
 type ChallengeCardRow = Pick<
@@ -77,7 +76,7 @@ export function mergeChallenges(
 ): Challenge[] {
   const dbIds = new Set(dbChallenges.map((c) => c.id));
   return [
-    ...staticChallenges.filter((c) => !dbIds.has(c.id)),
+    ...builtinChallengeSummaries.filter((c) => !dbIds.has(c.id)),
     ...dbChallenges,
   ].sort((a, b) => a.id - b.id);
 }

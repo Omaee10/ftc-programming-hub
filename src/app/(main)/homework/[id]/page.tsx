@@ -1,27 +1,35 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getChallengeById, type Challenge } from "@/data/challenges";
-import { supabase, type ChallengeRow } from "@/lib/supabase";
+import { isBuiltinChallengeId } from "@/data/challengeMeta";
+import { createClient } from "@/lib/supabase/server";
 import { CHALLENGE_DETAIL_COLUMNS } from "@/lib/supabase/progressColumns";
 import { rowToChallenge } from "@/lib/homeworkUtils";
 import HomeworkWorkspace from "@/components/HomeworkWorkspace";
 
-export const dynamic = "force-dynamic";
-
 async function getChallenge(id: number): Promise<Challenge | null> {
+  if (isBuiltinChallengeId(id)) {
+    return getChallengeById(id) ?? null;
+  }
+
   try {
+    const supabase = await createClient();
     const { data } = await supabase
       .from("challenges")
       .select(CHALLENGE_DETAIL_COLUMNS)
       .eq("id", id)
       .single();
 
-    if (data) return rowToChallenge(data as ChallengeRow);
+    if (data) return rowToChallenge(data);
   } catch {
-    // fall through to static
+    // fall through
   }
 
-  return getChallengeById(id) ?? null;
+  return null;
+}
+
+export async function generateStaticParams() {
+  return Array.from({ length: 56 }, (_, i) => ({ id: String(i + 1) }));
 }
 
 export async function generateMetadata({

@@ -14,6 +14,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Monaco } from "@monaco-editor/react";
 import { defineFtcMonacoThemes } from "@/lib/monacoThemes";
+import { configureMonacoLoader } from "@/lib/monacoSetup";
 import {
   ArrowLeft,
   ArrowRight,
@@ -42,7 +43,9 @@ import {
 } from "lucide-react";
 
 import type { Challenge } from "@/data/challenges";
-import { challenges as staticChallenges, difficultyConfig, getChallengeById } from "@/data/challenges";
+import { difficultyConfig } from "@/data/challengeConstants";
+import { getBuiltinChallengeMeta } from "@/data/challengeMeta";
+import { isCustomChallengeId } from "@/lib/classChallenges";
 import {
   type GradedResult,
   type Grade,
@@ -535,8 +538,8 @@ export default function ChallengeWorkspace({
   const monacoTheme = (theme === "light" || theme === "paper") ? "ftc-light" : "ftc-dark";
 
   const diff = difficultyConfig[challenge.difficulty];
-  const prevChallenge = getChallengeById(challenge.id - 1);
-  const nextChallenge = getChallengeById(challenge.id + 1);
+  const prevChallenge = getBuiltinChallengeMeta(challenge.id - 1);
+  const nextChallenge = getBuiltinChallengeMeta(challenge.id + 1);
 
   // Local (localStorage) progress — keeps working offline / for guests
   const {
@@ -572,7 +575,7 @@ export default function ChallengeWorkspace({
   };
 
   // ── Mentor-challenge detection & submission state ────────────────────────
-  const isMentorChallenge = !staticChallenges.find((c) => c.id === challenge.id);
+  const isMentorChallenge = isCustomChallengeId(challenge.id);
   const workspaceSession = useWorkspaceSession();
   const studentSession =
     workspaceSession?.role === "student" ? workspaceSession : null;
@@ -622,6 +625,9 @@ export default function ChallengeWorkspace({
     [answerKeyMode, blocksEnabled, challenge.id]
   );
   const [editorMode, setEditorMode] = useState<EditorMode>("java");
+  const [blocklyMounted, setBlocklyMounted] = useState(
+    () => answerKeyMode && !!answerKey?.blocks
+  );
   const [pendingMode, setPendingMode] = useState<EditorMode | null>(null);
   const [blockResetSignal, setBlockResetSignal] = useState(0);
   const blockStateRef = useRef<WorkspaceState | null>(null);
@@ -736,6 +742,16 @@ export default function ChallengeWorkspace({
   useEffect(() => {
     if (!blocksEnabled) setEditorMode("java");
   }, [blocksEnabled, challenge.id]);
+
+  useEffect(() => {
+    configureMonacoLoader();
+  }, []);
+
+  useEffect(() => {
+    if (editorMode === "blocks" || pendingMode === "blocks") {
+      setBlocklyMounted(true);
+    }
+  }, [editorMode, pendingMode]);
 
   const persistBlocks = useCallback(
     (state: WorkspaceState, options?: { flushCloud?: boolean }) => {
@@ -907,7 +923,7 @@ export default function ChallengeWorkspace({
           },
           { onConflict: "student_id,challenge_id" }
         )
-        .select()
+        .select("id, status, grade, feedback, submitted_at, graded_at")
         .single();
       setSubmitting(false);
       if (error) {
@@ -1730,7 +1746,7 @@ export default function ChallengeWorkspace({
                 }}
               />
             </div>
-            {blocksEnabled && (answerKeyMode || blocksConfig) && (
+            {blocklyMounted && blocksEnabled && (answerKeyMode || blocksConfig) && (
               <div className={editorMode === "blocks" ? "h-full w-full" : "hidden"}>
                 {resolvedBlocksState ? (
                 <BlocklyWorkspace

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import ChallengesClient from "./ChallengesClient";
 
-export const dynamic = "force-dynamic";
-
 export const metadata: Metadata = {
   title: "Coding Challenges",
 };

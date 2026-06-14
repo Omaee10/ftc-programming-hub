@@ -24,6 +24,9 @@ public final class Grader {
     private final InMemoryCompiler compiler;
     private static final Pattern BLOCK_COMMENT = Pattern.compile("/\\*[\\s\\S]*?\\*/");
     private static final Pattern LINE_COMMENT  = Pattern.compile("//[^\\n]*");
+    private static final int MAX_SYNTAX_ISSUES = 10;
+    private static final int MAX_MATCHED_LINES = 5;
+    private static final int MAX_SNIPPET_CHARS = 80;
 
     public Grader(InMemoryCompiler compiler) {
         this.compiler = compiler;
@@ -67,7 +70,7 @@ public final class Grader {
                 )
         );
 
-        return new GradedResultJson(
+        return maybeCompact(req, new GradedResultJson(
                 grade,
                 toSyntaxJson(cr.diagnostics()),
                 universalResults,
@@ -77,7 +80,7 @@ public final class Grader {
                 score,
                 Verdict.build(grade, score, failedRequired(universalResults, requiredResults),
                               failedImprovements(universalResults, improvementResults))
-        );
+        ));
     }
 
     /** Syntax + type-check only — used by the free-form Code Playground. */
@@ -96,7 +99,7 @@ public final class Grader {
                 : new GradedResultJson.VerdictJson(
                         "Does Not Compile",
                         "Fix the errors above and run compile again.");
-        return new GradedResultJson(
+        return maybeCompact(null, new GradedResultJson(
                 grade,
                 toSyntaxJson(cr.diagnostics()),
                 List.of(),
@@ -105,7 +108,78 @@ public final class Grader {
                 List.of(),
                 score,
                 verdict
+        ));
+    }
+
+    private static GradedResultJson maybeCompact(CompileRequest req, GradedResultJson full) {
+        if (req != null && req.slimResponse()) {
+            return compact(full);
+        }
+        return full;
+    }
+
+    private static GradedResultJson compact(GradedResultJson full) {
+        return new GradedResultJson(
+                full.grade(),
+                capSyntax(full.syntaxIssues()),
+                compactRequiredTier(full.universalResults()),
+                compactRequiredTier(full.requiredResults()),
+                compactSoftTier(full.improvementResults()),
+                compactSoftTier(full.styleResults()),
+                full.score(),
+                full.verdict()
         );
+    }
+
+    private static List<GradedResultJson.CheckResultJson> compactRequiredTier(
+            List<GradedResultJson.CheckResultJson> rs
+    ) {
+        List<GradedResultJson.CheckResultJson> out = new ArrayList<>();
+        for (var r : rs) {
+            if (r.pass()) {
+                out.add(new GradedResultJson.CheckResultJson(
+                        r.label(), "", r.tier(), true, null, List.of()));
+            } else {
+                out.add(new GradedResultJson.CheckResultJson(
+                        r.label(),
+                        r.description(),
+                        r.tier(),
+                        false,
+                        r.tip(),
+                        capLines(r.matchedLines())));
+            }
+        }
+        return out;
+    }
+
+    private static List<GradedResultJson.CheckResultJson> compactSoftTier(
+            List<GradedResultJson.CheckResultJson> rs
+    ) {
+        List<GradedResultJson.CheckResultJson> out = new ArrayList<>();
+        for (var r : rs) {
+            if (r.pass()) continue;
+            out.add(new GradedResultJson.CheckResultJson(
+                    r.label(),
+                    r.description(),
+                    r.tier(),
+                    false,
+                    r.tip(),
+                    capLines(r.matchedLines())));
+        }
+        return out;
+    }
+
+    private static List<Integer> capLines(List<Integer> lines) {
+        if (lines == null || lines.isEmpty()) return List.of();
+        if (lines.size() <= MAX_MATCHED_LINES) return lines;
+        return lines.subList(0, MAX_MATCHED_LINES);
+    }
+
+    private static List<GradedResultJson.SyntaxIssueJson> capSyntax(
+            List<GradedResultJson.SyntaxIssueJson> issues
+    ) {
+        if (issues.size() <= MAX_SYNTAX_ISSUES) return issues;
+        return issues.subList(0, MAX_SYNTAX_ISSUES);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -195,16 +269,22 @@ public final class Grader {
     private static List<GradedResultJson.SyntaxIssueJson> toSyntaxJson(List<Diagnostic> diagnostics) {
         List<GradedResultJson.SyntaxIssueJson> out = new ArrayList<>();
         for (Diagnostic d : diagnostics) {
-            // "note" diagnostics are usually too noisy for students; drop them.
             if ("note".equals(d.kind())) continue;
+            if (out.size() >= MAX_SYNTAX_ISSUES) break;
             String severity = "warning".equals(d.kind()) ? "warning" : "error";
             String message = d.snippet().isBlank()
                     ? d.message()
-                    : d.message() + "  ➜  " + d.snippet().trim();
+                    : d.message() + "  ➜  " + truncateSnippet(d.snippet());
             List<Integer> lines = d.line() > 0 ? List.of((int) d.line()) : List.of();
             out.add(new GradedResultJson.SyntaxIssueJson(message, severity, lines));
         }
         return out;
+    }
+
+    private static String truncateSnippet(String snippet) {
+        String trimmed = snippet.trim();
+        if (trimmed.length() <= MAX_SNIPPET_CHARS) return trimmed;
+        return trimmed.substring(0, MAX_SNIPPET_CHARS) + "…";
     }
 
     private static String stripComments(String source) {

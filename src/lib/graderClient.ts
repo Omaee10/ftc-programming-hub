@@ -141,6 +141,30 @@ function headers(): HeadersInit {
   return h;
 }
 
+function buildCompileBody(payload: {
+  code: string;
+  challengeId: number;
+  mentorRules?: unknown[];
+  compileOnly?: boolean;
+}): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    code: payload.code,
+    challengeId: payload.challengeId,
+    slim: true,
+  };
+  if (payload.compileOnly) {
+    body.compileOnly = true;
+  }
+  if (
+    payload.challengeId >= 1000 &&
+    payload.mentorRules &&
+    (payload.mentorRules as unknown[]).length > 0
+  ) {
+    body.mentorRules = payload.mentorRules;
+  }
+  return body;
+}
+
 export async function gradeViaService<T = unknown>(payload: {
   code: string;
   challengeId: number;
@@ -159,7 +183,11 @@ export async function gradeViaService<T = unknown>(payload: {
 
   const res = await fetchWithTimeout(
     `${GRADER_URL}/compile`,
-    { method: "POST", headers: headers(), body: JSON.stringify(payload) },
+    {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify(buildCompileBody(payload)),
+    },
     GRADER_TIMEOUT_MS
   );
 
@@ -186,7 +214,9 @@ export async function compileViaService<T = unknown>(code: string): Promise<T> {
     {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ code, challengeId: 0, compileOnly: true }),
+      body: JSON.stringify(
+        buildCompileBody({ code, challengeId: 0, compileOnly: true })
+      ),
     },
     GRADER_TIMEOUT_MS
   );

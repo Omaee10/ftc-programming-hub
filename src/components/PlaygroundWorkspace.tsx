@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Monaco } from "@monaco-editor/react";
 import { defineFtcMonacoThemes } from "@/lib/monacoThemes";
+import { configureMonacoLoader } from "@/lib/monacoSetup";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -352,6 +353,10 @@ export default function PlaygroundWorkspace() {
   useEffect(() => {
     codeRef.current = code;
   }, [code]);
+
+  useEffect(() => {
+    configureMonacoLoader();
+  }, []);
 
   useEffect(() => {
     monacoRef.current?.editor.setTheme(monacoTheme);

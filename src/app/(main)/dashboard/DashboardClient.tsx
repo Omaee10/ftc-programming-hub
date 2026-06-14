@@ -14,12 +14,9 @@ import {
   Layers,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import {
-  challenges as staticChallenges,
-  difficultyOrder,
-  difficultyConfig,
-  type Difficulty,
-} from "@/data/challenges";
+import { difficultyOrder, difficultyConfig, type Difficulty } from "@/data/challengeConstants";
+import { builtinChallengeMeta } from "@/data/challengeMeta";
+import type { Challenge } from "@/data/challenges";
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
@@ -31,7 +28,6 @@ import {
 import { fetchClassChallenges } from "@/lib/classChallenges";
 import { fetchOverviewData } from "@/lib/mentorDashboardApi";
 import DashboardDocSearch from "@/components/DashboardDocSearch";
-import type { Challenge } from "@/data/challenges";
 
 function calcStreak(completedDates: string[]): number {
   if (completedDates.length === 0) return 0;
@@ -99,7 +95,7 @@ function DifficultyProgressStrip({
   hydrated: boolean;
 }) {
   const tiers = difficultyOrder.map((diff) => {
-    const all = staticChallenges.filter((c) => c.difficulty === diff);
+    const all = builtinChallengeMeta.filter((c) => c.difficulty === diff);
     const done = all.filter((c) => completedSet.has(c.id)).length;
     const pct = all.length > 0 ? Math.round((done / all.length) * 100) : 0;
     return { diff, done, total: all.length, pct };
@@ -264,7 +260,7 @@ function MentorDashboard() {
         <div className="dash-panel overflow-hidden dash-divide">
           {[
             { label: "Mentor Portal", sub: "Students, challenges, submissions", href: "/mentor/dashboard", icon: Users },
-            { label: "Coding Challenges", sub: `${staticChallenges.length} built-in challenges`, href: "/challenges", icon: Code2 },
+            { label: "Coding Challenges", sub: `${builtinChallengeMeta.length} built-in challenges`, href: "/challenges", icon: Code2 },
             { label: "Team Past Programs", sub: "Real competition OpMode archive", href: "/past-programs", icon: Archive },
           ].map(({ label, sub, href, icon: Icon }) => (
             <Link

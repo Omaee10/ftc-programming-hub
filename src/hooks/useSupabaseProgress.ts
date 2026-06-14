@@ -11,6 +11,7 @@ import {
 } from "@/lib/supabase/progressColumns";
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
 import { withTimeout } from "@/lib/withTimeout";
+import { digestJson, digestText } from "@/lib/contentHash";
 
 interface ProgressMetaRecord {
   challenge_id: number;
@@ -147,6 +148,14 @@ const EMPTY_SNAPSHOT: ProgressStoreSnapshot = {
   hydrated: false,
 };
 let storeSnapshot: ProgressStoreSnapshot = EMPTY_SNAPSHOT;
+
+/** Last pushed snapshot digests — skip Supabase upsert when unchanged. */
+const lastSavedCodeHash = new Map<string, string>();
+const lastSavedBlocksHash = new Map<string, string>();
+
+function snapshotKey(studentId: string, challengeId: number, kind: "code" | "blocks"): string {
+  return `${studentId}:${challengeId}:${kind}`;
+}
 
 function publishStore(next: ProgressStoreSnapshot): void {
   if (
@@ -294,13 +303,23 @@ async function ensureSnapshotsLoaded(
       }
 
       const row = data as ProgressSnapshot | null;
+      const codeSnapshot = row?.code_snapshot ?? null;
+      const blocksSnapshot = row?.blocks_snapshot ?? null;
+      if (codeSnapshot !== null) {
+        const hashKey = snapshotKey(studentId, challengeId, "code");
+        void digestText(codeSnapshot).then((hash) => lastSavedCodeHash.set(hashKey, hash));
+      }
+      if (blocksSnapshot !== null) {
+        const hashKey = snapshotKey(studentId, challengeId, "blocks");
+        void digestJson(blocksSnapshot).then((hash) => lastSavedBlocksHash.set(hashKey, hash));
+      }
       publishStore({
         ...getStoreSnapshot(),
         snapshotsByChallenge: {
           ...getStoreSnapshot().snapshotsByChallenge,
           [challengeId]: {
-            code_snapshot: row?.code_snapshot ?? null,
-            blocks_snapshot: row?.blocks_snapshot ?? null,
+            code_snapshot: codeSnapshot,
+            blocks_snapshot: blocksSnapshot,
             blocks_updated_at: row?.blocks_updated_at ?? null,
             updated_at: row?.updated_at ?? null,
           },
@@ -403,6 +422,12 @@ export function useSupabaseProgress(challengeId?: number) {
         isLocallyCompleted(activeSession.id, challengeId);
 
       const now = new Date().toISOString();
+      const hashKey = snapshotKey(activeSession.id, challengeId, "code");
+      const hash = await digestText(code);
+      if (lastSavedCodeHash.get(hashKey) === hash) {
+        return;
+      }
+
       const { error } = await supabase.from("student_challenge_progress").upsert(
         {
           student_id: activeSession.id,
@@ -419,6 +444,7 @@ export function useSupabaseProgress(challengeId?: number) {
         return;
       }
 
+      lastSavedCodeHash.set(hashKey, hash);
       patchMetaRecord(challengeId, { completed, updated_at: now });
       patchSnapshot(challengeId, {
         code_snapshot: code,
@@ -445,6 +471,12 @@ export function useSupabaseProgress(challengeId?: number) {
         isLocallyCompleted(activeSession.id, challengeId);
 
       const now = new Date().toISOString();
+      const hashKey = snapshotKey(activeSession.id, challengeId, "blocks");
+      const hash = await digestJson(state);
+      if (lastSavedBlocksHash.get(hashKey) === hash) {
+        return;
+      }
+
       const { error } = await supabase.from("student_challenge_progress").upsert(
         {
           student_id: activeSession.id,
@@ -461,6 +493,7 @@ export function useSupabaseProgress(challengeId?: number) {
         return;
       }
 
+      lastSavedBlocksHash.set(hashKey, hash);
       patchMetaRecord(challengeId, {
         completed,
         blocks_updated_at: now,

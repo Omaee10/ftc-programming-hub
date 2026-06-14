@@ -15,13 +15,8 @@ import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { useHomeworkAssignments } from "@/hooks/useHomeworkAssignments";
 import { getSession } from "@/lib/auth";
 import { useState, useEffect } from "react";
-import {
-  challenges as staticChallenges,
-  difficultyConfig,
-  difficultyOrder,
-  type Challenge,
-  type Difficulty,
-} from "@/data/challenges";
+import { difficultyConfig, difficultyOrder, type Difficulty } from "@/data/challengeConstants";
+import type { Challenge } from "@/data/challenges";
 import {
   mergeChallenges,
   filterOutAssigned,

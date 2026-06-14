@@ -1,47 +1,50 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getChallengeById, type Challenge } from "@/data/challenges";
-import { supabase, type ChallengeRow } from "@/lib/supabase";
+import { isBuiltinChallengeId } from "@/data/challengeMeta";
+import { createClient } from "@/lib/supabase/server";
 import { CHALLENGE_DETAIL_COLUMNS } from "@/lib/supabase/progressColumns";
 import ChallengeRedirectGuard from "@/components/ChallengeRedirectGuard";
 
-export const dynamic = "force-dynamic";
-
-function rowToChallenge(row: ChallengeRow): Challenge {
-  return {
-    id: row.id,
-    title: row.title,
-    difficulty: row.difficulty as Challenge["difficulty"],
-    description: row.description,
-    xp: row.xp,
-    estimatedTime: row.estimated_time,
-    tags: row.tags,
-    objectives: row.objectives,
-    instructions: row.instructions,
-    starterCode: row.starter_code,
-    hints: row.hints,
-    conceptsCovered: row.concepts_covered,
-    mentorRules: row.rubric_json ?? undefined,
-  };
-}
-
 async function getChallenge(id: number): Promise<Challenge | null> {
-  // Check Supabase first so mentor-created challenges take priority over
-  // static ones and can override any ID in the 1–53 static range.
+  if (isBuiltinChallengeId(id)) {
+    return getChallengeById(id) ?? null;
+  }
+
   try {
+    const supabase = await createClient();
     const { data } = await supabase
       .from("challenges")
       .select(CHALLENGE_DETAIL_COLUMNS)
       .eq("id", id)
       .single();
 
-    if (data) return rowToChallenge(data as ChallengeRow);
+    if (data) {
+      return {
+        id: data.id,
+        title: data.title,
+        difficulty: data.difficulty as Challenge["difficulty"],
+        description: data.description,
+        xp: data.xp,
+        estimatedTime: data.estimated_time,
+        tags: data.tags,
+        objectives: data.objectives,
+        instructions: data.instructions,
+        starterCode: data.starter_code,
+        hints: data.hints,
+        conceptsCovered: data.concepts_covered,
+        mentorRules: data.rubric_json ?? undefined,
+      };
+    }
   } catch {
-    // Supabase unavailable — fall through to static data
+    // Supabase unavailable for custom challenge lookup
   }
 
-  // Fall back to the built-in static challenge library
-  return getChallengeById(id) ?? null;
+  return null;
+}
+
+export async function generateStaticParams() {
+  return Array.from({ length: 56 }, (_, i) => ({ id: String(i + 1) }));
 }
 
 export async function generateMetadata({

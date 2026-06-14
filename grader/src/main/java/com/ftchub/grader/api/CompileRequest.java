@@ -11,12 +11,14 @@ import java.util.List;
  * mentorRules:    optional rule DSL submitted by mentors who created the challenge.
  *                 When present these are layered on top of the universal rules.
  * compileOnly:    when true, run javac only — skip universal and challenge rubric checks.
+ * slim:           when true, trim verbose fields from the JSON response to save bandwidth.
  */
 public record CompileRequest(
         String code,
         @JsonProperty("challengeId") int challengeId,
         @JsonProperty("mentorRules") List<MentorRuleSpec> mentorRules,
-        @JsonProperty("compileOnly") boolean compileOnly
+        @JsonProperty("compileOnly") boolean compileOnly,
+        @JsonProperty("slim") Boolean slim
 ) {
     public CompileRequest {
         if (mentorRules == null) mentorRules = List.of();
@@ -24,6 +26,14 @@ public record CompileRequest(
 
     /** Back-compat for callers that omit {@code compileOnly}. */
     public CompileRequest(String code, int challengeId, List<MentorRuleSpec> mentorRules) {
-        this(code, challengeId, mentorRules, false);
+        this(code, challengeId, mentorRules, false, null);
+    }
+
+    public CompileRequest(String code, int challengeId, List<MentorRuleSpec> mentorRules, boolean compileOnly) {
+        this(code, challengeId, mentorRules, compileOnly, null);
+    }
+
+    public boolean slimResponse() {
+        return slim != null && slim;
     }
 }

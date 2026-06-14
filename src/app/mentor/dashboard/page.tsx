@@ -42,7 +42,8 @@ import {
   type SubmissionSummaryRow,
 } from "@/lib/mentorDashboardApi";
 import LazySavedCode, { SubmissionCodePanel } from "@/components/LazySavedCode";
-import { challenges as staticChallenges } from "@/data/challenges";
+import { difficultyConfig } from "@/data/challengeConstants";
+import { builtinChallengeMeta, builtinChallengeSummaries } from "@/data/challengeMeta";
 import { computeDisplayNumbers } from "@/lib/homeworkUtils";
 import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
 import {
@@ -182,7 +183,7 @@ function ProgressTab() {
 
   const dbIds = new Set(dbChallenges.map((c) => c.id));
   const allChallenges = [
-    ...staticChallenges
+    ...builtinChallengeMeta
       .filter((c) => !dbIds.has(c.id))
       .map((c) => ({ id: c.id, title: c.title })),
     ...dbChallenges.map((c) => ({ id: c.id, title: c.title })),
@@ -197,10 +198,10 @@ function ProgressTab() {
     const homeworkRows = homework as HomeworkSummaryRow[];
 
     const allCh = [
-      ...staticChallenges.map((c) => c.id),
+      ...builtinChallengeMeta.map((c) => c.id),
       ...((challenges ?? []) as { id: number }[])
         .map((c) => c.id)
-        .filter((id) => !staticChallenges.find((sc) => sc.id === id)),
+        .filter((id) => !builtinChallengeMeta.find((sc) => sc.id === id)),
     ];
 
     setData(
@@ -563,7 +564,7 @@ function AssignHomeworkTab() {
   // Order the picker to match the public catalog: built-in challenges grouped
   // by difficulty with their sequential display numbers, then any custom
   // class challenges (by id) after.
-  const { displayNumbers, orderedChallenges } = computeDisplayNumbers(staticChallenges);
+  const { displayNumbers, orderedChallenges } = computeDisplayNumbers(builtinChallengeSummaries);
   const allChallengeOptions = [
     ...orderedChallenges.map((c) => ({
       id: c.id,
@@ -571,7 +572,7 @@ function AssignHomeworkTab() {
       number: displayNumbers[c.id],
     })),
     ...dbChallenges
-      .filter((c) => !staticChallenges.find((s) => s.id === c.id))
+      .filter((c) => !builtinChallengeMeta.find((s) => s.id === c.id))
       .sort((a, b) => a.id - b.id)
       .map((c) => ({ id: c.id, title: c.title, number: undefined as number | undefined })),
   ];
@@ -587,7 +588,7 @@ function AssignHomeworkTab() {
     setDbChallenges(challengeList);
 
     const titleMap = new Map<number, string>();
-    staticChallenges.forEach((c) => titleMap.set(c.id, c.title));
+    builtinChallengeMeta.forEach((c) => titleMap.set(c.id, c.title));
     challengeList.forEach((c) => titleMap.set(c.id, c.title));
 
     const nameMap = new Map(studentList.map((st) => [st.id, st.name]));
@@ -1747,7 +1748,7 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
     dbChallenges: { id: number; title: string }[]
   ): EnrichedSubmission[] => {
     const allChallengeTitles = [
-      ...staticChallenges.map((c) => ({ id: c.id, title: c.title })),
+      ...builtinChallengeMeta.map((c) => ({ id: c.id, title: c.title })),
       ...dbChallenges.map((c) => ({ id: c.id, title: c.title })),
     ];
 
