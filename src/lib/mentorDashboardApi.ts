@@ -13,7 +13,7 @@ import { withTimeout } from "@/lib/withTimeout";
 export type MentorSnapshotRequest =
   | { kind: "progress"; studentId: string; challengeId: number }
   | { kind: "homework"; assignmentId: string }
-  | { kind: "submission"; submissionId: string };
+  | { kind: "submission"; submissionId: string; part?: "code" | "blocks" | "all" };
 
 /** Progress row without large snapshot columns (mentor list views). */
 export type ProgressSummaryRow = Pick<
@@ -191,6 +191,62 @@ export async function fetchMentorSubmissionDetail(
     code: data.code ?? null,
     blocks: data.blocks ?? null,
   };
+}
+
+export async function fetchSubmissionCodeOnly(
+  session: Session,
+  submissionId: string
+): Promise<string | null> {
+  const res = await withTimeout(
+    fetch("/api/mentor/snapshots", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "submission",
+        submissionId,
+        part: "code",
+        workspaceId: session.id,
+        parentMentorId: session.parentMentorId,
+      }),
+    }),
+    TAB_LOADER_TIMEOUT_MS,
+    "Loading submission code"
+  );
+
+  const data = (await res.json()) as { error?: string; code?: string | null };
+  if (!res.ok) {
+    throw new Error(data.error ?? `Request failed (${res.status})`);
+  }
+  return data.code ?? null;
+}
+
+export async function fetchSubmissionBlocksOnly(
+  session: Session,
+  submissionId: string
+): Promise<Record<string, unknown> | null> {
+  const res = await withTimeout(
+    fetch("/api/mentor/snapshots", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "submission",
+        submissionId,
+        part: "blocks",
+        workspaceId: session.id,
+        parentMentorId: session.parentMentorId,
+      }),
+    }),
+    TAB_LOADER_TIMEOUT_MS,
+    "Loading submission blocks"
+  );
+
+  const data = (await res.json()) as { error?: string; blocks?: Record<string, unknown> | null };
+  if (!res.ok) {
+    throw new Error(data.error ?? `Request failed (${res.status})`);
+  }
+  return data.blocks ?? null;
 }
 
 export async function deleteClassMember(

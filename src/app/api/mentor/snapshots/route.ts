@@ -13,6 +13,7 @@ interface SnapshotBody {
   challengeId?: number;
   assignmentId?: string;
   submissionId?: string;
+  part?: "code" | "blocks" | "all";
 }
 
 async function authorizeMentor(
@@ -80,7 +81,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { kind, workspaceId, parentMentorId, studentId, challengeId, assignmentId, submissionId } =
+  const { kind, workspaceId, parentMentorId, studentId, challengeId, assignmentId, submissionId, part } =
     body;
 
   if (!kind || !workspaceId) {
@@ -146,39 +147,101 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "Bad request" }, { status: 400 });
     }
 
-    let data: Record<string, unknown> | null = null;
-    let error: { message: string } | null = null;
+    const loadPart = part ?? "all";
 
-    ({ data, error } = await supabase
+    const { data: row, error: rowError } = await supabase
       .from("challenge_submissions")
-      .select("code_snapshot, blocks_snapshot, student_id")
+      .select("code_snapshot, blocks_snapshot, student_id, challenge_id")
       .eq("id", submissionId)
-      .maybeSingle());
+      .maybeSingle();
 
-    if (error?.message.includes("blocks_snapshot")) {
-      ({ data, error } = await supabase
+    if (rowError?.message.includes("blocks_snapshot")) {
+      const fallback = await supabase
         .from("challenge_submissions")
-        .select("code_snapshot, student_id")
+        .select("code_snapshot, student_id, challenge_id")
         .eq("id", submissionId)
-        .maybeSingle());
+        .maybeSingle();
+      if (fallback.error) {
+        return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+      }
+      if (!fallback.data) {
+        return NextResponse.json({ code: null, blocks: null });
+      }
+      if (!(await studentInClass(supabase, ownerId, fallback.data.student_id as string))) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      if (loadPart === "blocks") {
+        const progressBlocks = await loadProgressBlocks(
+          supabase,
+          fallback.data.student_id as string,
+          fallback.data.challenge_id as number
+        );
+        return NextResponse.json({ blocks: progressBlocks });
+      }
+      return NextResponse.json({
+        code: (fallback.data.code_snapshot as string) ?? "",
+        blocks: null,
+      });
     }
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (rowError) {
+      return NextResponse.json({ error: rowError.message }, { status: 500 });
     }
-    if (!data) {
+    if (!row) {
       return NextResponse.json({ code: null, blocks: null });
     }
 
-    if (!(await studentInClass(supabase, ownerId, data.student_id as string))) {
+    if (!(await studentInClass(supabase, ownerId, row.student_id as string))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    if (loadPart === "code") {
+      return NextResponse.json({
+        code: (row.code_snapshot as string) ?? "",
+      });
+    }
+
+    if (loadPart === "blocks") {
+      let blocks =
+        (row.blocks_snapshot as Record<string, unknown> | null) ?? null;
+      if (!blocks) {
+        blocks = await loadProgressBlocks(
+          supabase,
+          row.student_id as string,
+          row.challenge_id as number
+        );
+      }
+      return NextResponse.json({ blocks });
+    }
+
+    let blocks = (row.blocks_snapshot as Record<string, unknown> | null) ?? null;
+    if (!blocks) {
+      blocks = await loadProgressBlocks(
+        supabase,
+        row.student_id as string,
+        row.challenge_id as number
+      );
+    }
+
     return NextResponse.json({
-      code: (data.code_snapshot as string) ?? "",
-      blocks: (data.blocks_snapshot as Record<string, unknown> | null) ?? null,
+      code: (row.code_snapshot as string) ?? "",
+      blocks,
     });
   }
 
   return NextResponse.json({ error: "Bad request" }, { status: 400 });
+}
+
+async function loadProgressBlocks(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  studentId: string,
+  challengeId: number
+): Promise<Record<string, unknown> | null> {
+  const { data } = await supabase
+    .from("student_challenge_progress")
+    .select("blocks_snapshot")
+    .eq("student_id", studentId)
+    .eq("challenge_id", challengeId)
+    .maybeSingle();
+  return (data?.blocks_snapshot as Record<string, unknown> | null) ?? null;
 }

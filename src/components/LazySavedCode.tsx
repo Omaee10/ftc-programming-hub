@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import {
   fetchMentorSnapshotCode,
-  fetchMentorSubmissionDetail,
+  fetchSubmissionBlocksOnly,
+  fetchSubmissionCodeOnly,
   type MentorSnapshotRequest,
 } from "@/lib/mentorDashboardApi";
+import { isCustomChallengeId } from "@/lib/classChallenges";
 import type { WorkspaceState } from "@/data/blockChallenges";
 import { FULL_TOOLBOX } from "@/lib/blockly/ftcBlocks";
-import { PLAYGROUND_STARTER_BLOCKS } from "@/data/playgroundDefaults";
 
 const BlocklyWorkspace = dynamic(() => import("./BlocklyWorkspace"), {
   ssr: false,
@@ -21,6 +22,14 @@ const BlocklyWorkspace = dynamic(() => import("./BlocklyWorkspace"), {
     </div>
   ),
 });
+
+type SubmissionCacheEntry = {
+  code: string | null;
+  blocks: WorkspaceState | null;
+  blocksChecked: boolean;
+};
+
+const submissionCache = new Map<string, SubmissionCacheEntry>();
 
 interface LazySavedCodeProps {
   request: MentorSnapshotRequest;
@@ -88,122 +97,261 @@ export default function LazySavedCode({
   );
 }
 
+function SubmissionViewTabs({
+  view,
+  onViewChange,
+}: {
+  view: "java" | "blocks";
+  onViewChange: (view: "java" | "blocks") => void;
+}) {
+  return (
+    <div className="flex items-center rounded-md border border-slate-800 bg-slate-900/70 p-0.5 w-fit">
+      <button
+        type="button"
+        onClick={() => onViewChange("java")}
+        className={
+          view === "java"
+            ? "rounded bg-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-100"
+            : "rounded px-2.5 py-1 text-[11px] text-slate-500 hover:text-slate-300"
+        }
+      >
+        OnBot Java
+      </button>
+      <button
+        type="button"
+        onClick={() => onViewChange("blocks")}
+        className={
+          view === "blocks"
+            ? "rounded bg-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-100"
+            : "rounded px-2.5 py-1 text-[11px] text-slate-500 hover:text-slate-300"
+        }
+      >
+        FTC Blocks
+      </button>
+    </div>
+  );
+}
+
 /** Loads submission Java + Blocks when the mentor expands a grade row. */
 export function SubmissionCodePanel({
   submissionId,
+  challengeId,
   active,
 }: {
   submissionId: string;
+  challengeId: number;
   active: boolean;
 }) {
+  const showBothViews = isCustomChallengeId(challengeId);
   const [code, setCode] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<WorkspaceState | null>(null);
+  const [blocksChecked, setBlocksChecked] = useState(false);
   const [view, setView] = useState<"java" | "blocks">("java");
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [blocksLoading, setBlocksLoading] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [blocksError, setBlocksError] = useState<string | null>(null);
+  const loadGeneration = useRef(0);
+
+  const loadBlocks = useCallback(async (generation: number) => {
+    setBlocksLoading(true);
+    setBlocksError(null);
+    try {
+      const session = getSession();
+      if (!session?.id) return;
+      const raw = await fetchSubmissionBlocksOnly(session, submissionId);
+      if (generation !== loadGeneration.current) return;
+      const nextBlocks = (raw as WorkspaceState | null) ?? null;
+      setBlocks(nextBlocks);
+      setBlocksChecked(true);
+
+      const cached = submissionCache.get(submissionId);
+      submissionCache.set(submissionId, {
+        code: cached?.code ?? null,
+        blocks: nextBlocks,
+        blocksChecked: true,
+      });
+    } catch (err) {
+      if (generation !== loadGeneration.current) return;
+      setBlocksError(
+        err instanceof Error ? err.message : "Failed to load blocks."
+      );
+      setBlocksChecked(true);
+    } finally {
+      if (generation === loadGeneration.current) {
+        setBlocksLoading(false);
+      }
+    }
+  }, [submissionId]);
 
   useEffect(() => {
-    if (!active || loaded || loading) return;
+    if (!active) return;
+
+    const generation = ++loadGeneration.current;
+    const cached = submissionCache.get(submissionId);
+    if (cached) {
+      setCode(cached.code);
+      setBlocks(cached.blocks);
+      setBlocksChecked(cached.blocksChecked);
+      setCodeLoading(false);
+      setBlocksLoading(false);
+      setCodeError(null);
+      setBlocksError(null);
+      if (cached.blocks) {
+        setView("java");
+      }
+      if (!cached.blocksChecked) {
+        void loadBlocks(generation);
+      }
+      return;
+    }
+
+    setCode(null);
+    setBlocks(null);
+    setBlocksChecked(false);
+    setView("java");
+    setCodeError(null);
+    setBlocksError(null);
+
     const session = getSession();
-    if (!session?.id) return;
+    if (!session?.id) {
+      setCodeError("Sign in to view submissions.");
+      return;
+    }
 
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    void fetchMentorSubmissionDetail(session, { kind: "submission", submissionId })
-      .then((detail) => {
-        if (cancelled) return;
-        setCode(detail.code);
-        setBlocks((detail.blocks as WorkspaceState | null) ?? null);
-        if (detail.blocks) {
-          setView("blocks");
-        }
-        setLoaded(true);
+    setCodeLoading(true);
+    void fetchSubmissionCodeOnly(session, submissionId)
+      .then((nextCode) => {
+        if (generation !== loadGeneration.current) return;
+        setCode(nextCode);
+        submissionCache.set(submissionId, {
+          code: nextCode,
+          blocks: null,
+          blocksChecked: false,
+        });
       })
       .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load submission.");
+        if (generation !== loadGeneration.current) return;
+        setCodeError(
+          err instanceof Error ? err.message : "Failed to load submission."
+        );
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (generation === loadGeneration.current) {
+          setCodeLoading(false);
+        }
       });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [active, loaded, loading, submissionId]);
+    void loadBlocks(generation);
+  }, [active, submissionId, loadBlocks]);
+
+  useEffect(() => {
+    if (view === "blocks" && active && !blocksChecked && !blocksLoading) {
+      const session = getSession();
+      if (session?.id) {
+        void loadBlocks(loadGeneration.current);
+      }
+    }
+  }, [view, active, blocksChecked, blocksLoading, loadBlocks]);
 
   if (!active) return null;
 
-  if (loading) {
+  const initialLoad = codeLoading && code === null && !codeError;
+
+  if (initialLoad) {
     return (
-      <div className="flex items-center gap-2 text-xs text-slate-500">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading submission…
+      <div className="space-y-2">
+        {showBothViews && (
+          <SubmissionViewTabs view={view} onViewChange={setView} />
+        )}
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading submission…
+        </div>
       </div>
     );
   }
 
-  if (error) {
-    return <p className="text-xs text-red-400">{error}</p>;
+  if (codeError && !code) {
+    return (
+      <div className="space-y-2">
+        {showBothViews && (
+          <SubmissionViewTabs view={view} onViewChange={setView} />
+        )}
+        <p className="text-xs text-red-400">{codeError}</p>
+      </div>
+    );
   }
 
-  if (!code && !blocks) {
-    return <p className="text-xs text-slate-500">No submission on file.</p>;
+  if (!code && blocksChecked && !blocks && !codeLoading) {
+    return (
+      <div className="space-y-2">
+        {showBothViews && (
+          <SubmissionViewTabs view={view} onViewChange={setView} />
+        )}
+        <p className="text-xs text-slate-500">No submission on file.</p>
+      </div>
+    );
   }
-
-  const blocksState = blocks ?? PLAYGROUND_STARTER_BLOCKS;
 
   return (
     <div className="space-y-2">
-      {blocks && (
-        <div className="flex items-center rounded-md border border-slate-800 bg-slate-900/70 p-0.5 w-fit">
-          <button
-            type="button"
-            onClick={() => setView("java")}
-            className={
-              view === "java"
-                ? "rounded bg-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-100"
-                : "rounded px-2 py-0.5 text-[11px] text-slate-500 hover:text-slate-300"
-            }
-          >
-            OnBot Java
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("blocks")}
-            className={
-              view === "blocks"
-                ? "rounded bg-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-100"
-                : "rounded px-2 py-0.5 text-[11px] text-slate-500 hover:text-slate-300"
-            }
-          >
-            FTC Blocks
-          </button>
-        </div>
+      {(showBothViews || blocks) && (
+        <SubmissionViewTabs view={view} onViewChange={setView} />
       )}
 
-      {view === "blocks" && blocks ? (
-        <div className="h-72 overflow-hidden rounded border border-slate-800 bg-slate-950">
-          <BlocklyWorkspace
-            toolbox={FULL_TOOLBOX}
-            initialState={blocksState}
-            starterState={blocksState}
-            resetSignal={0}
-            dark
-            visible
-            readOnly
-            onChange={() => {}}
-          />
+      {view === "java" ? (
+        <div className="space-y-2">
+          {codeLoading && (
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading Java…
+            </div>
+          )}
+          {code ? (
+            <pre className="max-h-72 overflow-auto rounded border border-slate-800 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400">
+              {code}
+            </pre>
+          ) : (
+            !codeLoading && (
+              <p className="text-xs text-slate-500">
+                No Java code was submitted.
+              </p>
+            )
+          )}
         </div>
       ) : (
-        code && (
-          <pre className="max-h-64 overflow-auto rounded bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400">
-            {code}
-          </pre>
-        )
+        <div className="space-y-2">
+          {blocksLoading && (
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading blocks…
+            </div>
+          )}
+          {blocksError && (
+            <p className="text-xs text-red-400">{blocksError}</p>
+          )}
+          {!blocksLoading && blocks && (
+            <div className="h-72 overflow-hidden rounded border border-slate-800 bg-slate-950">
+              <BlocklyWorkspace
+                toolbox={FULL_TOOLBOX}
+                initialState={blocks}
+                starterState={blocks}
+                resetSignal={0}
+                dark
+                visible
+                readOnly
+                onChange={() => {}}
+              />
+            </div>
+          )}
+          {!blocksLoading && blocksChecked && !blocks && !blocksError && (
+            <p className="text-xs text-slate-500">
+              No FTC Blocks layout was submitted. The student may have used
+              OnBot Java only.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

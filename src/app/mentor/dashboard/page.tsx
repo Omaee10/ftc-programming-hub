@@ -1695,7 +1695,11 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
 
                   {isExpanded && (
                     <div className="border-t border-slate-800 px-5 py-4 space-y-4">
-                      <SubmissionCodePanel submissionId={sub.id} active={isExpanded} />
+                      <SubmissionCodePanel
+                        submissionId={sub.id}
+                        challengeId={sub.challenge_id}
+                        active={isExpanded}
+                      />
 
                       <div className="flex flex-col gap-3 sm:flex-row">
                         <div className="sm:w-44">
@@ -1797,7 +1801,11 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
 
                   {isExpanded && (
                     <div className="border-t border-slate-800 px-5 py-4 space-y-4">
-                      <SubmissionCodePanel submissionId={sub.id} active={isExpanded} />
+                      <SubmissionCodePanel
+                        submissionId={sub.id}
+                        challengeId={sub.challenge_id}
+                        active={isExpanded}
+                      />
                       {sub.feedback && (
                         <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3">
                           <p className="mb-1 text-xs font-medium text-slate-500">Feedback</p>
