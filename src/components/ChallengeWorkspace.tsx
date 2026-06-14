@@ -1016,6 +1016,7 @@ export default function ChallengeWorkspace({
         feedback: null,
         graded_at: null,
         graded_by: null,
+        submitted_at: new Date().toISOString(),
       };
 
       let result = await supabase
@@ -1069,7 +1070,7 @@ export default function ChallengeWorkspace({
 
   const showSubmitForReview =
     isMentorChallenge && !!studentSession && !answerKeyMode;
-  const reviewLocked = submission?.status === "graded";
+  const reviewGraded = submission?.status === "graded";
   const reviewPending = submission?.status === "pending";
 
   const renderSubmitForReviewButton = (compact = false) => {
@@ -1083,10 +1084,7 @@ export default function ChallengeWorkspace({
 
     let stateClass =
       "bg-amber-500 text-slate-900 hover:bg-amber-400 shadow-sm disabled:opacity-50";
-    if (reviewLocked) {
-      stateClass =
-        "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 cursor-default";
-    } else if (submitting) {
+    if (submitting) {
       stateClass = "bg-slate-800 text-slate-500";
     }
 
@@ -1094,22 +1092,17 @@ export default function ChallengeWorkspace({
       <button
         type="button"
         onClick={handleSubmitForReview}
-        disabled={submitting || reviewLocked}
+        disabled={submitting}
         title={
-          reviewLocked
-            ? "Your mentor has graded this submission"
+          reviewGraded
+            ? "Send a revised version to your mentor for another review"
             : reviewPending
               ? "Send an updated version to your mentor"
               : "Submit to your mentor for grading"
         }
         className={`${base} ${sizing} ${stateClass}`}
       >
-        {reviewLocked ? (
-          <>
-            <CheckCircle2 className="h-3 w-3" />
-            Graded
-          </>
-        ) : submitting ? (
+        {submitting ? (
           <>
             <Loader2 className="h-3 w-3 animate-spin" />
             Submitting…
@@ -1117,7 +1110,11 @@ export default function ChallengeWorkspace({
         ) : (
           <>
             <Send className="h-3 w-3" />
-            {reviewPending ? "Update Submission" : "Submit for Review"}
+            {reviewGraded
+              ? "Resubmit for Review"
+              : reviewPending
+                ? "Update Submission"
+                : "Submit for Review"}
           </>
         )}
       </button>
@@ -1439,7 +1436,7 @@ export default function ChallengeWorkspace({
           });
         }
 
-        if (isMentorChallenge && submission?.status !== "graded") {
+        if (isMentorChallenge) {
           if (!studentSession?.id) {
             appendEntry({
               type: "warning",
@@ -2077,7 +2074,7 @@ export default function ChallengeWorkspace({
                     </p>
                   )}
                   <p className="mt-1.5 text-[10px] text-slate-600">
-                    Graded by your mentor
+                    Graded by your mentor — edit your code and use Resubmit for Review to send an update.
                   </p>
                 </div>
               </div>
