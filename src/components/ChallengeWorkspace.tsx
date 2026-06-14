@@ -923,8 +923,15 @@ export default function ChallengeWorkspace({
       snapshot: string,
       blocksSnapshot: WorkspaceState | null
     ): Promise<{ error: string | null }> => {
-      if (!studentSession?.id || !snapshot.trim()) {
+      if (!studentSession?.id) {
         return { error: null };
+      }
+      if (!snapshot.trim()) {
+        const msg = blocksSnapshot
+          ? "Could not generate Java from your blocks. Check your block layout."
+          : "Add Java code or build with FTC Blocks before submitting.";
+        setSubmitError(msg);
+        return { error: msg };
       }
       setSubmitting(true);
       setSubmitError(null);
@@ -976,6 +983,7 @@ export default function ChallengeWorkspace({
 
   const handleSubmitForReview = useCallback(async () => {
     if (!studentSession?.id || submitting) return;
+    setSubmitError(null);
     const snapshot = await resolveSubmissionCode();
     const blocksSnapshot = resolveBlocksSnapshot();
     await submitForMentorReview(snapshot, blocksSnapshot);
@@ -986,6 +994,63 @@ export default function ChallengeWorkspace({
     resolveBlocksSnapshot,
     submitForMentorReview,
   ]);
+
+  const showSubmitForReview =
+    isMentorChallenge && !!studentSession && !answerKeyMode;
+  const reviewLocked = submission?.status === "graded";
+  const reviewPending = submission?.status === "pending";
+
+  const renderSubmitForReviewButton = (compact = false) => {
+    if (!showSubmitForReview) return null;
+
+    const base =
+      "flex items-center gap-1.5 rounded-md font-semibold transition-all duration-150 disabled:cursor-not-allowed";
+    const sizing = compact
+      ? "px-2 py-1 text-[11px]"
+      : "px-3 py-1 text-xs";
+
+    let stateClass =
+      "bg-amber-500 text-slate-900 hover:bg-amber-400 shadow-sm disabled:opacity-50";
+    if (reviewLocked) {
+      stateClass =
+        "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 cursor-default";
+    } else if (submitting) {
+      stateClass = "bg-slate-800 text-slate-500";
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={handleSubmitForReview}
+        disabled={submitting || reviewLocked}
+        title={
+          reviewLocked
+            ? "Your mentor has graded this submission"
+            : reviewPending
+              ? "Send an updated version to your mentor"
+              : "Submit to your mentor for grading"
+        }
+        className={`${base} ${sizing} ${stateClass}`}
+      >
+        {reviewLocked ? (
+          <>
+            <CheckCircle2 className="h-3 w-3" />
+            Graded
+          </>
+        ) : submitting ? (
+          <>
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Submitting…
+          </>
+        ) : (
+          <>
+            <Send className="h-3 w-3" />
+            {reviewPending ? "Update Submission" : "Submit for Review"}
+          </>
+        )}
+      </button>
+    );
+  };
 
   // ── Resizable split ─────────────────────────────────────────────────────
   const [leftPct, setLeftPct] = useState(40);
@@ -1405,9 +1470,16 @@ export default function ChallengeWorkspace({
               Not passing
             </span>
           ) : null}
+          {reviewPending && (
+            <span className="hidden sm:flex shrink-0 items-center gap-1 text-[11px] font-medium text-amber-400">
+              <Send className="h-3 w-3" />
+              Awaiting mentor review
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-2">
+          {renderSubmitForReviewButton()}
           {answerKeyMode ? (
             <span className="flex shrink-0 items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">
               <Key className="h-3 w-3" />
@@ -1715,6 +1787,7 @@ export default function ChallengeWorkspace({
             </span>
 
             <div className="ml-auto flex items-center gap-1.5">
+              {renderSubmitForReviewButton(true)}
               {answerKeyMode ? (
                 <span className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-600">
                   <Key className="h-3 w-3" />
@@ -1998,38 +2071,7 @@ export default function ChallengeWorkspace({
                   )}
                 </button>
 
-                {/* Submit for Review — mentor challenges, student sessions only */}
-                {isMentorChallenge && studentSession && (
-                  <button
-                    onClick={handleSubmitForReview}
-                    disabled={!code.trim() || submitting || submission?.status === "graded"}
-                    title="Submit to your mentor for grading"
-                    className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all duration-150 ${
-                      submission?.status === "graded"
-                        ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 cursor-default"
-                        : submitting
-                        ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                        : "bg-amber-500 text-slate-900 hover:bg-amber-400 shadow-sm"
-                    }`}
-                  >
-                    {submission?.status === "graded" ? (
-                      <>
-                        <CheckCircle2 className="h-3 w-3" />
-                        Submitted ✓
-                      </>
-                    ) : submitting ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Submitting…
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-3 w-3" />
-                        Submit for Review
-                      </>
-                    )}
-                  </button>
-                )}
+                {renderSubmitForReviewButton(true)}
               </div>
             </div>
 
