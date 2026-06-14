@@ -61,8 +61,8 @@ export interface ChallengeRow {
   starter_code: string;
   hints: string[];
   concepts_covered: string[];
-  /** Optional mentor rubric, evaluated by the Java grader. */
-  rubric_json: MentorRubricRule[] | null;
+  /** Optional mentor rubric, evaluated by the Java grader. Omitted when column is absent or not selected. */
+  rubric_json?: MentorRubricRule[] | null;
   created_by: string | null;
   created_at: string;
 }
