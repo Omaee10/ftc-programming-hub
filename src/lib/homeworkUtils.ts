@@ -44,12 +44,12 @@ export function rowToChallenge(row: ChallengeRow): Challenge {
     description: row.description,
     xp: row.xp,
     estimatedTime: row.estimated_time,
-    tags: row.tags,
-    objectives: row.objectives,
-    instructions: row.instructions,
-    starterCode: row.starter_code,
-    hints: row.hints,
-    conceptsCovered: row.concepts_covered,
+    tags: row.tags ?? [],
+    objectives: row.objectives ?? [],
+    instructions: row.instructions ?? "",
+    starterCode: row.starter_code ?? "",
+    hints: row.hints ?? [],
+    conceptsCovered: row.concepts_covered ?? [],
     mentorRules: row.rubric_json ?? undefined,
   };
 }

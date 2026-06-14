@@ -1,47 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getChallengeById, type Challenge } from "@/data/challenges";
+import { getChallengeById } from "@/data/challenges";
 import { isBuiltinChallengeId } from "@/data/challengeMeta";
-import { createClient } from "@/lib/supabase/server";
-import { CHALLENGE_DETAIL_COLUMNS } from "@/lib/supabase/progressColumns";
+import { isCustomChallengeId } from "@/lib/classChallenges";
 import ChallengeRedirectGuard from "@/components/ChallengeRedirectGuard";
-
-async function getChallenge(id: number): Promise<Challenge | null> {
-  if (isBuiltinChallengeId(id)) {
-    return getChallengeById(id) ?? null;
-  }
-
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("challenges")
-      .select(CHALLENGE_DETAIL_COLUMNS)
-      .eq("id", id)
-      .single();
-
-    if (data) {
-      return {
-        id: data.id,
-        title: data.title,
-        difficulty: data.difficulty as Challenge["difficulty"],
-        description: data.description,
-        xp: data.xp,
-        estimatedTime: data.estimated_time,
-        tags: data.tags,
-        objectives: data.objectives,
-        instructions: data.instructions,
-        starterCode: data.starter_code,
-        hints: data.hints,
-        conceptsCovered: data.concepts_covered,
-        mentorRules: data.rubric_json ?? undefined,
-      };
-    }
-  } catch {
-    // Supabase unavailable for custom challenge lookup
-  }
-
-  return null;
-}
+import CustomChallengeLoader from "@/components/CustomChallengeLoader";
 
 export async function generateStaticParams() {
   return Array.from({ length: 56 }, (_, i) => ({ id: String(i + 1) }));
@@ -53,7 +16,13 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const challenge = await getChallenge(Number(id));
+  const challengeId = Number(id);
+
+  if (isCustomChallengeId(challengeId)) {
+    return { title: `Challenge ${challengeId}` };
+  }
+
+  const challenge = getChallengeById(challengeId);
   if (!challenge) return { title: "Challenge Not Found" };
   return { title: `${challenge.title} – Challenge ${challenge.id}` };
 }
@@ -64,7 +33,24 @@ export default async function ChallengePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const challenge = await getChallenge(Number(id));
-  if (!challenge) notFound();
+  const challengeId = Number(id);
+
+  if (!Number.isFinite(challengeId)) {
+    notFound();
+  }
+
+  if (isCustomChallengeId(challengeId)) {
+    return <CustomChallengeLoader challengeId={challengeId} />;
+  }
+
+  if (!isBuiltinChallengeId(challengeId)) {
+    notFound();
+  }
+
+  const challenge = getChallengeById(challengeId);
+  if (!challenge) {
+    notFound();
+  }
+
   return <ChallengeRedirectGuard challenge={challenge} />;
 }
