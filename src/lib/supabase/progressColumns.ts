@@ -24,7 +24,7 @@ export const CHALLENGE_CARD_COLUMNS =
 
 /** Single-challenge workspace load — explicit column list instead of select("*"). */
 export const CHALLENGE_DETAIL_COLUMNS =
-  "id, title, difficulty, description, xp, estimated_time, tags, objectives, instructions, starter_code, hints, concepts_covered, rubric_json, created_by, created_at";
+  "id, title, difficulty, description, xp, estimated_time, tags, objectives, instructions, starter_code, hints, concepts_covered, created_by, created_at";
 
 /** Class roster lists — students table has no large columns. */
 export const STUDENT_LIST_COLUMNS =

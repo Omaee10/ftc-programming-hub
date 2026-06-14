@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 );
 
 -- ─── Migration: add rubric_json to existing challenges table ─────────────
--- Run this if the table already exists:
+-- Run this in the Supabase SQL Editor if your challenges table predates rubric_json:
 -- ALTER TABLE challenges ADD COLUMN IF NOT EXISTS rubric_json jsonb;
 
 -- Student progress
