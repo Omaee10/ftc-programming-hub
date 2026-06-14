@@ -229,8 +229,18 @@ export async function gradeViaService<T = unknown>(payload: {
     JSON.stringify(payload.mentorRules ?? [])
   );
   const cached = cacheGet<T>(key);
-  if (cached) return cached;
+  if (cached) {
+    console.info("[grade] egress skipped (cache hit)", {
+      challengeId: payload.challengeId,
+      target: `${GRADER_URL.replace(/\/$/, "")}/compile`,
+    });
+    return cached;
+  }
 
+  console.info("[grade] egress fetch", {
+    challengeId: payload.challengeId,
+    target: `${GRADER_URL.replace(/\/$/, "")}/compile`,
+  });
   const json = await postCompile<T>(payload);
   cacheSet(key, json);
   return json;

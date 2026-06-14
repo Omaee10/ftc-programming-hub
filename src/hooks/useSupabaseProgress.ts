@@ -12,6 +12,11 @@ import {
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
 import { withTimeout } from "@/lib/withTimeout";
 import { digestJson, digestText } from "@/lib/contentHash";
+import {
+  cancelAllDebouncedUpserts,
+  flushDebouncedUpsert,
+  scheduleDebouncedUpsert,
+} from "@/lib/cloudSaveDebounce";
 
 interface ProgressMetaRecord {
   challenge_id: number;
@@ -229,6 +234,7 @@ function resetProgressStore(): void {
   snapshotLoadsInFlight.clear();
   lastSavedCodeHash.clear();
   lastSavedBlocksHash.clear();
+  cancelAllDebouncedUpserts();
   publishStore(EMPTY_SNAPSHOT);
 }
 
@@ -419,7 +425,7 @@ export function useSupabaseProgress(challengeId?: number) {
   const loadedBlocksUpdatedAt = snapshot?.blocks_updated_at ?? null;
 
   const saveCode = useCallback(
-    async (code: string): Promise<void> => {
+    async (code: string, options?: { flush?: boolean }): Promise<void> => {
       if (!studentId || challengeId === undefined) {
         return;
       }
@@ -438,41 +444,52 @@ export function useSupabaseProgress(challengeId?: number) {
         existing?.completed ||
         isLocallyCompleted(studentId, challengeId);
 
-      const now = new Date().toISOString();
       const hashKey = snapshotKey(studentId, challengeId, "code");
-      const hash = await digestText(code);
-      if (lastSavedCodeHash.get(hashKey) === hash) {
-        return;
-      }
+      const upsertKey = snapshotKey(studentId, challengeId, "code");
 
-      const { error } = await supabase.from("student_challenge_progress").upsert(
-        {
-          student_id: studentId,
-          challenge_id: challengeId,
+      const performUpsert = async () => {
+        const savedAt = new Date().toISOString();
+        const hash = await digestText(code);
+        if (lastSavedCodeHash.get(hashKey) === hash) {
+          return;
+        }
+
+        const { error } = await supabase.from("student_challenge_progress").upsert(
+          {
+            student_id: studentId,
+            challenge_id: challengeId,
+            code_snapshot: code,
+            completed,
+            updated_at: savedAt,
+          },
+          { onConflict: "student_id,challenge_id" }
+        );
+
+        if (error) {
+          console.error("Failed to save code:", error.message);
+          return;
+        }
+
+        lastSavedCodeHash.set(hashKey, hash);
+        patchMetaRecord(challengeId, { completed, updated_at: savedAt });
+        patchSnapshot(challengeId, {
           code_snapshot: code,
-          completed,
-          updated_at: now,
-        },
-        { onConflict: "student_id,challenge_id" }
-      );
+          updated_at: savedAt,
+        });
+      };
 
-      if (error) {
-        console.error("Failed to save code:", error.message);
+      if (options?.flush) {
+        await flushDebouncedUpsert(upsertKey, performUpsert);
         return;
       }
 
-      lastSavedCodeHash.set(hashKey, hash);
-      patchMetaRecord(challengeId, { completed, updated_at: now });
-      patchSnapshot(challengeId, {
-        code_snapshot: code,
-        updated_at: now,
-      });
+      scheduleDebouncedUpsert(upsertKey, performUpsert);
     },
     [challengeId, records, studentId]
   );
 
   const saveBlocks = useCallback(
-    async (state: BlockState): Promise<void> => {
+    async (state: BlockState, options?: { flush?: boolean }): Promise<void> => {
       if (!studentId || challengeId === undefined) {
         return;
       }
@@ -491,38 +508,49 @@ export function useSupabaseProgress(challengeId?: number) {
         existing?.completed ||
         isLocallyCompleted(studentId, challengeId);
 
-      const now = new Date().toISOString();
       const hashKey = snapshotKey(studentId, challengeId, "blocks");
-      const hash = await digestJson(state);
-      if (lastSavedBlocksHash.get(hashKey) === hash) {
-        return;
-      }
+      const upsertKey = snapshotKey(studentId, challengeId, "blocks");
 
-      const { error } = await supabase.from("student_challenge_progress").upsert(
-        {
-          student_id: studentId,
-          challenge_id: challengeId,
-          blocks_snapshot: state,
-          blocks_updated_at: now,
+      const performUpsert = async () => {
+        const savedAt = new Date().toISOString();
+        const hash = await digestJson(state);
+        if (lastSavedBlocksHash.get(hashKey) === hash) {
+          return;
+        }
+
+        const { error } = await supabase.from("student_challenge_progress").upsert(
+          {
+            student_id: studentId,
+            challenge_id: challengeId,
+            blocks_snapshot: state,
+            blocks_updated_at: savedAt,
+            completed,
+          },
+          { onConflict: "student_id,challenge_id" }
+        );
+
+        if (error) {
+          console.error("Failed to save blocks:", error.message);
+          return;
+        }
+
+        lastSavedBlocksHash.set(hashKey, hash);
+        patchMetaRecord(challengeId, {
           completed,
-        },
-        { onConflict: "student_id,challenge_id" }
-      );
+          blocks_updated_at: savedAt,
+        });
+        patchSnapshot(challengeId, {
+          blocks_snapshot: state,
+          blocks_updated_at: savedAt,
+        });
+      };
 
-      if (error) {
-        console.error("Failed to save blocks:", error.message);
+      if (options?.flush) {
+        await flushDebouncedUpsert(upsertKey, performUpsert);
         return;
       }
 
-      lastSavedBlocksHash.set(hashKey, hash);
-      patchMetaRecord(challengeId, {
-        completed,
-        blocks_updated_at: now,
-      });
-      patchSnapshot(challengeId, {
-        blocks_snapshot: state,
-        blocks_updated_at: now,
-      });
+      scheduleDebouncedUpsert(upsertKey, performUpsert);
     },
     [challengeId, records, studentId]
   );

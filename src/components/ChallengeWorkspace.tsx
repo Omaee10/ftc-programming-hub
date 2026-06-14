@@ -67,7 +67,10 @@ import {
   chooseSavedBlocks,
   chooseSavedCode,
 } from "@/lib/chooseSavedWorkspace";
-import { CLOUD_SAVE_DEBOUNCE_MS } from "@/lib/cloudSaveDebounce";
+import {
+  hasPendingUpsert,
+  progressUpsertKey,
+} from "@/lib/cloudSaveDebounce";
 import {
   getBlockConfig,
   isBlocksEnabled,
@@ -611,7 +614,6 @@ export default function ChallengeWorkspace({
   );
   const codeRef = useRef(code);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const restoredChallengeRef = useRef<string | null>(null);
   const progressStudentIdRef = useRef(progressStudentId);
   progressStudentIdRef.current = progressStudentId;
@@ -652,7 +654,6 @@ export default function ChallengeWorkspace({
   const [blockResetSignal, setBlockResetSignal] = useState(0);
   const blockStateRef = useRef<WorkspaceState | null>(null);
   const blockDraftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const blockCloudSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const restoredBlocksRef = useRef<string | null>(null);
   const [resolvedBlocksState, setResolvedBlocksState] = useState<WorkspaceState | null>(
     () => (answerKeyMode ? (answerKey?.blocks ?? null) : null)
@@ -684,9 +685,8 @@ export default function ChallengeWorkspace({
       ?? blockStateRef.current;
     if (!state) return;
     clearTimeout(blockDraftTimer.current);
-    clearTimeout(blockCloudSaveTimer.current);
     saveBlockDraft(challenge.id, state);
-    void saveBlocks(state);
+    void saveBlocks(state, { flush: true });
   }, [answerKeyMode, blocksConfig, canPersistForSession, challenge.id, saveBlocks]);
 
   const confirmModeSwitch = useCallback(() => {
@@ -781,14 +781,7 @@ export default function ChallengeWorkspace({
     (state: WorkspaceState, options?: { flushCloud?: boolean }) => {
       if (!canPersistForSession()) return;
       saveBlockDraft(challenge.id, state);
-      clearTimeout(blockCloudSaveTimer.current);
-      if (options?.flushCloud) {
-        void saveBlocks(state);
-        return;
-      }
-      blockCloudSaveTimer.current = setTimeout(() => {
-        void saveBlocks(state);
-      }, CLOUD_SAVE_DEBOUNCE_MS);
+      void saveBlocks(state, { flush: options?.flushCloud });
     },
     [canPersistForSession, challenge.id, saveBlocks]
   );
@@ -814,7 +807,7 @@ export default function ChallengeWorkspace({
     setCode(challenge.starterCode);
     editorRef.current?.setValue(challenge.starterCode);
     saveCodeDraft(challenge.id, challenge.starterCode);
-    void saveCode(challenge.starterCode);
+    void saveCode(challenge.starterCode, { flush: true });
   }, [challenge.id, challenge.starterCode, saveCode]);
 
   // Reset resets the *active* editor: starter Java in Java mode, starter blocks
@@ -834,17 +827,19 @@ export default function ChallengeWorkspace({
     (next: string, options?: { flushCloud?: boolean }) => {
       if (!canPersistForSession()) return;
       saveCodeDraft(challenge.id, next);
-      clearTimeout(cloudSaveTimer.current);
-      if (options?.flushCloud) {
-        void saveCode(next);
-        return;
-      }
-      cloudSaveTimer.current = setTimeout(() => {
-        void saveCode(next);
-      }, CLOUD_SAVE_DEBOUNCE_MS);
+      void saveCode(next, { flush: options?.flushCloud });
     },
     [canPersistForSession, challenge.id, saveCode]
   );
+
+  const persistCodeRef = useRef(persistCode);
+  const flushBlocksSnapshotRef = useRef(flushBlocksSnapshot);
+  useEffect(() => {
+    persistCodeRef.current = persistCode;
+  }, [persistCode]);
+  useEffect(() => {
+    flushBlocksSnapshotRef.current = flushBlocksSnapshot;
+  }, [flushBlocksSnapshot]);
 
   useEffect(() => {
     codeRef.current = code;
@@ -859,9 +854,7 @@ export default function ChallengeWorkspace({
   useEffect(() => {
     const onSessionChange = () => {
       clearTimeout(saveTimer.current);
-      clearTimeout(cloudSaveTimer.current);
       clearTimeout(blockDraftTimer.current);
-      clearTimeout(blockCloudSaveTimer.current);
       restoredChallengeRef.current = null;
       restoredBlocksRef.current = null;
 
@@ -916,9 +909,8 @@ export default function ChallengeWorkspace({
     if (answerKeyMode) return;
     const flush = () => {
       clearTimeout(saveTimer.current);
-      clearTimeout(cloudSaveTimer.current);
-      persistCode(codeRef.current, { flushCloud: true });
-      flushBlocksSnapshot();
+      persistCodeRef.current(codeRef.current, { flushCloud: true });
+      flushBlocksSnapshotRef.current();
     };
 
     const onPageHide = () => flush();
@@ -927,7 +919,7 @@ export default function ChallengeWorkspace({
       window.removeEventListener("pagehide", onPageHide);
       flush();
     };
-  }, [answerKeyMode, challenge.id, flushBlocksSnapshot, persistCode]);
+  }, [answerKeyMode, challenge.id]);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -944,7 +936,14 @@ export default function ChallengeWorkspace({
         blockStateRef.current = liveState;
         if (!answerKeyMode) {
           clearTimeout(blockDraftTimer.current);
-          persistBlocks(liveState, { flushCloud: true });
+          if (
+            progressStudentId &&
+            hasPendingUpsert(
+              progressUpsertKey(progressStudentId, challenge.id, "blocks")
+            )
+          ) {
+            persistBlocks(liveState, { flushCloud: true });
+          }
         }
       }
       try {
@@ -955,7 +954,7 @@ export default function ChallengeWorkspace({
       }
     }
     return codeRef.current;
-  }, [challenge.id, answerKeyMode, persistBlocks]);
+  }, [challenge.id, answerKeyMode, persistBlocks, progressStudentId]);
 
   const resolveBlocksSnapshot = useCallback((): WorkspaceState | null => {
     if (answerKeyMode || !blocksConfigRef.current) return null;
@@ -966,10 +965,17 @@ export default function ChallengeWorkspace({
     blockStateRef.current = liveState;
     if (!answerKeyMode) {
       clearTimeout(blockDraftTimer.current);
-      persistBlocks(liveState, { flushCloud: true });
+      if (
+        progressStudentId &&
+        hasPendingUpsert(
+          progressUpsertKey(progressStudentId, challenge.id, "blocks")
+        )
+      ) {
+        persistBlocks(liveState, { flushCloud: true });
+      }
     }
     return liveState;
-  }, [answerKeyMode, persistBlocks]);
+  }, [answerKeyMode, persistBlocks, progressStudentId, challenge.id]);
 
   /** Mentor review stores the Java editor draft, not blocks-generated Java. */
   const resolveMentorReviewSnapshots = useCallback(() => {
@@ -1428,7 +1434,7 @@ export default function ChallengeWorkspace({
           }
         } else if (!homeworkMode) {
           markCompleteLocal(challenge.id);
-          await saveCode(submissionCode);
+          await saveCode(submissionCode, { flush: true });
           await markCompleteDB(challenge.id, submissionCode);
           appendEntry({
             type: "info",

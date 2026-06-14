@@ -50,7 +50,10 @@ import {
 } from "@/lib/chooseSavedWorkspace";
 import { getSession } from "@/lib/auth";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
-import { CLOUD_SAVE_DEBOUNCE_MS } from "@/lib/cloudSaveDebounce";
+import {
+  hasPendingUpsert,
+  progressUpsertKey,
+} from "@/lib/cloudSaveDebounce";
 import type { WorkspaceState } from "@/data/blockChallenges";
 import { FULL_TOOLBOX } from "@/lib/blockly/ftcBlocks";
 import {
@@ -252,6 +255,7 @@ export default function PlaygroundWorkspace() {
   const monacoTheme = theme === "light" || theme === "paper" ? "ftc-light" : "ftc-dark";
 
   const {
+    studentId: progressStudentId,
     saveCode,
     saveBlocks,
     loadedCode,
@@ -267,7 +271,6 @@ export default function PlaygroundWorkspace() {
   );
   const codeRef = useRef(code);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const restoredCodeRef = useRef(false);
   const editorRef = useRef<
     Parameters<NonNullable<React.ComponentProps<typeof MonacoEditor>["onMount"]>>[0] | null
@@ -279,7 +282,6 @@ export default function PlaygroundWorkspace() {
   const [blockResetSignal, setBlockResetSignal] = useState(0);
   const blockStateRef = useRef<WorkspaceState | null>(null);
   const blockDraftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const blockCloudSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const restoredBlocksRef = useRef(false);
   const [resolvedBlocksState, setResolvedBlocksState] = useState<WorkspaceState | null>(
     null
@@ -295,14 +297,7 @@ export default function PlaygroundWorkspace() {
   const persistCode = useCallback(
     (next: string, options?: { flushCloud?: boolean }) => {
       saveCodeDraft(PLAYGROUND_DRAFT_ID, next);
-      clearTimeout(cloudSaveTimer.current);
-      if (options?.flushCloud) {
-        void saveCode(next);
-        return;
-      }
-      cloudSaveTimer.current = setTimeout(() => {
-        void saveCode(next);
-      }, CLOUD_SAVE_DEBOUNCE_MS);
+      void saveCode(next, { flush: options?.flushCloud });
     },
     [saveCode]
   );
@@ -310,14 +305,7 @@ export default function PlaygroundWorkspace() {
   const persistBlocks = useCallback(
     (state: WorkspaceState, options?: { flushCloud?: boolean }) => {
       saveBlockDraft(PLAYGROUND_DRAFT_ID, state);
-      clearTimeout(blockCloudSaveTimer.current);
-      if (options?.flushCloud) {
-        void saveBlocks(state);
-        return;
-      }
-      blockCloudSaveTimer.current = setTimeout(() => {
-        void saveBlocks(state);
-      }, CLOUD_SAVE_DEBOUNCE_MS);
+      void saveBlocks(state, { flush: options?.flushCloud });
     },
     [saveBlocks]
   );
@@ -328,10 +316,18 @@ export default function PlaygroundWorkspace() {
       ?? blockStateRef.current;
     if (!state) return;
     clearTimeout(blockDraftTimer.current);
-    clearTimeout(blockCloudSaveTimer.current);
     saveBlockDraft(PLAYGROUND_DRAFT_ID, state);
-    void saveBlocks(state);
+    void saveBlocks(state, { flush: true });
   }, [saveBlocks]);
+
+  const persistCodeRef = useRef(persistCode);
+  const flushBlocksSnapshotRef = useRef(flushBlocksSnapshot);
+  useEffect(() => {
+    persistCodeRef.current = persistCode;
+  }, [persistCode]);
+  useEffect(() => {
+    flushBlocksSnapshotRef.current = flushBlocksSnapshot;
+  }, [flushBlocksSnapshot]);
 
   useEffect(() => {
     const session = getSession();
@@ -382,16 +378,15 @@ export default function PlaygroundWorkspace() {
   useEffect(() => {
     const flush = () => {
       clearTimeout(saveTimer.current);
-      clearTimeout(cloudSaveTimer.current);
-      persistCode(codeRef.current, { flushCloud: true });
-      flushBlocksSnapshot();
+      persistCodeRef.current(codeRef.current, { flushCloud: true });
+      flushBlocksSnapshotRef.current();
     };
     window.addEventListener("pagehide", flush);
     return () => {
       window.removeEventListener("pagehide", flush);
       flush();
     };
-  }, [flushBlocksSnapshot, persistCode]);
+  }, []);
 
   const requestModeSwitch = useCallback((target: EditorMode) => {
     setEditorMode((current) => {
@@ -462,7 +457,14 @@ export default function PlaygroundWorkspace() {
         ?? PLAYGROUND_STARTER_BLOCKS;
       blockStateRef.current = liveState;
       clearTimeout(blockDraftTimer.current);
-      persistBlocks(liveState, { flushCloud: true });
+      if (
+        progressStudentId &&
+        hasPendingUpsert(
+          progressUpsertKey(progressStudentId, PLAYGROUND_DRAFT_ID, "blocks")
+        )
+      ) {
+        persistBlocks(liveState, { flushCloud: true });
+      }
       try {
         const { generateJava } = await import("@/lib/blockly/javaGenerator");
         return generateJava(liveState, PLAYGROUND_JAVA_FRAME);
@@ -471,7 +473,7 @@ export default function PlaygroundWorkspace() {
       }
     }
     return codeRef.current;
-  }, [persistBlocks]);
+  }, [persistBlocks, progressStudentId]);
 
   const [leftPct, setLeftPct] = useState(32);
   const containerRef = useRef<HTMLDivElement>(null);
