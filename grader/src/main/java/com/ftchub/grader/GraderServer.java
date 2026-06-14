@@ -12,7 +12,6 @@ import com.ftchub.grader.rubric.Rubric;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
-import io.javalin.compression.CompressionPlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +68,7 @@ public final class GraderServer {
         Javalin app = Javalin.create(cfg -> {
             cfg.showJavalinBanner = false;
             cfg.http.defaultContentType = "application/json";
-            cfg.registerPlugin(new CompressionPlugin());
+            cfg.compression.gzipOnly(6);
         }).start("0.0.0.0", port);
 
         // ── /healthz ──────────────────────────────────────────────────────
