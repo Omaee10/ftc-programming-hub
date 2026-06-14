@@ -141,17 +141,22 @@ function headers(): HeadersInit {
   return h;
 }
 
-function buildCompileBody(payload: {
-  code: string;
-  challengeId: number;
-  mentorRules?: unknown[];
-  compileOnly?: boolean;
-}): Record<string, unknown> {
+function buildCompileBody(
+  payload: {
+    code: string;
+    challengeId: number;
+    mentorRules?: unknown[];
+    compileOnly?: boolean;
+  },
+  slim: boolean
+): Record<string, unknown> {
   const body: Record<string, unknown> = {
     code: payload.code,
     challengeId: payload.challengeId,
-    slim: true,
   };
+  if (slim) {
+    body.slim = true;
+  }
   if (payload.compileOnly) {
     body.compileOnly = true;
   }
@@ -163,6 +168,51 @@ function buildCompileBody(payload: {
     body.mentorRules = payload.mentorRules;
   }
   return body;
+}
+
+/** Older grader images reject the `slim` field until redeployed. */
+function graderRejectedSlim(status: number, text: string): boolean {
+  return status === 400 && /Unrecognized field "slim"/i.test(text);
+}
+
+async function postCompile<T>(payload: {
+  code: string;
+  challengeId: number;
+  mentorRules?: unknown[];
+  compileOnly?: boolean;
+}): Promise<T> {
+  let res = await fetchWithTimeout(
+    `${GRADER_URL}/compile`,
+    {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify(buildCompileBody(payload, true)),
+    },
+    GRADER_TIMEOUT_MS
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    if (graderRejectedSlim(res.status, text)) {
+      res = await fetchWithTimeout(
+        `${GRADER_URL}/compile`,
+        {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(buildCompileBody(payload, false)),
+        },
+        GRADER_TIMEOUT_MS
+      );
+      if (!res.ok) {
+        const retryText = await res.text().catch(() => "");
+        throw graderResponseError(res.status, retryText);
+      }
+      return (await res.json()) as T;
+    }
+    throw graderResponseError(res.status, text);
+  }
+
+  return (await res.json()) as T;
 }
 
 export async function gradeViaService<T = unknown>(payload: {
@@ -181,21 +231,7 @@ export async function gradeViaService<T = unknown>(payload: {
   const cached = cacheGet<T>(key);
   if (cached) return cached;
 
-  const res = await fetchWithTimeout(
-    `${GRADER_URL}/compile`,
-    {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify(buildCompileBody(payload)),
-    },
-    GRADER_TIMEOUT_MS
-  );
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw graderResponseError(res.status, text);
-  }
-  const json = (await res.json()) as T;
+  const json = await postCompile<T>(payload);
   cacheSet(key, json);
   return json;
 }
@@ -209,23 +245,7 @@ export async function compileViaService<T = unknown>(code: string): Promise<T> {
   const cached = cacheGet<T>(key);
   if (cached) return cached;
 
-  const res = await fetchWithTimeout(
-    `${GRADER_URL}/compile`,
-    {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify(
-        buildCompileBody({ code, challengeId: 0, compileOnly: true })
-      ),
-    },
-    GRADER_TIMEOUT_MS
-  );
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw graderResponseError(res.status, text);
-  }
-  const json = (await res.json()) as T;
+  const json = await postCompile<T>({ code, challengeId: 0, compileOnly: true });
   cacheSet(key, json);
   return json;
 }

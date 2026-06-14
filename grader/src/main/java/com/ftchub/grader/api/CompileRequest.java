@@ -1,5 +1,6 @@
 package com.ftchub.grader.api;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
@@ -13,6 +14,7 @@ import java.util.List;
  * compileOnly:    when true, run javac only — skip universal and challenge rubric checks.
  * slim:           when true, trim verbose fields from the JSON response to save bandwidth.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record CompileRequest(
         String code,
         @JsonProperty("challengeId") int challengeId,
