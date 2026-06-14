@@ -31,6 +31,9 @@ export function setSession(session: Session): void {
   // Cookies let middleware / server components read the active workspace.
   document.cookie = `${COOKIE_NAME}=${session.role}; path=/; SameSite=Lax`;
   document.cookie = `${WORKSPACE_ID_COOKIE}=${session.id}; path=/; SameSite=Lax`;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("ftc-session-updated"));
+  }
 }
 
 export function clearSupabaseAuthCookies(): void {
@@ -48,6 +51,9 @@ export function clearWorkspaceSession(): void {
   localStorage.removeItem(SESSION_KEY);
   document.cookie = `${COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
   document.cookie = `${WORKSPACE_ID_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("ftc-session-updated"));
+  }
 }
 
 /** Full sign-out: workspace state + Supabase auth cookies. */

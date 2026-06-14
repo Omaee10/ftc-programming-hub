@@ -27,7 +27,7 @@ import { supabase, type MentorRow, type StudentRow, type SubmissionRow } from "@
 import { getSession } from "@/lib/auth";
 import { useTabLoader, useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import Link from "next/link";
-import { classOwner } from "@/lib/classChallenges";
+import { classOwner, challengeCreatedBy } from "@/lib/classChallenges";
 import {
   fetchChallengesData,
   fetchHomeworkData,
@@ -1387,7 +1387,13 @@ function ManageChallengesTab() {
 
   const handleDelete = (id: number) => {
     startTransition(async () => {
-      await supabase.from("challenges").delete().eq("id", id);
+      const authorId = challengeCreatedBy(getSession());
+      if (!authorId) return;
+      await supabase
+        .from("challenges")
+        .delete()
+        .eq("id", id)
+        .eq("created_by", authorId);
       load();
     });
   };

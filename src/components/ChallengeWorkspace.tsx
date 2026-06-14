@@ -551,6 +551,7 @@ export default function ChallengeWorkspace({
 
   // Supabase progress — active when a student session exists
   const {
+    studentId: progressStudentId,
     isCompleted: isCompletedDB,
     markComplete: markCompleteDB,
     markIncomplete: markIncompleteDB,
@@ -739,6 +740,7 @@ export default function ChallengeWorkspace({
     snapshotsHydrated,
     loadedBlocks,
     loadedBlocksUpdatedAt,
+    progressStudentId,
   ]);
 
   // Java is always the default mode; only offer blocks where supported.
@@ -832,6 +834,20 @@ export default function ChallengeWorkspace({
     restoredChallengeRef.current = null;
   }, [challenge.id]);
 
+  // Re-load drafts when the signed-in student changes (avoid showing another account's work)
+  useEffect(() => {
+    const onSessionChange = () => {
+      clearTimeout(saveTimer.current);
+      clearTimeout(cloudSaveTimer.current);
+      clearTimeout(blockDraftTimer.current);
+      clearTimeout(blockCloudSaveTimer.current);
+      restoredChallengeRef.current = null;
+      restoredBlocksRef.current = null;
+    };
+    window.addEventListener("ftc-session-updated", onSessionChange);
+    return () => window.removeEventListener("ftc-session-updated", onSessionChange);
+  }, []);
+
   useEffect(() => {
     if (answerKeyMode) return;
     const session = getSession();
@@ -856,6 +872,7 @@ export default function ChallengeWorkspace({
     snapshotsHydrated,
     loadedCode,
     loadedCodeUpdatedAt,
+    progressStudentId,
   ]);
 
   // Flush the latest editor contents when leaving the page or unmounting

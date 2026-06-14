@@ -96,6 +96,13 @@ export default function MentorChallengeEditor({
     setSaveSuccess(false);
     setSaveError("");
 
+    const authorId = challengeCreatedBy(getSession());
+    if (!authorId) {
+      setSaving(false);
+      setSaveError("Session expired. Sign in again.");
+      return;
+    }
+
     const payload = {
       title: title.trim(),
       difficulty,
@@ -119,9 +126,10 @@ export default function MentorChallengeEditor({
             .from("challenges")
             .update(payload)
             .eq("id", challengeId)
+            .eq("created_by", authorId)
         : await supabase.from("challenges").insert({
             ...payload,
-            created_by: challengeCreatedBy(getSession()),
+            created_by: authorId,
           });
 
     setSaving(false);

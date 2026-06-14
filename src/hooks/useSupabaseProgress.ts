@@ -138,7 +138,7 @@ interface ProgressStoreSnapshot {
 
 let storeStudentId: string | null = null;
 let syncInFlight: Promise<void> | null = null;
-const snapshotLoadsInFlight = new Map<number, Promise<void>>();
+const snapshotLoadsInFlight = new Map<string, Promise<void>>();
 const storeListeners = new Set<() => void>();
 
 const EMPTY_SNAPSHOT: ProgressStoreSnapshot = {
@@ -223,17 +223,19 @@ function patchSnapshot(id: number, patch: Partial<ProgressSnapshot>): void {
   });
 }
 
+function resetProgressStore(): void {
+  storeStudentId = null;
+  syncInFlight = null;
+  snapshotLoadsInFlight.clear();
+  lastSavedCodeHash.clear();
+  lastSavedBlocksHash.clear();
+  publishStore(EMPTY_SNAPSHOT);
+}
+
 async function ensureProgressLoaded(studentId: string): Promise<void> {
   if (storeStudentId !== studentId) {
+    resetProgressStore();
     storeStudentId = studentId;
-    publishStore({
-      records: [],
-      snapshotsByChallenge: {},
-      snapshotStatusByChallenge: {},
-      hydrated: false,
-    });
-    syncInFlight = null;
-    snapshotLoadsInFlight.clear();
   }
 
   if (storeSnapshot.hydrated) return;
@@ -273,9 +275,15 @@ async function ensureSnapshotsLoaded(
   studentId: string,
   challengeId: number
 ): Promise<void> {
+  if (storeStudentId !== studentId) {
+    resetProgressStore();
+    storeStudentId = studentId;
+  }
+
   if (storeSnapshot.snapshotStatusByChallenge[challengeId] === "done") return;
 
-  const inFlight = snapshotLoadsInFlight.get(challengeId);
+  const loadKey = `${studentId}:${challengeId}`;
+  const inFlight = snapshotLoadsInFlight.get(loadKey);
   if (inFlight) {
     await inFlight;
     return;
@@ -330,11 +338,11 @@ async function ensureSnapshotsLoaded(
         },
       });
     } finally {
-      snapshotLoadsInFlight.delete(challengeId);
+      snapshotLoadsInFlight.delete(loadKey);
     }
   })();
 
-  snapshotLoadsInFlight.set(challengeId, loadPromise);
+  snapshotLoadsInFlight.set(loadKey, loadPromise);
   await loadPromise;
 }
 
@@ -368,7 +376,12 @@ export function useSupabaseProgress(challengeId?: number) {
   }, []);
 
   useEffect(() => {
-    if (!studentId) return;
+    if (!studentId) {
+      if (storeStudentId !== null) {
+        resetProgressStore();
+      }
+      return;
+    }
     void ensureProgressLoaded(studentId);
   }, [studentId]);
 
@@ -407,11 +420,15 @@ export function useSupabaseProgress(challengeId?: number) {
 
   const saveCode = useCallback(
     async (code: string): Promise<void> => {
+      if (!studentId || challengeId === undefined) {
+        return;
+      }
+
       const activeSession = getSession();
       if (
         !activeSession ||
         activeSession.role !== "student" ||
-        challengeId === undefined
+        activeSession.id !== studentId
       ) {
         return;
       }
@@ -419,10 +436,10 @@ export function useSupabaseProgress(challengeId?: number) {
       const existing = records.find((r) => r.challenge_id === challengeId);
       const completed =
         existing?.completed ||
-        isLocallyCompleted(activeSession.id, challengeId);
+        isLocallyCompleted(studentId, challengeId);
 
       const now = new Date().toISOString();
-      const hashKey = snapshotKey(activeSession.id, challengeId, "code");
+      const hashKey = snapshotKey(studentId, challengeId, "code");
       const hash = await digestText(code);
       if (lastSavedCodeHash.get(hashKey) === hash) {
         return;
@@ -430,7 +447,7 @@ export function useSupabaseProgress(challengeId?: number) {
 
       const { error } = await supabase.from("student_challenge_progress").upsert(
         {
-          student_id: activeSession.id,
+          student_id: studentId,
           challenge_id: challengeId,
           code_snapshot: code,
           completed,
@@ -451,16 +468,20 @@ export function useSupabaseProgress(challengeId?: number) {
         updated_at: now,
       });
     },
-    [challengeId, records]
+    [challengeId, records, studentId]
   );
 
   const saveBlocks = useCallback(
     async (state: BlockState): Promise<void> => {
+      if (!studentId || challengeId === undefined) {
+        return;
+      }
+
       const activeSession = getSession();
       if (
         !activeSession ||
         activeSession.role !== "student" ||
-        challengeId === undefined
+        activeSession.id !== studentId
       ) {
         return;
       }
@@ -468,10 +489,10 @@ export function useSupabaseProgress(challengeId?: number) {
       const existing = records.find((r) => r.challenge_id === challengeId);
       const completed =
         existing?.completed ||
-        isLocallyCompleted(activeSession.id, challengeId);
+        isLocallyCompleted(studentId, challengeId);
 
       const now = new Date().toISOString();
-      const hashKey = snapshotKey(activeSession.id, challengeId, "blocks");
+      const hashKey = snapshotKey(studentId, challengeId, "blocks");
       const hash = await digestJson(state);
       if (lastSavedBlocksHash.get(hashKey) === hash) {
         return;
@@ -479,7 +500,7 @@ export function useSupabaseProgress(challengeId?: number) {
 
       const { error } = await supabase.from("student_challenge_progress").upsert(
         {
-          student_id: activeSession.id,
+          student_id: studentId,
           challenge_id: challengeId,
           blocks_snapshot: state,
           blocks_updated_at: now,
@@ -503,13 +524,21 @@ export function useSupabaseProgress(challengeId?: number) {
         blocks_updated_at: now,
       });
     },
-    [challengeId, records]
+    [challengeId, records, studentId]
   );
 
   const markComplete = useCallback(
     async (id: number, codeSnapshot?: string): Promise<void> => {
+      if (!studentId) return;
+
       const activeSession = getSession();
-      if (!activeSession || activeSession.role !== "student") return;
+      if (
+        !activeSession ||
+        activeSession.role !== "student" ||
+        activeSession.id !== studentId
+      ) {
+        return;
+      }
 
       const now = new Date().toISOString();
       const storeState = getStoreSnapshot();
@@ -523,7 +552,7 @@ export function useSupabaseProgress(challengeId?: number) {
         updated_at: string;
         code_snapshot?: string | null;
       } = {
-        student_id: activeSession.id,
+        student_id: studentId,
         challenge_id: id,
         completed: true,
         updated_at: now,
@@ -545,17 +574,25 @@ export function useSupabaseProgress(challengeId?: number) {
         patchSnapshot(id, { code_snapshot: snapshot, updated_at: now });
       }
     },
-    []
+    [studentId]
   );
 
   const markIncomplete = useCallback(async (id: number): Promise<void> => {
+    if (!studentId) return;
+
     const activeSession = getSession();
-    if (!activeSession || activeSession.role !== "student") return;
+    if (
+      !activeSession ||
+      activeSession.role !== "student" ||
+      activeSession.id !== studentId
+    ) {
+      return;
+    }
 
     const now = new Date().toISOString();
     const { error } = await supabase.from("student_challenge_progress").upsert(
       {
-        student_id: activeSession.id,
+        student_id: studentId,
         challenge_id: id,
         completed: false,
         updated_at: now,
@@ -568,9 +605,10 @@ export function useSupabaseProgress(challengeId?: number) {
     }
 
     patchMetaRecord(id, { completed: false, updated_at: now });
-  }, []);
+  }, [studentId]);
 
   return {
+    studentId,
     isCompleted,
     completedIds,
     completedCount: completedIds.length,
