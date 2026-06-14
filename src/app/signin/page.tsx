@@ -14,8 +14,9 @@ import {
   Settings,
 } from "lucide-react";
 import { clearWorkspaceSession, setSession } from "@/lib/auth";
-import { getAuthUserId, getProfileDisplayName } from "@/lib/authSession";
-import { withTimeout } from "@/lib/withTimeout";
+import { formatLoadError, withTimeout } from "@/lib/withTimeout";
+
+const WORKSPACES_TIMEOUT_MS = 20_000;
 
 interface StudentEnrollment {
   kind: "student";
@@ -90,18 +91,16 @@ export default function SignInPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [reloadKey, setReloadKey] = useState(0);
 
   const enterWorkspace = useCallback(
     (item: PickerItem) => {
-      startTransition(async () => {
-        const userId = await getAuthUserId();
-        const profileName = userId ? await getProfileDisplayName(userId) : null;
-
+      startTransition(() => {
         if (item.kind === "student") {
           setSession({
             role: "student",
             id: item.id,
-            name: profileName ?? item.name,
+            name: item.name,
             teamName: item.teamName,
             mentorId: item.mentorId,
             ...(item.className ? { className: item.className } : {}),
@@ -113,7 +112,7 @@ export default function SignInPage() {
         setSession({
           role: "mentor",
           id: item.id,
-          name: profileName ?? item.name,
+          name: item.name,
           teamName: item.teamName,
           ...(item.className ? { className: item.className } : {}),
           ...(item.parentMentorId ? { parentMentorId: item.parentMentorId } : {}),
@@ -133,41 +132,53 @@ export default function SignInPage() {
     let cancelled = false;
 
     (async () => {
+      setLoading(true);
+      setError("");
+
+      const fetchOnce = async (): Promise<Response> =>
+        withTimeout(
+          fetch("/api/auth/workspaces", { credentials: "include" }),
+          WORKSPACES_TIMEOUT_MS,
+          "Loading workspaces"
+        );
+
       try {
-      const userId = await getAuthUserId();
-      if (!userId) {
-        router.replace("/login");
-        return;
-      }
+        let res: Response;
+        try {
+          res = await fetchOnce();
+        } catch (firstErr) {
+          res = await fetchOnce().catch(() => {
+            throw firstErr;
+          });
+        }
 
-      const profileName = (await getProfileDisplayName(userId)) ?? undefined;
+        if (res.status === 401) {
+          router.replace("/login");
+          return;
+        }
 
-      const res = await withTimeout(
-        fetch("/api/auth/workspaces", { credentials: "include" }),
-        15_000,
-        "Loading workspaces"
-      );
-      const data = (await res.json()) as {
-        error?: string;
-        students?: StudentEnrollment[];
-        mentors?: MentorWorkspace[];
-      };
+        const data = (await res.json()) as {
+          error?: string;
+          profileName?: string | null;
+          students?: StudentEnrollment[];
+          mentors?: MentorWorkspace[];
+        };
 
-      if (!res.ok) {
-        if (!cancelled) setError(data.error ?? "Failed to load workspaces.");
-        return;
-      }
+        if (!res.ok) {
+          if (!cancelled) setError(data.error ?? "Failed to load workspaces.");
+          return;
+        }
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      const enrollments: PickerItem[] = [
-        ...(data.students ?? []),
-        ...(data.mentors ?? []),
-      ];
-      setItems(dedupePickerItems(enrollments, profileName));
+        const enrollments: PickerItem[] = [
+          ...(data.students ?? []),
+          ...(data.mentors ?? []),
+        ];
+        setItems(dedupePickerItems(enrollments, data.profileName ?? undefined));
       } catch (err) {
         console.error("Sign-in page load:", err);
-        if (!cancelled) setError("Failed to load workspaces. Please try again.");
+        if (!cancelled) setError(formatLoadError(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -176,7 +187,7 @@ export default function SignInPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, enterWorkspace]);
+  }, [router, reloadKey]);
 
   const handleSelect = (item: PickerItem) => {
     enterWorkspace(item);
@@ -230,9 +241,18 @@ export default function SignInPage() {
         </div>
 
         {error && (
-          <div className="mb-6 flex items-center gap-2 rounded-md border border-red-500/15 bg-red-500/8 px-3 py-2">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
-            <span className="text-xs text-red-400">{error}</span>
+          <div className="mb-6 flex items-center justify-between gap-3 rounded-md border border-red-500/15 bg-red-500/8 px-3 py-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+              <span className="text-xs text-red-400">{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="shrink-0 text-xs font-medium text-red-300 hover:text-red-200"
+            >
+              Retry
+            </button>
           </div>
         )}
 
