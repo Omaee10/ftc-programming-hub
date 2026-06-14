@@ -132,6 +132,14 @@ function SubmissionViewTabs({
   );
 }
 
+function looksLikeBlocksGeneratedJava(code: string): boolean {
+  return (
+    code.includes("(Blocks)") &&
+    code.includes("extends LinearOpMode") &&
+    code.includes("waitForStart()")
+  );
+}
+
 /** Loads submission Java + Blocks when the mentor expands a grade row. */
 export function SubmissionCodePanel({
   submissionId,
@@ -308,14 +316,24 @@ export function SubmissionCodePanel({
               Loading Java…
             </div>
           )}
-          {code ? (
+          {code && looksLikeBlocksGeneratedJava(code) && (
+            <p className="text-xs text-amber-400/90">
+              This looks like Java auto-generated from Blocks, not code the
+              student typed in OnBot Java. Check the FTC Blocks tab for their
+              actual work.
+            </p>
+          )}
+          {code &&
+          (!looksLikeBlocksGeneratedJava(code) || !blocks) ? (
             <pre className="max-h-72 overflow-auto rounded border border-slate-800 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-400">
               {code}
             </pre>
           ) : (
-            !codeLoading && (
+            !codeLoading &&
+            !code && (
               <p className="text-xs text-slate-500">
-                No Java code was submitted.
+                No OnBot Java code was submitted. The student may have used FTC
+                Blocks only — check the FTC Blocks tab.
               </p>
             )
           )}

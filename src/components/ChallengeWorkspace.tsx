@@ -918,18 +918,36 @@ export default function ChallengeWorkspace({
     return liveState;
   }, [answerKeyMode, persistBlocks]);
 
+  /** Mentor review stores the Java editor draft, not blocks-generated Java. */
+  const resolveMentorReviewSnapshots = useCallback(() => {
+    const blocksSnapshot = resolveBlocksSnapshot();
+    const starter = challenge.starterCode ?? "";
+    let javaSnapshot = codeRef.current;
+    const config = blocksConfigRef.current;
+    const blocksChanged =
+      blocksSnapshot &&
+      config &&
+      JSON.stringify(blocksSnapshot) !== JSON.stringify(config.starter);
+
+    if (blocksChanged && javaSnapshot.trim() === starter.trim()) {
+      javaSnapshot = "";
+    }
+
+    return { javaSnapshot, blocksSnapshot, blocksChanged: Boolean(blocksChanged) };
+  }, [challenge.starterCode, resolveBlocksSnapshot]);
+
   const submitForMentorReview = useCallback(
     async (
-      snapshot: string,
-      blocksSnapshot: WorkspaceState | null
+      javaSnapshot: string,
+      blocksSnapshot: WorkspaceState | null,
+      blocksChanged: boolean
     ): Promise<{ error: string | null }> => {
       if (!studentSession?.id) {
         return { error: null };
       }
-      if (!snapshot.trim()) {
-        const msg = blocksSnapshot
-          ? "Could not generate Java from your blocks. Check your block layout."
-          : "Add Java code or build with FTC Blocks before submitting.";
+      if (!javaSnapshot.trim() && !blocksChanged) {
+        const msg =
+          "Add Java code in OnBot Java or build with FTC Blocks before submitting.";
         setSubmitError(msg);
         return { error: msg };
       }
@@ -939,7 +957,7 @@ export default function ChallengeWorkspace({
       const basePayload = {
         student_id: studentSession.id,
         challenge_id: challenge.id,
-        code_snapshot: snapshot,
+        code_snapshot: javaSnapshot,
         status: "pending" as const,
         grade: null,
         feedback: null,
@@ -984,14 +1002,15 @@ export default function ChallengeWorkspace({
   const handleSubmitForReview = useCallback(async () => {
     if (!studentSession?.id || submitting) return;
     setSubmitError(null);
-    const snapshot = await resolveSubmissionCode();
-    const blocksSnapshot = resolveBlocksSnapshot();
-    await submitForMentorReview(snapshot, blocksSnapshot);
+    persistCode(codeRef.current, { flushCloud: true });
+    const { javaSnapshot, blocksSnapshot, blocksChanged } =
+      resolveMentorReviewSnapshots();
+    await submitForMentorReview(javaSnapshot, blocksSnapshot, blocksChanged);
   }, [
     studentSession?.id,
     submitting,
-    resolveSubmissionCode,
-    resolveBlocksSnapshot,
+    persistCode,
+    resolveMentorReviewSnapshots,
     submitForMentorReview,
   ]);
 
@@ -1374,21 +1393,27 @@ export default function ChallengeWorkspace({
               message:
                 "Sign in as a student and pick your class to submit for mentor review.",
             });
-          } else if (!submissionCode.trim()) {
-            appendEntry({
-              type: "warning",
-              message: "Could not serialize your Blocks workspace for submission.",
-            });
           } else {
-            const { error: reviewErr } = await submitForMentorReview(
-              submissionCode,
-              resolveBlocksSnapshot()
-            );
-            if (!reviewErr) {
+            const { javaSnapshot, blocksSnapshot, blocksChanged } =
+              resolveMentorReviewSnapshots();
+            if (!javaSnapshot.trim() && !blocksChanged) {
               appendEntry({
-                type: "info",
-                message: "Submitted to your mentor for review.",
+                type: "warning",
+                message:
+                  "Add Java code or FTC Blocks before submitting for mentor review.",
               });
+            } else {
+              const { error: reviewErr } = await submitForMentorReview(
+                javaSnapshot,
+                blocksSnapshot,
+                blocksChanged
+              );
+              if (!reviewErr) {
+                appendEntry({
+                  type: "info",
+                  message: "Submitted to your mentor for review.",
+                });
+              }
             }
           }
         }
@@ -1408,7 +1433,7 @@ export default function ChallengeWorkspace({
     homeworkMode,
     onHomeworkComplete,
     resolveSubmissionCode,
-    resolveBlocksSnapshot,
+    resolveMentorReviewSnapshots,
     isMentorChallenge,
     studentSession?.id,
     submission?.status,
