@@ -21,8 +21,11 @@ export type ProgressSummaryRow = Pick<
   "id" | "student_id" | "challenge_id" | "completed" | "updated_at"
 >;
 
-/** Submission row without code body (mentor list views). */
-export type SubmissionSummaryRow = Omit<SubmissionRow, "code_snapshot">;
+/** Submission row without code/blocks bodies (mentor list views). */
+export type SubmissionSummaryRow = Omit<
+  SubmissionRow,
+  "code_snapshot" | "blocks_snapshot"
+>;
 
 /** Homework row without saved code (list views). */
 export type HomeworkSummaryRow = Omit<HomeworkAssignmentRow, "code_snapshot">;
@@ -148,6 +151,19 @@ export async function fetchMentorSnapshotCode(
   session: Session,
   request: MentorSnapshotRequest
 ): Promise<string | null> {
+  const detail = await fetchMentorSubmissionDetail(session, request);
+  return detail.code;
+}
+
+export type MentorSubmissionDetail = {
+  code: string | null;
+  blocks: Record<string, unknown> | null;
+};
+
+export async function fetchMentorSubmissionDetail(
+  session: Session,
+  request: MentorSnapshotRequest
+): Promise<MentorSubmissionDetail> {
   const res = await withTimeout(
     fetch("/api/mentor/snapshots", {
       method: "POST",
@@ -163,11 +179,18 @@ export async function fetchMentorSnapshotCode(
     "Loading saved code"
   );
 
-  const data = (await res.json()) as { error?: string; code?: string | null };
+  const data = (await res.json()) as {
+    error?: string;
+    code?: string | null;
+    blocks?: Record<string, unknown> | null;
+  };
   if (!res.ok) {
     throw new Error(data.error ?? `Request failed (${res.status})`);
   }
-  return data.code ?? null;
+  return {
+    code: data.code ?? null,
+    blocks: data.blocks ?? null,
+  };
 }
 
 export async function deleteClassMember(

@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS challenge_submissions (
   student_id    uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   challenge_id  integer NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
   code_snapshot text NOT NULL,
+  blocks_snapshot   jsonb,
   submitted_at  timestamptz DEFAULT now(),
   status        text NOT NULL DEFAULT 'pending',  -- 'pending' | 'graded'
   grade         text,                             -- 'pass' | 'needs-work' | 'redo'
@@ -119,6 +120,10 @@ CREATE TABLE IF NOT EXISTS challenge_submissions (
   graded_by     uuid REFERENCES mentors(id) ON DELETE SET NULL,
   UNIQUE (student_id, challenge_id)               -- one active submission per student per challenge
 );
+
+-- ─── Migration: add blocks_snapshot to challenge_submissions ────────────────
+-- Run this in the Supabase SQL Editor if your submissions table predates blocks:
+-- ALTER TABLE challenge_submissions ADD COLUMN IF NOT EXISTS blocks_snapshot jsonb;
 
 -- ─── Migration: add challenge_submissions to existing databases ───────────────
 -- Run this if the other tables already exist:

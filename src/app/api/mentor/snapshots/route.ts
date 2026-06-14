@@ -146,24 +146,38 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "Bad request" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    let data: Record<string, unknown> | null = null;
+    let error: { message: string } | null = null;
+
+    ({ data, error } = await supabase
       .from("challenge_submissions")
-      .select("code_snapshot, student_id")
+      .select("code_snapshot, blocks_snapshot, student_id")
       .eq("id", submissionId)
-      .maybeSingle();
+      .maybeSingle());
+
+    if (error?.message.includes("blocks_snapshot")) {
+      ({ data, error } = await supabase
+        .from("challenge_submissions")
+        .select("code_snapshot, student_id")
+        .eq("id", submissionId)
+        .maybeSingle());
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     if (!data) {
-      return NextResponse.json({ code: null });
+      return NextResponse.json({ code: null, blocks: null });
     }
 
     if (!(await studentInClass(supabase, ownerId, data.student_id as string))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    return NextResponse.json({ code: (data.code_snapshot as string) ?? "" });
+    return NextResponse.json({
+      code: (data.code_snapshot as string) ?? "",
+      blocks: (data.blocks_snapshot as Record<string, unknown> | null) ?? null,
+    });
   }
 
   return NextResponse.json({ error: "Bad request" }, { status: 400 });

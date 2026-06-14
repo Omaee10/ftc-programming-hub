@@ -83,6 +83,7 @@ export interface SubmissionRow {
   student_id: string;
   challenge_id: number;
   code_snapshot: string;
+  blocks_snapshot?: Record<string, unknown> | null;
   submitted_at: string;
   status: "pending" | "graded";
   grade: "pass" | "needs-work" | "redo" | null;

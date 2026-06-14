@@ -621,8 +621,11 @@ export default function ChallengeWorkspace({
     ? !!answerKey?.blocks
     : isBlocksEnabled(challenge.id);
   const blocksConfig = useMemo(
-    () => (!answerKeyMode && blocksEnabled ? getBlockConfig(challenge.id) : null),
-    [answerKeyMode, blocksEnabled, challenge.id]
+    () =>
+      !answerKeyMode && blocksEnabled
+        ? getBlockConfig(challenge.id, challenge.title)
+        : null,
+    [answerKeyMode, blocksEnabled, challenge.id, challenge.title]
   );
   const [editorMode, setEditorMode] = useState<EditorMode>("java");
   const [blocklyMounted, setBlocklyMounted] = useState(
@@ -901,30 +904,63 @@ export default function ChallengeWorkspace({
     return codeRef.current;
   }, [challenge.id, answerKeyMode, persistBlocks]);
 
+  const resolveBlocksSnapshot = useCallback((): WorkspaceState | null => {
+    if (answerKeyMode || !blocksConfigRef.current) return null;
+    const liveState =
+      blocklyHandleRef.current?.getState()
+      ?? blockStateRef.current;
+    if (!liveState) return null;
+    blockStateRef.current = liveState;
+    if (!answerKeyMode) {
+      clearTimeout(blockDraftTimer.current);
+      persistBlocks(liveState, { flushCloud: true });
+    }
+    return liveState;
+  }, [answerKeyMode, persistBlocks]);
+
   const submitForMentorReview = useCallback(
-    async (snapshot: string): Promise<{ error: string | null }> => {
+    async (
+      snapshot: string,
+      blocksSnapshot: WorkspaceState | null
+    ): Promise<{ error: string | null }> => {
       if (!studentSession?.id || !snapshot.trim()) {
         return { error: null };
       }
       setSubmitting(true);
       setSubmitError(null);
-      const { data, error } = await supabase
+
+      const basePayload = {
+        student_id: studentSession.id,
+        challenge_id: challenge.id,
+        code_snapshot: snapshot,
+        status: "pending" as const,
+        grade: null,
+        feedback: null,
+        graded_at: null,
+        graded_by: null,
+      };
+
+      let result = await supabase
         .from("challenge_submissions")
         .upsert(
-          {
-            student_id: studentSession.id,
-            challenge_id: challenge.id,
-            code_snapshot: snapshot,
-            status: "pending",
-            grade: null,
-            feedback: null,
-            graded_at: null,
-            graded_by: null,
-          },
+          { ...basePayload, blocks_snapshot: blocksSnapshot },
           { onConflict: "student_id,challenge_id" }
         )
         .select("id, status, grade, feedback, submitted_at, graded_at")
         .single();
+
+      if (
+        result.error?.message.includes("blocks_snapshot") &&
+        blocksSnapshot
+      ) {
+        result = await supabase
+          .from("challenge_submissions")
+          .upsert(basePayload, { onConflict: "student_id,challenge_id" })
+          .select("id, status, grade, feedback, submitted_at, graded_at")
+          .single();
+      }
+
+      const { data, error } = result;
       setSubmitting(false);
       if (error) {
         setSubmitError(error.message);
@@ -941,8 +977,15 @@ export default function ChallengeWorkspace({
   const handleSubmitForReview = useCallback(async () => {
     if (!studentSession?.id || submitting) return;
     const snapshot = await resolveSubmissionCode();
-    await submitForMentorReview(snapshot);
-  }, [studentSession?.id, submitting, resolveSubmissionCode, submitForMentorReview]);
+    const blocksSnapshot = resolveBlocksSnapshot();
+    await submitForMentorReview(snapshot, blocksSnapshot);
+  }, [
+    studentSession?.id,
+    submitting,
+    resolveSubmissionCode,
+    resolveBlocksSnapshot,
+    submitForMentorReview,
+  ]);
 
   // ── Resizable split ─────────────────────────────────────────────────────
   const [leftPct, setLeftPct] = useState(40);
@@ -1272,7 +1315,10 @@ export default function ChallengeWorkspace({
               message: "Could not serialize your Blocks workspace for submission.",
             });
           } else {
-            const { error: reviewErr } = await submitForMentorReview(submissionCode);
+            const { error: reviewErr } = await submitForMentorReview(
+              submissionCode,
+              resolveBlocksSnapshot()
+            );
             if (!reviewErr) {
               appendEntry({
                 type: "info",
@@ -1297,6 +1343,7 @@ export default function ChallengeWorkspace({
     homeworkMode,
     onHomeworkComplete,
     resolveSubmissionCode,
+    resolveBlocksSnapshot,
     isMentorChallenge,
     studentSession?.id,
     submission?.status,

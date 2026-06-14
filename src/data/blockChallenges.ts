@@ -13,6 +13,8 @@
 
 import { buildToolbox, type ToolboxJson } from "@/lib/blockly/ftcBlocks";
 import type { JavaFrame } from "@/lib/blockly/javaGenerator";
+import { isCustomChallengeId } from "@/lib/classChallenges";
+import { buildCustomBlockConfig } from "@/lib/customBlockConfig";
 
 /** Challenges that offer the Blocks toggle (Beginner + easy Intermediate). */
 export const BLOCKS_ENABLED = new Set<number>([
@@ -547,9 +549,22 @@ const CONFIGS: Record<number, BlockChallengeConfig> = {
 // ─── Public accessors ────────────────────────────────────────────────────────
 
 export function isBlocksEnabled(challengeId: number): boolean {
+  if (isCustomChallengeId(challengeId)) return true;
   return BLOCKS_ENABLED.has(challengeId) && challengeId in CONFIGS;
 }
 
-export function getBlockConfig(challengeId: number): BlockChallengeConfig | null {
-  return CONFIGS[challengeId] ?? null;
+export function getBlockConfig(
+  challengeId: number,
+  challengeTitle?: string
+): BlockChallengeConfig | null {
+  if (challengeId in CONFIGS) {
+    return CONFIGS[challengeId] ?? null;
+  }
+  if (isCustomChallengeId(challengeId)) {
+    return buildCustomBlockConfig(
+      challengeId,
+      challengeTitle ?? `Challenge ${challengeId}`
+    );
+  }
+  return null;
 }
