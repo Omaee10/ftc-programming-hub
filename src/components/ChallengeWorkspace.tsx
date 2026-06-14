@@ -96,6 +96,13 @@ const BlocklyWorkspace = dynamic(() => import("./BlocklyWorkspace"), {
 
 type EditorMode = "java" | "blocks";
 
+function workspaceRestoreKey(
+  studentId: string | null | undefined,
+  challengeId: number
+): string {
+  return `${studentId ?? "guest"}:${challengeId}`;
+}
+
 // ─── Console types ─────────────────────────────────────────────────────────
 
 type ConsoleEntryType =
@@ -600,14 +607,23 @@ export default function ChallengeWorkspace({
 
   // ── Editor state ────────────────────────────────────────────────────────
   const [code, setCode] = useState(() =>
-    answerKey
-      ? answerKey.java
-      : chooseSavedCode(challenge.id, challenge.starterCode, null, null)
+    answerKey ? answerKey.java : challenge.starterCode
   );
   const codeRef = useRef(code);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const restoredChallengeRef = useRef<number | null>(null);
+  const restoredChallengeRef = useRef<string | null>(null);
+  const progressStudentIdRef = useRef(progressStudentId);
+  progressStudentIdRef.current = progressStudentId;
+
+  const canPersistForSession = useCallback((): boolean => {
+    const session = getSession();
+    if (!session || session.role !== "student") return !session;
+    const hookId = progressStudentIdRef.current;
+    if (!hookId) return false;
+    return session.id === hookId;
+  }, []);
+
   const editorRef = useRef<
     Parameters<
       NonNullable<React.ComponentProps<typeof MonacoEditor>["onMount"]>
@@ -637,7 +653,7 @@ export default function ChallengeWorkspace({
   const blockStateRef = useRef<WorkspaceState | null>(null);
   const blockDraftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const blockCloudSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const restoredBlocksRef = useRef<number | null>(null);
+  const restoredBlocksRef = useRef<string | null>(null);
   const [resolvedBlocksState, setResolvedBlocksState] = useState<WorkspaceState | null>(
     () => (answerKeyMode ? (answerKey?.blocks ?? null) : null)
   );
@@ -662,7 +678,7 @@ export default function ChallengeWorkspace({
   );
 
   const flushBlocksSnapshot = useCallback(() => {
-    if (answerKeyMode || !blocksConfig) return;
+    if (answerKeyMode || !blocksConfig || !canPersistForSession()) return;
     const state =
       blocklyHandleRef.current?.getState()
       ?? blockStateRef.current;
@@ -671,7 +687,7 @@ export default function ChallengeWorkspace({
     clearTimeout(blockCloudSaveTimer.current);
     saveBlockDraft(challenge.id, state);
     void saveBlocks(state);
-  }, [answerKeyMode, blocksConfig, challenge.id, saveBlocks]);
+  }, [answerKeyMode, blocksConfig, canPersistForSession, challenge.id, saveBlocks]);
 
   const confirmModeSwitch = useCallback(() => {
     flushBlocksSnapshot();
@@ -696,8 +712,10 @@ export default function ChallengeWorkspace({
         );
         setCode(generated);
         editorRef.current?.setValue(generated);
-        saveCodeDraft(challenge.id, generated);
-        void saveCode(generated);
+        if (canPersistForSession()) {
+          saveCodeDraft(challenge.id, generated);
+          void saveCode(generated);
+        }
       } catch {
         // If generation fails, fall back to keeping the existing Java code.
       }
@@ -705,7 +723,7 @@ export default function ChallengeWorkspace({
     flushBlocksSnapshot();
     setPendingMode(null);
     setEditorMode("java");
-  }, [blocksConfig, challenge.id, flushBlocksSnapshot, saveCode]);
+  }, [blocksConfig, canPersistForSession, challenge.id, flushBlocksSnapshot, saveCode]);
 
   useEffect(() => {
     restoredBlocksRef.current = null;
@@ -721,7 +739,8 @@ export default function ChallengeWorkspace({
     const session = getSession();
     const needsCloud = session?.role === "student";
     if (needsCloud && (!dbHydrated || !snapshotsHydrated)) return;
-    if (restoredBlocksRef.current === challenge.id) return;
+    const blocksRestoreKey = workspaceRestoreKey(progressStudentId, challenge.id);
+    if (restoredBlocksRef.current === blocksRestoreKey) return;
 
     const restored = chooseSavedBlocks(
       challenge.id,
@@ -731,7 +750,7 @@ export default function ChallengeWorkspace({
     );
     setResolvedBlocksState(restored);
     blockStateRef.current = restored;
-    restoredBlocksRef.current = challenge.id;
+    restoredBlocksRef.current = blocksRestoreKey;
   }, [
     answerKeyMode,
     blocksConfig,
@@ -760,6 +779,7 @@ export default function ChallengeWorkspace({
 
   const persistBlocks = useCallback(
     (state: WorkspaceState, options?: { flushCloud?: boolean }) => {
+      if (!canPersistForSession()) return;
       saveBlockDraft(challenge.id, state);
       clearTimeout(blockCloudSaveTimer.current);
       if (options?.flushCloud) {
@@ -770,7 +790,7 @@ export default function ChallengeWorkspace({
         void saveBlocks(state);
       }, CLOUD_SAVE_DEBOUNCE_MS);
     },
-    [challenge.id, saveBlocks]
+    [canPersistForSession, challenge.id, saveBlocks]
   );
 
   const handleBlocksChange = useCallback(
@@ -812,6 +832,7 @@ export default function ChallengeWorkspace({
 
   const persistCode = useCallback(
     (next: string, options?: { flushCloud?: boolean }) => {
+      if (!canPersistForSession()) return;
       saveCodeDraft(challenge.id, next);
       clearTimeout(cloudSaveTimer.current);
       if (options?.flushCloud) {
@@ -822,7 +843,7 @@ export default function ChallengeWorkspace({
         void saveCode(next);
       }, CLOUD_SAVE_DEBOUNCE_MS);
     },
-    [challenge.id, saveCode]
+    [canPersistForSession, challenge.id, saveCode]
   );
 
   useEffect(() => {
@@ -843,17 +864,32 @@ export default function ChallengeWorkspace({
       clearTimeout(blockCloudSaveTimer.current);
       restoredChallengeRef.current = null;
       restoredBlocksRef.current = null;
+
+      const starter = challenge.starterCode;
+      setCode(starter);
+      codeRef.current = starter;
+      editorRef.current?.setValue(starter);
+
+      if (blocksConfig) {
+        setResolvedBlocksState(blocksConfig.starter);
+        blockStateRef.current = blocksConfig.starter;
+        setBlockResetSignal((n) => n + 1);
+      } else {
+        setResolvedBlocksState(null);
+        blockStateRef.current = null;
+      }
     };
     window.addEventListener("ftc-session-updated", onSessionChange);
     return () => window.removeEventListener("ftc-session-updated", onSessionChange);
-  }, []);
+  }, [blocksConfig, challenge.starterCode]);
 
   useEffect(() => {
     if (answerKeyMode) return;
     const session = getSession();
     const needsCloud = session?.role === "student";
     if (needsCloud && (!dbHydrated || !snapshotsHydrated)) return;
-    if (restoredChallengeRef.current === challenge.id) return;
+    const codeRestoreKey = workspaceRestoreKey(progressStudentId, challenge.id);
+    if (restoredChallengeRef.current === codeRestoreKey) return;
 
     const restored = chooseSavedCode(
       challenge.id,
@@ -863,7 +899,7 @@ export default function ChallengeWorkspace({
     );
     setCode(restored);
     editorRef.current?.setValue(restored);
-    restoredChallengeRef.current = challenge.id;
+    restoredChallengeRef.current = codeRestoreKey;
   }, [
     answerKeyMode,
     challenge.id,
@@ -1858,6 +1894,7 @@ export default function ChallengeWorkspace({
                 when toggling modes; only the inactive one is hidden. */}
             <div className={editorMode === "blocks" ? "hidden" : "h-full w-full"}>
               <MonacoEditor
+                key={workspaceRestoreKey(progressStudentId, challenge.id)}
                 height="100%"
                 language="java"
                 theme={monacoTheme}
@@ -1912,7 +1949,7 @@ export default function ChallengeWorkspace({
               <div className={editorMode === "blocks" ? "h-full w-full" : "hidden"}>
                 {resolvedBlocksState ? (
                 <BlocklyWorkspace
-                  key={challenge.id}
+                  key={workspaceRestoreKey(progressStudentId, challenge.id)}
                   toolbox={FULL_TOOLBOX}
                   initialState={resolvedBlocksState}
                   starterState={blocksConfig?.starter ?? resolvedBlocksState}

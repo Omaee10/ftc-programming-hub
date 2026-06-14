@@ -63,6 +63,11 @@ const listeners = new Set<() => void>();
 function subscribe(callback: () => void): () => void {
   listeners.add(callback);
 
+  const onSessionChange = () => {
+    invalidateCache();
+    callback();
+  };
+
   // Keep in sync when a different browser tab writes to any progress key
   const onStorage = (e: StorageEvent) => {
     if (e.key?.startsWith(BASE_KEY)) {
@@ -71,10 +76,12 @@ function subscribe(callback: () => void): () => void {
     }
   };
   window.addEventListener("storage", onStorage);
+  window.addEventListener("ftc-session-updated", onSessionChange);
 
   return () => {
     listeners.delete(callback);
     window.removeEventListener("storage", onStorage);
+    window.removeEventListener("ftc-session-updated", onSessionChange);
   };
 }
 
