@@ -144,8 +144,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       const studentIds = (students ?? []).map((row) => row.id as string);
 
-      // Filter by the class roster and skip blocks_snapshot (large jsonb) —
-      // unfiltered select("*") here was scanning the whole table per request.
+      // Completions only — the progress tab treats missing rows as incomplete.
       const [{ data: progress }, { data: homework }, { data: challenges }] =
         await Promise.all([
           studentIds.length > 0
@@ -153,6 +152,7 @@ export async function POST(req: Request): Promise<NextResponse> {
                 .from("student_challenge_progress")
                 .select("id, student_id, challenge_id, completed, updated_at")
                 .in("student_id", studentIds)
+                .eq("completed", true)
             : Promise.resolve({ data: [], error: null }),
           studentIds.length > 0
             ? supabase

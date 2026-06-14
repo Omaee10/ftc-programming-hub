@@ -49,10 +49,10 @@ export async function flushDebouncedUpsert(
   run: () => Promise<void>
 ): Promise<void> {
   const existing = pendingUpserts.get(key);
-  if (existing) {
-    clearTimeout(existing.timer);
-    pendingUpserts.delete(key);
-  }
+  if (!existing) return;
+
+  clearTimeout(existing.timer);
+  pendingUpserts.delete(key);
   await run();
 }
 
