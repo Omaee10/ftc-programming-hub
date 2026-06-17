@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
+import { applySecurityHeaders, validateApiPostRequest } from "@/lib/apiGuard";
 
 const ROLE_COOKIE = "ftc-hub-role";
 
@@ -71,7 +72,11 @@ function routeGuard(
     | undefined;
 
   if (pathname.startsWith("/api/")) {
-    return copyCookies(sessionResponse, NextResponse.next());
+    const guard = validateApiPostRequest(request, pathname);
+    if (!guard.ok) {
+      return copyCookies(sessionResponse, guard.response);
+    }
+    return applySecurityHeaders(copyCookies(sessionResponse, NextResponse.next()));
   }
 
   if (isPathMatch(pathname, AUTH_PUBLIC_PATHS)) {
@@ -177,7 +182,8 @@ function routeGuard(
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { response: sessionResponse, user } = await refreshAuthSession(request);
-  return routeGuard(request, user, sessionResponse);
+  const guarded = routeGuard(request, user, sessionResponse);
+  return applySecurityHeaders(guarded);
 }
 
 export const config = {

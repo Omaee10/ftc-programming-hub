@@ -7,8 +7,7 @@
  * Cache: SHA-256 over `(code, challengeId, mentorRulesJson)` keys an LRU of
  * recent results. Re-submits of identical code skip the network round-trip.
  *
- * Rate limit: 30 grades/minute per client identifier (defaults to the
- * forwarded-for IP). Returns 429 when exceeded.
+ * Rate limits live in src/lib/rateLimit.ts and are enforced by the API routes.
  */
 
 import { createHash } from "node:crypto";
@@ -54,8 +53,6 @@ function graderResponseError(status: number, text: string): GraderError {
 }
 
 const CACHE_MAX = 256;
-const RATE_WINDOW_MS = 60_000;
-const RATE_LIMIT = 30;
 
 // ─── LRU cache ────────────────────────────────────────────────────────────
 
@@ -88,30 +85,6 @@ function cacheSet<T>(key: string, value: T): void {
     if (oldest !== undefined) cache.delete(oldest);
   }
   cache.set(key, { value, expires: Date.now() + CACHE_TTL_MS });
-}
-
-// ─── Rate limiter ─────────────────────────────────────────────────────────
-
-const buckets = new Map<string, number[]>();
-
-export function checkRateLimit(client: string): { ok: boolean; retryAfterMs: number } {
-  const now = Date.now();
-  const cutoff = now - RATE_WINDOW_MS;
-  const hits = (buckets.get(client) ?? []).filter((t) => t >= cutoff);
-  if (hits.length >= RATE_LIMIT) {
-    const retryAfterMs = Math.max(0, hits[0] + RATE_WINDOW_MS - now);
-    buckets.set(client, hits);
-    return { ok: false, retryAfterMs };
-  }
-  hits.push(now);
-  buckets.set(client, hits);
-  return { ok: true, retryAfterMs: 0 };
-}
-
-export function clientIdFrom(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
-  return req.headers.get("x-real-ip") ?? "anonymous";
 }
 
 // ─── Grader transport ─────────────────────────────────────────────────────

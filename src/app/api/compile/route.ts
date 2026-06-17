@@ -1,21 +1,27 @@
 import { NextResponse } from "next/server";
+import { applySecurityHeaders } from "@/lib/apiGuard";
+import { GraderError, compileViaService } from "@/lib/graderClient";
 import {
-  GraderError,
+  COMPILE_IP_RATE,
   checkRateLimit,
   clientIdFrom,
-  compileViaService,
-} from "@/lib/graderClient";
+  rateLimitHeaders,
+} from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const MAX_CODE_BYTES = 50 * 1024;
+
 export async function POST(request: Request) {
   const client = clientIdFrom(request);
-  const rate = checkRateLimit(client);
+  const rate = checkRateLimit(`compile:ip:${client}`, COMPILE_IP_RATE);
   if (!rate.ok) {
-    return NextResponse.json(
-      { error: "Too many submissions — slow down a bit." },
-      { status: 429, headers: { "Retry-After": String(Math.ceil(rate.retryAfterMs / 1000)) } }
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: "Too many submissions — slow down a bit." },
+        { status: 429, headers: rateLimitHeaders(rate) }
+      )
     );
   }
 
@@ -23,34 +29,57 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
+    return applySecurityHeaders(
+      NextResponse.json({ error: "Request body must be JSON." }, { status: 400 })
+    );
   }
 
   if (typeof body.code !== "string") {
-    return NextResponse.json({ error: "Missing `code` (string)." }, { status: 400 });
+    return applySecurityHeaders(
+      NextResponse.json({ error: "Missing `code` (string)." }, { status: 400 })
+    );
+  }
+
+  const codeBytes = Buffer.byteLength(body.code, "utf8");
+  if (codeBytes > MAX_CODE_BYTES) {
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: `Code submission exceeds ${MAX_CODE_BYTES / 1024}KB limit.` },
+        { status: 413 }
+      )
+    );
   }
 
   try {
     const result = await compileViaService(body.code);
-    return NextResponse.json(result);
+    return applySecurityHeaders(NextResponse.json(result));
   } catch (err) {
     if (err instanceof GraderError) {
       const hint =
         err.status === 401
           ? "Grader auth failed — GRADER_SECRET on Vercel must match Render."
           : err.message;
-      return NextResponse.json({ error: hint }, { status: err.status >= 500 ? 503 : err.status });
+      return applySecurityHeaders(
+        NextResponse.json({ error: hint }, { status: err.status >= 500 ? 503 : err.status })
+      );
     }
     if (err instanceof Error && err.name === "AbortError") {
-      return NextResponse.json(
-        { error: "Analyzer timed out — the grader may still be waking up. Wait a moment and try again." },
-        { status: 504 }
+      return applySecurityHeaders(
+        NextResponse.json(
+          {
+            error:
+              "Analyzer timed out — the grader may still be waking up. Wait a moment and try again.",
+          },
+          { status: 504 }
+        )
       );
     }
     console.error("compile route failed:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal grader error." },
-      { status: 503 }
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: err instanceof Error ? err.message : "Internal grader error." },
+        { status: 503 }
+      )
     );
   }
 }

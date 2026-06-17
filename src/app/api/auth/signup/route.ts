@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { applySecurityHeaders } from "@/lib/apiGuard";
+import { AUTH_RATE, checkRateLimit, clientIdFrom, rateLimitHeaders } from "@/lib/rateLimit";
 import {
   createAdminClient,
   getSupabaseEnvStatus,
@@ -25,9 +27,28 @@ interface SignupBody {
   accountType?: string;
   studentCode?: string;
   mentorCode?: string;
+  /** Honeypot — real users never see or fill this field. */
+  website?: string;
+}
+
+const SIX_DIGIT_CODE = /^\d{6}$/;
+
+function guardResponse(body: Record<string, unknown>, status: number): NextResponse {
+  return applySecurityHeaders(NextResponse.json(body, { status }));
 }
 
 export async function POST(request: Request) {
+  const clientIp = clientIdFrom(request);
+  const rate = checkRateLimit(`auth:signup:${clientIp}`, AUTH_RATE);
+  if (!rate.ok) {
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: "Too many signup attempts. Try again later." },
+        { status: 429, headers: rateLimitHeaders(rate) }
+      )
+    );
+  }
+
   const envStatus = getSupabaseEnvStatus();
 
   if (!envStatus.urlProjectRef) {
@@ -83,13 +104,18 @@ export async function POST(request: Request) {
   const accountType = body.accountType === "mentor" ? "mentor" : body.accountType === "student" ? "student" : null;
   const studentCode = body.studentCode?.trim() ?? "";
   const mentorCode = body.mentorCode?.trim() ?? "";
+  const honeypot = body.website?.trim() ?? "";
+
+  if (honeypot) {
+    return guardResponse({ error: "Unable to create account." }, 400);
+  }
 
   if (!email || !password) {
-    return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
+    return guardResponse({ error: "Email and password are required." }, 400);
   }
 
   if (password.length < 6) {
-    return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
+    return guardResponse({ error: "Password must be at least 6 characters." }, 400);
   }
 
   if (studentCode && mentorCode) {
@@ -104,8 +130,8 @@ export async function POST(request: Request) {
   let mentorToClaim: MentorClaimRow | null = null;
 
   if (studentCode) {
-    if (studentCode.length !== 6) {
-      return NextResponse.json({ error: "Student code must be 6 digits." }, { status: 400 });
+    if (!SIX_DIGIT_CODE.test(studentCode)) {
+      return guardResponse({ error: "Student code must be 6 digits." }, 400);
     }
     const { data: student, error: studentErr } = await admin
       .from("students")
@@ -133,8 +159,8 @@ export async function POST(request: Request) {
 
     displayName = student.name;
   } else if (mentorCode) {
-    if (mentorCode.length !== 6) {
-      return NextResponse.json({ error: "Mentor code must be 6 digits." }, { status: 400 });
+    if (!SIX_DIGIT_CODE.test(mentorCode)) {
+      return guardResponse({ error: "Mentor code must be 6 digits." }, 400);
     }
 
     const mentorLookup = await findUnclaimedMentor(admin, mentorCode);
@@ -192,7 +218,7 @@ export async function POST(request: Request) {
   const { data: authData, error: authErr } = await admin.auth.admin.createUser({
     email,
     password,
-    email_confirm: true,
+    email_confirm: false,
   });
 
   if (authErr || !authData.user) {
@@ -257,5 +283,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true });
+  return guardResponse({ ok: true, emailConfirmationRequired: true }, 200);
 }

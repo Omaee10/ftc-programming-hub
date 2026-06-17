@@ -29,6 +29,8 @@ export default function SignupPage() {
   const [showCodeSection, setShowCodeSection] = useState(false);
   const [codeType, setCodeType] = useState<"student" | "mentor">("student");
   const [accessCode, setAccessCode] = useState("");
+  const [honeypot, setHoneypot] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -58,11 +60,13 @@ export default function SignupPage() {
       return;
     }
     setError("");
+    setSuccessMessage("");
 
     startTransition(async () => {
       const payload: Record<string, string> = {
         email: trimmedEmail,
         password,
+        website: honeypot,
       };
       if (!hasCode) {
         payload.name = name.trim();
@@ -82,9 +86,16 @@ export default function SignupPage() {
         body: JSON.stringify(payload),
       });
 
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { error?: string; emailConfirmationRequired?: boolean };
       if (!res.ok) {
         setError(data.error ?? "Failed to create account.");
+        return;
+      }
+
+      if (data.emailConfirmationRequired) {
+        setSuccessMessage(
+          "Account created. Check your email for a confirmation link, then sign in."
+        );
         return;
       }
 
@@ -121,6 +132,20 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          {/* Honeypot — hidden from users; bots auto-fill and get rejected server-side. */}
+          <div className="absolute left-[-9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
+            <label htmlFor="website">Website</label>
+            <input
+              id="website"
+              type="text"
+              name="website"
+              value={honeypot}
+              onChange={(e) => setHoneypot(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
               Email
@@ -269,6 +294,12 @@ export default function SignupPage() {
               </div>
             )}
           </div>
+
+          {successMessage && (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-500/15 bg-emerald-500/8 px-3 py-2">
+              <span className="text-xs text-emerald-400">{successMessage}</span>
+            </div>
+          )}
 
           {error && (
             <div className="flex items-center gap-2 rounded-md border border-red-500/15 bg-red-500/8 px-3 py-2">

@@ -1,29 +1,34 @@
 import { NextResponse } from "next/server";
+import { applySecurityHeaders } from "@/lib/apiGuard";
+import { isValidGradeChallengeId } from "@/lib/challengeIds";
 import {
   GraderError,
-  checkRateLimit,
-  clientIdFrom,
   gradeViaService,
 } from "@/lib/graderClient";
+import {
+  GRADE_IP_RATE,
+  GRADE_STUDENT_RATE,
+  checkRateLimit,
+  clientIdFrom,
+  rateLimitHeaders,
+} from "@/lib/rateLimit";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+const MAX_CODE_BYTES = 50 * 1024;
 
 function byteSize(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), "utf8");
 }
 
-// Strip fields that are large and not needed by the client UI.
-// Adjust this allowlist to match what your frontend actually reads.
 function trimResult(result: Record<string, unknown>): Record<string, unknown> {
   const {
     passed,
     score,
     feedback,
     errors,
-    // drop these if your UI doesn't use them:
     rawCompilerOutput: _raw,
     fullStackTrace: _stack,
     rubricDetails: _rubric,
@@ -33,37 +38,77 @@ function trimResult(result: Record<string, unknown>): Record<string, unknown> {
   return { passed, score, feedback, errors, ...rest };
 }
 
-// ── route ────────────────────────────────────────────────────────────────────
+function rateLimitedResponse(message: string, rate: ReturnType<typeof checkRateLimit>): NextResponse {
+  return applySecurityHeaders(
+    NextResponse.json(
+      { error: message },
+      { status: 429, headers: rateLimitHeaders(rate) }
+    )
+  );
+}
 
 export async function POST(request: Request) {
-  const client = clientIdFrom(request);
-  const rate = checkRateLimit(client);
-  if (!rate.ok) {
-    return NextResponse.json(
-      { error: "Too many submissions — slow down a bit." },
-      { status: 429, headers: { "Retry-After": String(Math.ceil(rate.retryAfterMs / 1000)) } }
-    );
+  const clientIp = clientIdFrom(request);
+
+  const ipRate = checkRateLimit(`grade:ip:${clientIp}`, GRADE_IP_RATE);
+  if (!ipRate.ok) {
+    return rateLimitedResponse("Too many submissions from this network — slow down.", ipRate);
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    const studentRate = checkRateLimit(`grade:student:${user.id}`, GRADE_STUDENT_RATE);
+    if (!studentRate.ok) {
+      return rateLimitedResponse("Too many submissions — slow down a bit.", studentRate);
+    }
   }
 
   let body: { code?: string; challengeId?: number; mentorRules?: unknown[] };
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
+    return applySecurityHeaders(
+      NextResponse.json({ error: "Request body must be JSON." }, { status: 400 })
+    );
   }
 
-  if (typeof body.code !== "string")
-    return NextResponse.json({ error: "Missing `code` (string)." }, { status: 400 });
-  if (typeof body.challengeId !== "number" || !Number.isFinite(body.challengeId))
-    return NextResponse.json({ error: "Missing `challengeId` (number)." }, { status: 400 });
+  if (typeof body.code !== "string") {
+    return applySecurityHeaders(
+      NextResponse.json({ error: "Missing `code` (string)." }, { status: 400 })
+    );
+  }
+  if (typeof body.challengeId !== "number" || !Number.isFinite(body.challengeId)) {
+    return applySecurityHeaders(
+      NextResponse.json({ error: "Missing `challengeId` (number)." }, { status: 400 })
+    );
+  }
+
+  if (!isValidGradeChallengeId(body.challengeId)) {
+    return applySecurityHeaders(
+      NextResponse.json({ error: "Invalid challengeId." }, { status: 400 })
+    );
+  }
+
+  const requestBytes = Buffer.byteLength(body.code, "utf8");
+  if (requestBytes > MAX_CODE_BYTES) {
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: `Code submission exceeds ${MAX_CODE_BYTES / 1024}KB limit.` },
+        { status: 413 }
+      )
+    );
+  }
 
   const graderUrl = process.env.GRADER_URL ?? "http://localhost:8080";
   const egressTarget = `${graderUrl.replace(/\/$/, "")}/compile`;
 
-  const requestBytes = Buffer.byteLength(body.code, "utf8");
-
   console.info("[grade] egress start", {
-    client,
+    client: clientIp,
+    userId: user?.id ?? null,
     challengeId: body.challengeId,
     target: egressTarget,
     codeBytes: requestBytes,
@@ -82,25 +127,27 @@ export async function POST(request: Request) {
     const trimmedBytes = byteSize(trimmed);
 
     console.info("[grade] egress ok", {
-      client,
+      client: clientIp,
+      userId: user?.id ?? null,
       challengeId: body.challengeId,
       ms: Date.now() - started,
       responseBytesRaw: rawBytes,
       responseBytesAfterTrim: trimmedBytes,
-      // Watch this number — if it's consistently > 10KB something is bloated
       bytesSaved: rawBytes - trimmedBytes,
     });
 
-    return NextResponse.json(trimmed, {
-      headers: {
-        // Tells Vercel/Next.js to gzip this response
-        "Content-Encoding": "identity", // remove this line if your host auto-compresses
-        "Cache-Control": "no-store",
-      },
-    });
+    return applySecurityHeaders(
+      NextResponse.json(trimmed, {
+        headers: {
+          "Content-Encoding": "identity",
+          "Cache-Control": "no-store",
+        },
+      })
+    );
   } catch (err) {
     console.error("[grade] egress failed", {
-      client,
+      client: clientIp,
+      userId: user?.id ?? null,
       challengeId: body.challengeId,
       error: err instanceof Error ? err.message : String(err),
     });
@@ -110,18 +157,27 @@ export async function POST(request: Request) {
         err.status === 401
           ? "Grader auth failed — GRADER_SECRET on Vercel must match Render."
           : err.message;
-      return NextResponse.json({ error: hint }, { status: err.status >= 500 ? 503 : err.status });
+      return applySecurityHeaders(
+        NextResponse.json({ error: hint }, { status: err.status >= 500 ? 503 : err.status })
+      );
     }
     if (err instanceof Error && err.name === "AbortError") {
-      return NextResponse.json(
-        { error: "Analyzer timed out — the grader may still be waking up. Wait a moment and try again." },
-        { status: 504 }
+      return applySecurityHeaders(
+        NextResponse.json(
+          {
+            error:
+              "Analyzer timed out — the grader may still be waking up. Wait a moment and try again.",
+          },
+          { status: 504 }
+        )
       );
     }
 
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal grader error." },
-      { status: 503 }
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: err instanceof Error ? err.message : "Internal grader error." },
+        { status: 503 }
+      )
     );
   }
 }

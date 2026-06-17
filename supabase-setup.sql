@@ -3,6 +3,13 @@
 -- Run this entire file in the Supabase SQL Editor (dashboard → SQL Editor → New query)
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- ─── Auth: email confirmation (required) ────────────────────────────────────
+-- The signup API creates users with email_confirm = false. Enable confirmation
+-- in the Supabase dashboard so bots cannot use throwaway addresses immediately:
+--   Authentication → Providers → Email → Enable "Confirm email"
+-- Configure SMTP (Authentication → Email Templates) for production deliverability.
+-- Users must click the confirmation link before sign-in succeeds.
+
 -- Mentors
 -- `name`        = robotics team name  (e.g. "Iron Wolves #12345")
 -- `class_name`  = class label         (e.g. "Period 3 Robotics")
