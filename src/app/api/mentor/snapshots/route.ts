@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
-import { classOwner } from "@/lib/classChallenges";
-import type { Session } from "@/lib/auth";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { hasServiceRoleKey } from "@/lib/supabase/admin";
+import {
+  authorizeMentorWorkspace,
+  studentBelongsToClass,
+} from "@/lib/supabase/mentorWorkspaceAuth";
 
 type SnapshotKind = "progress" | "homework" | "submission";
 
@@ -16,62 +20,36 @@ interface SnapshotBody {
   part?: "code" | "blocks" | "all";
 }
 
-async function authorizeMentor(
-  workspaceId: string,
-  parentMentorId: string | undefined,
-  userId: string
-): Promise<{ session: Session; ownerId: string } | null> {
-  const supabase = await createClient();
-  const { data: mentorRow, error: mentorErr } = await supabase
-    .from("mentors")
-    .select("id, user_id, created_by")
-    .eq("id", workspaceId)
-    .single();
-
-  if (mentorErr || !mentorRow?.user_id || mentorRow.user_id !== userId) {
-    return null;
-  }
-
-  const session: Session = {
-    role: "mentor",
-    id: workspaceId,
-    name: "",
-    ...(parentMentorId
-      ? { parentMentorId }
-      : mentorRow.created_by
-        ? { parentMentorId: mentorRow.created_by as string }
-        : {}),
-  };
-
-  const ownerId = classOwner(session);
-  if (!ownerId) return null;
-
-  return { session, ownerId };
-}
-
-async function studentInClass(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  ownerId: string,
-  studentId: string
-): Promise<boolean> {
+async function loadProgressBlocks(
+  supabase: SupabaseClient,
+  studentId: string,
+  challengeId: number
+): Promise<Record<string, unknown> | null> {
   const { data } = await supabase
-    .from("students")
-    .select("id")
-    .eq("id", studentId)
-    .eq("mentor_id", ownerId)
+    .from("student_challenge_progress")
+    .select("blocks_snapshot")
+    .eq("student_id", studentId)
+    .eq("challenge_id", challengeId)
     .maybeSingle();
-  return Boolean(data);
+  return (data?.blocks_snapshot as Record<string, unknown> | null) ?? null;
 }
 
 /** Lazy-load saved code for mentor views — one snapshot at a time. */
 export async function POST(req: Request): Promise<NextResponse> {
-  const supabase = await createClient();
+  const authClient = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await authClient.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!hasServiceRoleKey()) {
+    return NextResponse.json(
+      { error: "Server is missing SUPABASE_SERVICE_ROLE_KEY for mentor snapshots." },
+      { status: 500 }
+    );
   }
 
   let body: SnapshotBody;
@@ -88,18 +66,18 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  const auth = await authorizeMentor(workspaceId, parentMentorId, user.id);
-  if (!auth) {
+  const access = await authorizeMentorWorkspace(user.id, workspaceId, parentMentorId);
+  if (!access) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { ownerId } = auth;
+  const { ownerId, admin: supabase } = access;
 
   if (kind === "progress") {
     if (!studentId || typeof challengeId !== "number") {
       return NextResponse.json({ error: "Bad request" }, { status: 400 });
     }
-    if (!(await studentInClass(supabase, ownerId, studentId))) {
+    if (!(await studentBelongsToClass(supabase, ownerId, studentId))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -135,7 +113,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ code: null });
     }
 
-    if (!(await studentInClass(supabase, ownerId, data.student_id as string))) {
+    if (!(await studentBelongsToClass(supabase, ownerId, data.student_id as string))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -167,7 +145,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       if (!fallback.data) {
         return NextResponse.json({ code: null, blocks: null });
       }
-      if (!(await studentInClass(supabase, ownerId, fallback.data.student_id as string))) {
+      if (!(await studentBelongsToClass(supabase, ownerId, fallback.data.student_id as string))) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       if (loadPart === "blocks") {
@@ -191,7 +169,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ code: null, blocks: null });
     }
 
-    if (!(await studentInClass(supabase, ownerId, row.student_id as string))) {
+    if (!(await studentBelongsToClass(supabase, ownerId, row.student_id as string))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -202,8 +180,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     if (loadPart === "blocks") {
-      let blocks =
-        (row.blocks_snapshot as Record<string, unknown> | null) ?? null;
+      let blocks = (row.blocks_snapshot as Record<string, unknown> | null) ?? null;
       if (!blocks) {
         blocks = await loadProgressBlocks(
           supabase,
@@ -230,18 +207,4 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   return NextResponse.json({ error: "Bad request" }, { status: 400 });
-}
-
-async function loadProgressBlocks(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  studentId: string,
-  challengeId: number
-): Promise<Record<string, unknown> | null> {
-  const { data } = await supabase
-    .from("student_challenge_progress")
-    .select("blocks_snapshot")
-    .eq("student_id", studentId)
-    .eq("challenge_id", challengeId)
-    .maybeSingle();
-  return (data?.blocks_snapshot as Record<string, unknown> | null) ?? null;
 }

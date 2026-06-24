@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { classChallengeAuthorIds, classOwner } from "@/lib/classChallenges";
-import type { Session } from "@/lib/auth";
+import { classChallengeAuthorIds } from "@/lib/classChallenges";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
+import { hasServiceRoleKey } from "@/lib/supabase/admin";
+import { authorizeMentorWorkspace } from "@/lib/supabase/mentorWorkspaceAuth";
 import { repairItkanOwnerSlotOnce } from "@/lib/supabase/mentorClaim";
 import type { MentorDashboardScope } from "@/lib/mentorDashboardApi";
 import {
@@ -53,37 +53,25 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  const { data: mentorRow, error: mentorErr } = await supabase
-    .from("mentors")
-    .select("id, user_id, created_by")
-    .eq("id", workspaceId)
-    .single();
+  if (!hasServiceRoleKey()) {
+    return NextResponse.json(
+      { error: "Server is missing SUPABASE_SERVICE_ROLE_KEY for mentor dashboard." },
+      { status: 500 }
+    );
+  }
 
-  if (mentorErr || !mentorRow?.user_id || mentorRow.user_id !== user.id) {
+  const access = await authorizeMentorWorkspace(user.id, workspaceId, parentMentorId);
+  if (!access) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const session: Session = {
-    role: "mentor",
-    id: workspaceId,
-    name: "",
-    ...(parentMentorId
-      ? { parentMentorId }
-      : mentorRow.created_by
-        ? { parentMentorId: mentorRow.created_by as string }
-        : {}),
-  };
-
-  const ownerId = classOwner(session);
-  if (!ownerId) {
-    return NextResponse.json({ error: "No class owner" }, { status: 400 });
-  }
+  const { session, ownerId, admin: db } = access;
 
   switch (scope) {
     case "overview": {
       const authorIds = classChallengeAuthorIds(session);
 
-      const { data: classStudents } = await supabase
+      const { data: classStudents } = await db
         .from("students")
         .select("id")
         .eq("mentor_id", ownerId);
@@ -96,24 +84,24 @@ export async function POST(req: Request): Promise<NextResponse> {
         { count: pendingCount },
         { data: ownerMentor },
       ] = await Promise.all([
-        supabase
+        db
           .from("students")
           .select("id", { count: "exact", head: true })
           .eq("mentor_id", ownerId),
         authorIds.length > 0
-          ? supabase
+          ? db
               .from("challenges")
               .select("id", { count: "exact", head: true })
               .in("created_by", authorIds)
           : Promise.resolve({ count: 0, error: null }),
         studentIds.length > 0
-          ? supabase
+          ? db
               .from("challenge_submissions")
               .select("id", { count: "exact", head: true })
               .eq("status", "pending")
               .in("student_id", studentIds)
           : Promise.resolve({ count: 0, error: null }),
-        supabase
+        db
           .from("mentors")
           .select("class_name, name")
           .eq("id", ownerId)
@@ -136,7 +124,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     case "progress": {
       const authorIds = classChallengeAuthorIds(session);
 
-      const { data: students } = await supabase
+      const { data: students } = await db
         .from("students")
         .select(STUDENT_LIST_COLUMNS)
         .eq("mentor_id", ownerId)
@@ -148,20 +136,20 @@ export async function POST(req: Request): Promise<NextResponse> {
       const [{ data: progress }, { data: homework }, { data: challenges }] =
         await Promise.all([
           studentIds.length > 0
-            ? supabase
+            ? db
                 .from("student_challenge_progress")
                 .select("id, student_id, challenge_id, completed, updated_at")
                 .in("student_id", studentIds)
                 .eq("completed", true)
             : Promise.resolve({ data: [], error: null }),
           studentIds.length > 0
-            ? supabase
+            ? db
                 .from("homework_assignments")
                 .select(HOMEWORK_LIST_COLUMNS)
                 .in("student_id", studentIds)
             : Promise.resolve({ data: [], error: null }),
           authorIds.length > 0
-            ? supabase
+            ? db
                 .from("challenges")
                 .select(CHALLENGE_LIST_COLUMNS)
                 .in("created_by", authorIds)
@@ -180,7 +168,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     case "homework": {
       const authorIds = classChallengeAuthorIds(session);
 
-      const { data: students } = await supabase
+      const { data: students } = await db
         .from("students")
         .select(STUDENT_LIST_COLUMNS)
         .eq("mentor_id", ownerId)
@@ -190,14 +178,14 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       const [{ data: homework }, { data: challenges }] = await Promise.all([
         studentIds.length > 0
-          ? supabase
+          ? db
               .from("homework_assignments")
               .select(HOMEWORK_LIST_COLUMNS)
               .in("student_id", studentIds)
               .order("assigned_at", { ascending: false })
           : Promise.resolve({ data: [], error: null }),
         authorIds.length > 0
-          ? supabase
+          ? db
               .from("challenges")
               .select(CHALLENGE_LIST_COLUMNS)
               .in("created_by", authorIds)
@@ -213,12 +201,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "mentors": {
-      if (hasServiceRoleKey()) {
-        const admin = createAdminClient();
-        await repairItkanOwnerSlotOnce(admin, ownerId);
-      }
+      await repairItkanOwnerSlotOnce(db, ownerId);
 
-      const { data: rows, error } = await supabase
+      const { data: rows, error } = await db
         .from("mentors")
         .select("id, name, mentor_name, code, created_at, created_by, user_id")
         .or(`id.eq.${ownerId},created_by.eq.${ownerId}`)
@@ -232,7 +217,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "students": {
-      const { data: rows, error } = await supabase
+      const { data: rows, error } = await db
         .from("students")
         .select(STUDENT_LIST_COLUMNS)
         .eq("mentor_id", ownerId)
@@ -251,7 +236,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         return NextResponse.json({ rows: [] });
       }
 
-      const { data: rows, error } = await supabase
+      const { data: rows, error } = await db
         .from("challenges")
         .select(CHALLENGE_LIST_COLUMNS)
         .in("created_by", authorIds)
@@ -268,7 +253,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       const authorIds = classChallengeAuthorIds(session);
       const pagination = parsePagination(page, pageSize);
 
-      const { data: students } = await supabase
+      const { data: students } = await db
         .from("students")
         .select("id, name")
         .eq("mentor_id", ownerId);
@@ -292,11 +277,11 @@ export async function POST(req: Request): Promise<NextResponse> {
         { count: totalCount, error: countError },
         { count: pendingCount, error: pendingError },
       ] = await Promise.all([
-        supabase
+        db
           .from("challenge_submissions")
           .select("id", { count: "exact", head: true })
           .in("student_id", studentIds),
-        supabase
+        db
           .from("challenge_submissions")
           .select("id", { count: "exact", head: true })
           .eq("status", "pending")
@@ -310,7 +295,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         );
       }
 
-      const { data: submissions, error: submissionsError } = await supabase
+      const { data: submissions, error: submissionsError } = await db
         .from("challenge_submissions")
         .select(SUBMISSION_LIST_COLUMNS)
         .in("student_id", studentIds)
@@ -332,7 +317,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       let challenges: { id: number; title: string }[] = [];
       if (customChallengeIds.length > 0 && authorIds.length > 0) {
-        const { data: challengeRows, error: challengesError } = await supabase
+        const { data: challengeRows, error: challengesError } = await db
           .from("challenges")
           .select("id, title")
           .in("id", customChallengeIds)

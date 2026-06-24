@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { classOwner } from "@/lib/classChallenges";
-import type { Session } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
+import { hasServiceRoleKey } from "@/lib/supabase/admin";
+import { authorizeMentorWorkspace } from "@/lib/supabase/mentorWorkspaceAuth";
 
 export async function POST(req: Request): Promise<NextResponse> {
   const supabase = await createClient();
@@ -33,32 +32,6 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  const { data: mentorRow, error: mentorErr } = await supabase
-    .from("mentors")
-    .select("id, user_id, created_by")
-    .eq("id", workspaceId)
-    .single();
-
-  if (mentorErr || !mentorRow?.user_id || mentorRow.user_id !== user.id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const session: Session = {
-    role: "mentor",
-    id: workspaceId,
-    name: "",
-    ...(parentMentorId
-      ? { parentMentorId }
-      : mentorRow.created_by
-        ? { parentMentorId: mentorRow.created_by as string }
-        : {}),
-  };
-
-  const ownerId = classOwner(session);
-  if (!ownerId) {
-    return NextResponse.json({ error: "No class owner" }, { status: 400 });
-  }
-
   if (!hasServiceRoleKey()) {
     return NextResponse.json(
       { error: "Server is missing SUPABASE_SERVICE_ROLE_KEY for class management." },
@@ -66,7 +39,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     );
   }
 
-  const admin = createAdminClient();
+  const access = await authorizeMentorWorkspace(user.id, workspaceId, parentMentorId);
+  if (!access) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { ownerId, admin } = access;
 
   if (type === "student") {
     const { data: student, error: lookupErr } = await admin

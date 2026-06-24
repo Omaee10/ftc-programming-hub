@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchStudentHomework } from "@/lib/studentHomework";
+import { authorizeStudentWorkspace } from "@/lib/supabase/mentorWorkspaceAuth";
 
 type CompleteBody = {
   studentId?: string;
@@ -40,8 +41,13 @@ export async function PATCH(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const access = await authorizeStudentWorkspace(user.id, studentId);
+  if (!access) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  const { data, error } = await access.admin
     .from("homework_assignments")
     .update({
       completed: true,
@@ -83,7 +89,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { assignments, error } = await fetchStudentHomework(supabase, studentId);
+  const access = await authorizeStudentWorkspace(user.id, studentId);
+  if (!access) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { assignments, error } = await fetchStudentHomework(access.admin, studentId);
 
   if (error) {
     return NextResponse.json({ error }, { status: 500 });
