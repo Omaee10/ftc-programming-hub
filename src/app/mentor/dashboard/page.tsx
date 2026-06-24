@@ -20,6 +20,7 @@ import {
   BookOpen,
   Search,
   Check,
+  Copy,
   X,
   Pencil,
 } from "lucide-react";
@@ -30,6 +31,7 @@ import Link from "next/link";
 import { classOwner, challengeCreatedBy } from "@/lib/classChallenges";
 import {
   fetchChallengesData,
+  fetchClassCode,
   fetchHomeworkData,
   fetchMentorsData,
   fetchOverviewData,
@@ -1859,9 +1861,53 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+function ClassCodeBanner({ classCode }: { classCode: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(classCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mb-8 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400/80 mb-1">
+          Student Class Code
+        </p>
+        <p className="font-mono text-3xl font-bold tracking-[0.18em] text-zinc-100">
+          {classCode}
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          Share with students so they can self-enroll from onboarding or join-class.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => void handleCopy()}
+        className="flex shrink-0 items-center gap-2 self-start rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 transition-colors sm:self-center"
+      >
+        {copied ? (
+          <>
+            <Check className="h-4 w-4 text-emerald-400" />
+            Copied
+          </>
+        ) : (
+          <>
+            <Copy className="h-4 w-4" />
+            Copy code
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
 export default function MentorDashboardPage() {
   const [tab, setTabState] = useState<Tab>("progress");
   const [pendingCount, setPendingCount] = useState(0);
+  const [classCode, setClassCode] = useState<string | null>(null);
   const session = useWorkspaceSession();
 
   // Restore the active tab from the URL (?tab=…) so refreshing keeps you on the
@@ -1887,10 +1933,17 @@ export default function MentorDashboardPage() {
     if (!s?.id) return;
     (async () => {
       try {
-        const { pendingCount } = await fetchOverviewData(s);
-        setPendingCount(pendingCount);
+        const overview = await fetchOverviewData(s);
+        setPendingCount(overview.pendingCount);
+        setClassCode(overview.classCode);
       } catch {
         setPendingCount(0);
+        try {
+          const { classCode: code } = await fetchClassCode(s);
+          setClassCode(code);
+        } catch {
+          setClassCode(null);
+        }
       }
     })();
   }, [session?.id, session?.parentMentorId]);
@@ -1907,6 +1960,8 @@ export default function MentorDashboardPage() {
           Monitor progress, manage access codes, and create new challenges.
         </p>
       </div>
+
+      {classCode && <ClassCodeBanner classCode={classCode} />}
 
       {/* Tabs */}
       <div className="mb-8 flex flex-wrap gap-1 border-b border-slate-800/60 pb-0">

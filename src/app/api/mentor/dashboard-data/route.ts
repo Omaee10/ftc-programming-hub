@@ -103,7 +103,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           : Promise.resolve({ count: 0, error: null }),
         db
           .from("mentors")
-          .select("class_name, name")
+          .select("class_name, name, class_code")
           .eq("id", ownerId)
           .single(),
       ]);
@@ -115,6 +115,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       return NextResponse.json({
         className,
+        classCode: (ownerMentor?.class_code as string | null) ?? null,
         studentCount: studentCount ?? 0,
         pendingCount: pendingCount ?? 0,
         challengeCount: challengeCount ?? 0,

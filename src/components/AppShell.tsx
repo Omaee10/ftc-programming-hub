@@ -11,6 +11,7 @@ import { getSession, setSession as persistSession, type Session } from "@/lib/au
 import { prefetchHomework } from "@/hooks/useHomeworkAssignments";
 import { supabase } from "@/lib/supabase";
 import { signOutAll, getAuthUserId, getProfileDisplayName } from "@/lib/authSession";
+import { fetchClassCode } from "@/lib/mentorDashboardApi";
 
 function getInitials(name: string): string {
   return name
@@ -65,7 +66,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         let teamName: string = row.name;
         let resolvedClassName: string | undefined = row.class_name?.trim() || undefined;
         const parentMentorId: string | undefined = row.created_by ?? undefined;
-        const ownerId = parentMentorId ?? stored.id;
 
         if (profileName && row.mentor_name !== profileName) {
           void supabase
@@ -74,23 +74,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             .eq("id", stored.id);
         }
 
-        const { data: ownerRow } = await supabase
-          .from("mentors")
-          .select("name, class_name, class_code")
-          .eq("id", ownerId)
-          .single();
-
-        if (ownerRow) {
-          const owner = ownerRow as {
-            name: string;
-            class_name?: string | null;
-            class_code?: string | null;
-          };
-          if (parentMentorId) {
-            teamName = owner.name;
-            resolvedClassName = owner.class_name?.trim() || undefined;
+        try {
+          const { classCode: code, className: apiClassName, teamName: apiTeamName } =
+            await fetchClassCode(stored);
+          setClassCode(code);
+          if (apiClassName) {
+            resolvedClassName = apiClassName;
           }
-          setClassCode(owner.class_code ?? null);
+          if (parentMentorId && apiTeamName) {
+            teamName = apiTeamName;
+          }
+        } catch {
+          setClassCode(null);
         }
 
         const updated: Session = {

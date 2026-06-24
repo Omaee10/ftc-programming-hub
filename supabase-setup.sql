@@ -267,6 +267,12 @@ CREATE POLICY mentors_insert_co_mentor ON mentors FOR INSERT WITH CHECK (
 CREATE POLICY mentors_delete_co_mentor ON mentors FOR DELETE USING (
   created_by IN (SELECT id FROM mentors WHERE user_id = auth.uid())
 );
+-- Co-mentors can read the class owner row (class_code lives on the owner)
+CREATE POLICY mentors_select_class_owner ON mentors FOR SELECT USING (
+  id IN (
+    SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL
+  )
+);
 -- Allow lookup by class_code for joining a class
 CREATE POLICY mentors_select_class_code ON mentors FOR SELECT USING (
   created_by IS NULL AND class_code IS NOT NULL

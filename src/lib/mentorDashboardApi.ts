@@ -47,6 +47,7 @@ export type MentorDashboardScope =
 
 export type OverviewPayload = {
   className: string | null;
+  classCode: string | null;
   studentCount: number;
   pendingCount: number;
   challengeCount: number;
@@ -118,6 +119,38 @@ async function postMentorDashboard<T>(
 
 export function fetchOverviewData(session: Session): Promise<OverviewPayload> {
   return postMentorDashboard("overview", session);
+}
+
+export async function fetchClassCode(
+  session: Session
+): Promise<{ classCode: string | null; className: string | null; teamName: string | null }> {
+  const params = new URLSearchParams({ workspaceId: session.id });
+  if (session.parentMentorId) {
+    params.set("parentMentorId", session.parentMentorId);
+  }
+
+  const res = await withTimeout(
+    fetch(`/api/mentor/class-code?${params.toString()}`, { credentials: "include" }),
+    TAB_LOADER_TIMEOUT_MS,
+    "Loading class code"
+  );
+
+  const data = (await res.json()) as {
+    classCode?: string | null;
+    className?: string | null;
+    teamName?: string | null;
+    error?: string;
+  };
+
+  if (!res.ok) {
+    throw new Error(data.error ?? `Request failed (${res.status})`);
+  }
+
+  return {
+    classCode: data.classCode ?? null,
+    className: data.className ?? null,
+    teamName: data.teamName ?? null,
+  };
 }
 
 export function fetchProgressData(session: Session): Promise<ProgressPayload> {
