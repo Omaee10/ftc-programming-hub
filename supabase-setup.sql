@@ -268,6 +268,7 @@ CREATE POLICY mentors_delete_co_mentor ON mentors FOR DELETE USING (
   created_by IN (SELECT id FROM mentors WHERE user_id = auth.uid())
 );
 -- Co-mentors can read the class owner row (class_code lives on the owner)
+DROP POLICY IF EXISTS mentors_select_class_owner ON mentors;
 CREATE POLICY mentors_select_class_owner ON mentors FOR SELECT USING (
   id IN (
     SELECT created_by FROM mentors WHERE user_id = auth.uid() AND created_by IS NOT NULL

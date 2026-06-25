@@ -10,11 +10,9 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { supabase, type ChallengeRow } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
-import { challengeCreatedBy } from "@/lib/classChallenges";
-import { CHALLENGE_DETAIL_COLUMNS } from "@/lib/supabase/progressColumns";
-import { rowToChallenge } from "@/lib/homeworkUtils";
+import { challengeCreatedBy, fetchClassChallengeById } from "@/lib/classChallenges";
 
 type MentorChallengeEditorProps = {
   mode: "create" | "edit";
@@ -54,21 +52,23 @@ export default function MentorChallengeEditor({
       setLoading(true);
       setLoadError("");
 
-      const { data, error } = await supabase
-        .from("challenges")
-        .select(CHALLENGE_DETAIL_COLUMNS)
-        .eq("id", challengeId)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      if (error || !data) {
-        setLoadError(error?.message ?? "Challenge not found.");
+      const session = getSession();
+      if (!session) {
+        setLoadError("No workspace selected.");
         setLoading(false);
         return;
       }
 
-      const challenge = rowToChallenge(data as ChallengeRow);
+      const challenge = await fetchClassChallengeById(session, challengeId);
+
+      if (cancelled) return;
+
+      if (!challenge) {
+        setLoadError("Challenge not found.");
+        setLoading(false);
+        return;
+      }
+
       setTitle(challenge.title);
       setGist(challenge.description);
       setDifficulty(challenge.difficulty);

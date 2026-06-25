@@ -148,12 +148,17 @@ export default function ChallengesClient() {
   // Mentors see only their own created challenges.
   // This prevents cross-class data leakage.
   useEffect(() => {
-    const session = getSession();
-    if (!session) return;
+    const load = () => {
+      const session = getSession();
+      if (!session) return;
 
-    setIsMentor(session.role === "mentor");
+      setIsMentor(session.role === "mentor");
+      fetchClassChallenges(session).then(setDbChallenges);
+    };
 
-    fetchClassChallenges(session).then(setDbChallenges);
+    load();
+    window.addEventListener("ftc-session-updated", load);
+    return () => window.removeEventListener("ftc-session-updated", load);
   }, []);
 
   const allChallenges = mergeChallenges(dbChallenges);

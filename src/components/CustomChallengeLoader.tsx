@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 import type { Challenge } from "@/data/challenges";
 import ChallengeRedirectGuard from "@/components/ChallengeRedirectGuard";
-import { supabase, type ChallengeRow } from "@/lib/supabase";
-import { CHALLENGE_DETAIL_COLUMNS } from "@/lib/supabase/progressColumns";
-import { rowToChallenge } from "@/lib/homeworkUtils";
+import { getSession } from "@/lib/auth";
+import { fetchClassChallengeById } from "@/lib/classChallenges";
 
 export default function CustomChallengeLoader({
   challengeId,
@@ -26,27 +25,26 @@ export default function CustomChallengeLoader({
       setLoading(true);
       setError("");
 
-      const { data, error: fetchErr } = await supabase
-        .from("challenges")
-        .select(CHALLENGE_DETAIL_COLUMNS)
-        .eq("id", challengeId)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      if (fetchErr) {
-        setError(fetchErr.message);
-        setLoading(false);
+      const session = getSession();
+      if (!session) {
+        if (!cancelled) {
+          setError("Sign in and choose a class to open this challenge.");
+          setLoading(false);
+        }
         return;
       }
 
-      if (!data) {
+      const loaded = await fetchClassChallengeById(session, challengeId);
+
+      if (cancelled) return;
+
+      if (!loaded) {
         setError("Challenge not found or you don't have access.");
         setLoading(false);
         return;
       }
 
-      setChallenge(rowToChallenge(data as ChallengeRow));
+      setChallenge(loaded);
       setLoading(false);
     })();
 
