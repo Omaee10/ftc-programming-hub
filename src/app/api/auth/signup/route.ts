@@ -283,5 +283,28 @@ export async function POST(request: Request) {
     }
   }
 
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "")
+    || new URL(request.url).origin;
+
+  const { error: resendErr } = await admin.auth.resend({
+    type: "signup",
+    email,
+    options: {
+      emailRedirectTo: `${siteUrl}/login`,
+    },
+  });
+
+  if (resendErr) {
+    console.error("[signup] confirmation email failed:", resendErr.message);
+    return guardResponse(
+      {
+        error:
+          "Account created, but the confirmation email could not be sent. Check Supabase SMTP settings, then ask an admin to resend confirmation or delete the user and try again.",
+      },
+      503
+    );
+  }
+
   return guardResponse({ ok: true, emailConfirmationRequired: true }, 200);
 }

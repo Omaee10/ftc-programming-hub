@@ -3,12 +3,17 @@
 -- Run this entire file in the Supabase SQL Editor (dashboard → SQL Editor → New query)
 -- ─────────────────────────────────────────────────────────────────────────────
 
--- ─── Auth: email confirmation (required) ────────────────────────────────────
--- The signup API creates users with email_confirm = false. Enable confirmation
--- in the Supabase dashboard so bots cannot use throwaway addresses immediately:
---   Authentication → Providers → Email → Enable "Confirm email"
--- Configure SMTP (Authentication → Email Templates) for production deliverability.
--- Users must click the confirmation link before sign-in succeeds.
+-- ─── Auth: email confirmation (required for signup) ─────────────────────────
+-- Signup creates users with email_confirm = false and sends a confirmation
+-- email via Supabase Auth. Configure in the Supabase dashboard:
+--   1. Authentication → Providers → Email → enable "Confirm email"
+--   2. Authentication → URL Configuration → Site URL = your production URL
+--      (e.g. https://your-app.vercel.app) and add /login to Redirect URLs
+--   3. Authentication → SMTP Settings → enable custom SMTP (Resend, SendGrid,
+--      etc.). Supabase's built-in mailer is rate-limited and often blocked.
+--   4. Set NEXT_PUBLIC_SITE_URL on Vercel to the same Site URL (used in
+--      confirmation links). Optional: customize templates under Email Templates.
+-- Until SMTP works, new users stay unconfirmed and cannot sign in.
 
 -- Mentors
 -- `name`        = robotics team name  (e.g. "Iron Wolves #12345")
