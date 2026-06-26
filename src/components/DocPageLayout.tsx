@@ -84,7 +84,7 @@ export default function DocPageLayout({
                   </span>
                 )}
               </div>
-              <h1 className="text-[1.875rem] font-semibold text-slate-50 tracking-tight leading-tight mb-4">
+              <h1 className="text-[1.875rem] font-semibold text-slate-100 tracking-tight leading-tight mb-4">
                 {title}
               </h1>
               <p className="text-slate-400 leading-relaxed text-[0.9375rem] max-w-2xl">
