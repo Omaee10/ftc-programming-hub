@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trophy, ArrowRight, LogIn, UserPlus, LogOut, Shield, Settings, Info } from "lucide-react";
+import { getSession, setSession as persistSession } from "@/lib/auth";
 import { signOutAll, getAuthUserId } from "@/lib/authSession";
 import { withTimeout } from "@/lib/withTimeout";
 
@@ -10,6 +11,13 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [hasWorkspaces, setHasWorkspaces] = useState(false);
   const [checkingWorkspaces, setCheckingWorkspaces] = useState(true);
+  const [savedSession] = useState(() => getSession());
+
+  const continueToClass = () => {
+    if (!savedSession) return;
+    persistSession(savedSession);
+    router.push(savedSession.role === "mentor" ? "/mentor/dashboard" : "/dashboard");
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +98,27 @@ export default function OnboardingPage() {
             Learn FTC programming, complete challenges, and track your progress.
           </p>
         </div>
+
+        {!checkingWorkspaces && savedSession && (
+          <button
+            type="button"
+            onClick={continueToClass}
+            className="group w-full flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-6 py-5 text-left hover:border-emerald-500/30 hover:bg-emerald-500/12 transition-all duration-200 focus:outline-none accent-ring mb-4"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <LogIn className="h-5 w-5 text-emerald-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-base font-medium text-emerald-100 truncate">
+                  Continue to {savedSession.className || savedSession.teamName || "your class"}
+                </p>
+                <p className="text-sm text-emerald-400/70 mt-0.5 truncate">
+                  Return to where you left off
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-emerald-400 shrink-0" />
+          </button>
+        )}
 
         {!checkingWorkspaces && hasWorkspaces && (
           <div className="mb-4 flex items-start gap-2 rounded-xl border border-sky-500/15 bg-sky-500/8 px-4 py-3">

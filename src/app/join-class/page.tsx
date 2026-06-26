@@ -10,10 +10,8 @@ import {
   ArrowLeft,
   UserPlus,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { setSession } from "@/lib/auth";
 import { getAuthUserId } from "@/lib/authSession";
-import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
 import CodeInput from "@/components/CodeInput";
 
 export default function JoinClassPage() {
@@ -50,94 +48,53 @@ export default function JoinClassPage() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", userId)
-        .single();
-
-      const displayName = profile?.display_name?.trim() ?? "";
-      if (!displayName) {
-        setError("Your account has no name on file. Sign out and sign up again with your name.");
+      let res: Response;
+      try {
+        res = await fetch("/api/auth/join-class", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ classCode: trimmedCode }),
+        });
+      } catch {
+        setError("Could not reach the server. Check your connection and try again.");
         return;
       }
 
-      const { data: owner, error: lookupErr } = await supabase
-        .from("mentors")
-        .select("id, name, class_name")
-        .eq("class_code", trimmedCode)
-        .is("created_by", null)
-        .single();
-
-      if (lookupErr || !owner) {
-        setError("Invalid class code. Check with your mentor and try again.");
-        return;
-      }
-
-      const ownerRow = owner as {
-        id: string;
-        name: string;
-        class_name?: string | null;
+      let payload: {
+        error?: string;
+        studentId?: string;
+        displayName?: string;
+        teamName?: string;
+        mentorId?: string;
+        className?: string | null;
       };
 
-      const { data: existing } = await supabase
-        .from("students")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("mentor_id", ownerRow.id)
-        .maybeSingle();
-
-      if (existing) {
-        setError("Class already joined with this email");
+      try {
+        payload = (await res.json()) as typeof payload;
+      } catch {
+        setError("Unexpected server response. Please try again.");
         return;
       }
 
-      let code = generateAccessCode();
-      let inserted: { id: string; code: string } | null = null;
-
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const { data, error: insertErr } = await supabase
-          .from("students")
-          .insert({
-            name: displayName,
-            code,
-            mentor_id: ownerRow.id,
-            user_id: userId,
-          })
-          .select("id, code")
-          .single();
-
-        if (!insertErr && data) {
-          inserted = data as { id: string; code: string };
-          break;
-        }
-
-        if (isUniqueViolation(insertErr)) {
-          if (insertErr?.message?.includes("students_user_mentor_unique")) {
-            setError("Class already joined with this email");
-            return;
-          }
-          code = generateAccessCode();
-          continue;
-        }
-
-        setError(insertErr?.message ?? "Failed to join class. Please try again.");
+      if (!res.ok) {
+        setError(payload.error ?? "Failed to join class. Please try again.");
         return;
       }
 
-      if (!inserted) {
-        setError("Failed to generate a unique student code. Please try again.");
+      if (!payload.studentId || !payload.displayName || !payload.teamName || !payload.mentorId) {
+        setError("Unexpected server response. Please try again.");
         return;
       }
 
       setSession({
         role: "student",
-        id: inserted.id,
-        name: displayName,
-        teamName: ownerRow.name,
-        mentorId: ownerRow.id,
-        ...(ownerRow.class_name?.trim()
-          ? { className: ownerRow.class_name.trim() }
+        id: payload.studentId,
+        name: payload.displayName,
+        teamName: payload.teamName,
+        mentorId: payload.mentorId,
+        ...(payload.className?.trim()
+          ? { className: payload.className.trim() }
           : {}),
       });
 

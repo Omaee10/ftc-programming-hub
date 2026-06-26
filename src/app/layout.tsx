@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import ThemeProvider from "@/components/ThemeProvider";
+import WorkspaceCookieSync from "@/components/WorkspaceCookieSync";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -38,6 +39,7 @@ export default function RootLayout({
     >
       <body className="h-full bg-slate-950 text-slate-100 antialiased" suppressHydrationWarning>
         <ThemeProvider>
+          <WorkspaceCookieSync />
           {children}
         </ThemeProvider>
       </body>
