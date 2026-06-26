@@ -9,7 +9,12 @@ export async function signOutAll(): Promise<void> {
 
   try {
     const res = await withTimeout(
-      fetch("/api/auth/signout", { method: "POST", credentials: "include" }),
+      fetch("/api/auth/signout", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
       8_000,
       "Sign out"
     );

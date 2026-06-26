@@ -270,7 +270,12 @@ export default function AccountPage() {
         return;
       }
 
-      const res = await fetch("/api/auth/delete-account", { method: "POST" });
+      const res = await fetch("/api/auth/delete-account", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
       const data = (await res.json()) as { error?: string };
 
       if (!res.ok) {
