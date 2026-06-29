@@ -28,7 +28,7 @@ import {
   LayoutGrid,
   PenLine,
 } from "lucide-react";
-import { getSession } from "@/lib/auth";
+import { getSession, isSoloSession } from "@/lib/auth";
 interface NavChild {
   label: string;
   href: string;
@@ -230,12 +230,14 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [isStudent, setIsStudent] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
+  const [isSolo, setIsSolo] = useState(false);
 
   useEffect(() => {
     const syncRole = () => {
-      const role = getSession()?.role;
-      setIsStudent(role === "student");
-      setIsMentor(role === "mentor");
+      const session = getSession();
+      setIsStudent(session?.role === "student");
+      setIsMentor(session?.role === "mentor");
+      setIsSolo(isSoloSession(session));
     };
     syncRole();
     window.addEventListener("ftc-session-updated", syncRole);
@@ -251,7 +253,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     ...section,
     items: section.items.filter(
       (item) =>
-        (item.href !== "/homework" || isStudent) &&
+        (item.href !== "/homework" || (isStudent && !isSolo)) &&
         (!item.mentorOnly || isMentor)
     ),
   }));

@@ -45,6 +45,14 @@ export interface Session {
   parentMentorId?: string;
   /** Set for students — the ID of their mentor (used to filter mentor-created challenges) */
   mentorId?: string;
+  /** Solo practice — no class enrollment; progress stays on this device only */
+  solo?: boolean;
+}
+
+const SOLO_BANNER_DISMISSED_KEY = "ftc-solo-banner-dismissed";
+
+export function isSoloSession(session: Session | null | undefined): boolean {
+  return session?.role === "student" && session.solo === true;
 }
 
 export function getSession(): Session | null {
@@ -64,8 +72,21 @@ export function setSession(session: Session): void {
   writeWorkspaceCookie(COOKIE_NAME, session.role);
   writeWorkspaceCookie(WORKSPACE_ID_COOKIE, session.id);
   if (typeof window !== "undefined") {
+    if (session.solo) {
+      localStorage.removeItem(SOLO_BANNER_DISMISSED_KEY);
+    }
     window.dispatchEvent(new CustomEvent("ftc-session-updated"));
   }
+}
+
+export function isSoloBannerDismissed(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(SOLO_BANNER_DISMISSED_KEY) === "1";
+}
+
+export function dismissSoloBanner(): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SOLO_BANNER_DISMISSED_KEY, "1");
 }
 
 export function clearSupabaseAuthCookies(): void {

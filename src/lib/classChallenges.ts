@@ -1,4 +1,4 @@
-import type { Session } from "@/lib/auth";
+import { isSoloSession, type Session } from "@/lib/auth";
 import type { Challenge } from "@/data/challenges";
 import { rowToChallengeSummary, rowToChallenge } from "@/lib/homeworkUtils";
 import type { ChallengeRow } from "@/lib/supabase";
@@ -42,6 +42,8 @@ function classChallengeQuery(session: Session): URLSearchParams {
 
 /** Fetch mentor-authored challenges for the signed-in user (mentor or student). */
 export async function fetchClassChallenges(session: Session): Promise<Challenge[]> {
+  if (isSoloSession(session)) return [];
+
   try {
     const res = await fetch(`/api/challenges/class?${classChallengeQuery(session).toString()}`, {
       credentials: "include",

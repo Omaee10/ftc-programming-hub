@@ -13,13 +13,18 @@ export async function GET(): Promise<NextResponse> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name")
+    .select("display_name, account_type")
     .eq("id", user.id)
     .maybeSingle();
+
+  const accountType = profile?.account_type;
+  const normalizedAccountType =
+    accountType === "student" || accountType === "mentor" ? accountType : null;
 
   return NextResponse.json({
     userId: user.id,
     email: user.email ?? "",
     displayName: profile?.display_name?.trim() || null,
+    accountType: normalizedAccountType,
   });
 }

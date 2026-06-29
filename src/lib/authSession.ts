@@ -61,6 +61,7 @@ export async function fetchAuthMe(): Promise<{
   userId: string;
   email: string;
   displayName: string | null;
+  accountType: "student" | "mentor" | null;
 } | null> {
   try {
     const res = await withTimeout(
@@ -73,6 +74,7 @@ export async function fetchAuthMe(): Promise<{
       userId: string;
       email: string;
       displayName: string | null;
+      accountType: "student" | "mentor" | null;
     };
   } catch {
     return null;

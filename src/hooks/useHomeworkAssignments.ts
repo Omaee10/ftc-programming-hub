@@ -3,7 +3,7 @@
 import { useSyncExternalStore, useEffect, useCallback } from "react";
 import { supabase, type HomeworkAssignmentRow } from "@/lib/supabase";
 import { HOMEWORK_LIST_COLUMNS } from "@/lib/supabase/progressColumns";
-import { getSession } from "@/lib/auth";
+import { getSession, isSoloSession } from "@/lib/auth";
 import { useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
 import { formatLoadError, withTimeout } from "@/lib/withTimeout";
@@ -80,7 +80,7 @@ function writeSessionCache(key: HomeworkCacheKey, assignments: HomeworkAssignmen
 
 function cacheKeyForSession(): HomeworkCacheKey | null {
   const session = getSession();
-  if (!session?.id) return null;
+  if (!session?.id || isSoloSession(session)) return null;
   if (session.role === "student") return `student:${session.id}`;
   if (session.role === "mentor") {
     return `mentor:${classOwner(session)}`;
@@ -212,7 +212,7 @@ export function useHomeworkAssignments() {
     getServerStoreSnapshot
   );
 
-  const cacheKey = workspaceSession
+  const cacheKey = workspaceSession && !isSoloSession(workspaceSession)
     ? workspaceSession.role === "student"
       ? `student:${workspaceSession.id}`
       : workspaceSession.role === "mentor"

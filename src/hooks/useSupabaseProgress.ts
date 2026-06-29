@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore, useEffect, useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getSession } from "@/lib/auth";
+import { getSession, isSoloSession } from "@/lib/auth";
 import { mergeLocalProgress, readLocalProgress } from "@/hooks/useChallengeProgress";
 import type { BlockState } from "@/lib/challengeBlockDrafts";
 import {
@@ -373,7 +373,11 @@ export function useSupabaseProgress(challengeId?: number) {
   useEffect(() => {
     const syncStudentId = () => {
       const session = getSession();
-      setStudentId(session?.role === "student" ? session.id : null);
+      if (session?.role === "student" && !isSoloSession(session)) {
+        setStudentId(session.id);
+      } else {
+        setStudentId(null);
+      }
     };
 
     syncStudentId();

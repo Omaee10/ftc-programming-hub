@@ -4,19 +4,48 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trophy, ArrowRight, LogIn, UserPlus, LogOut, Shield, Settings, Info } from "lucide-react";
 import { getSession, setSession as persistSession } from "@/lib/auth";
-import { signOutAll, getAuthUserId } from "@/lib/authSession";
+import { signOutAll, getAuthUserId, fetchAuthMe } from "@/lib/authSession";
 import { withTimeout } from "@/lib/withTimeout";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [hasWorkspaces, setHasWorkspaces] = useState(false);
   const [checkingWorkspaces, setCheckingWorkspaces] = useState(true);
+  const [accountType, setAccountType] = useState<"student" | "mentor" | null | "unknown">("unknown");
+  const [startingSolo, setStartingSolo] = useState(false);
   const [savedSession] = useState(() => getSession());
+
+  const showStudentSoloCard = accountType === "student" || accountType === "unknown";
+  const showMentorCreateCard = accountType === "mentor" || accountType === "unknown";
 
   const continueToClass = () => {
     if (!savedSession) return;
     persistSession(savedSession);
     router.push(savedSession.role === "mentor" ? "/mentor/dashboard" : "/dashboard");
+  };
+
+  const startSoloPractice = async () => {
+    setStartingSolo(true);
+    try {
+      const me = await fetchAuthMe();
+      const userId = me?.userId ?? (await getAuthUserId());
+      if (!userId) {
+        router.push("/login");
+        return;
+      }
+
+      persistSession({
+        role: "student",
+        id: userId,
+        name: me?.displayName?.trim() || "Student",
+        solo: true,
+      });
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Solo practice start:", err);
+    } finally {
+      setStartingSolo(false);
+    }
   };
 
   useEffect(() => {
@@ -26,6 +55,13 @@ export default function OnboardingPage() {
       try {
         const userId = await getAuthUserId();
         if (!userId) return;
+
+        const me = await fetchAuthMe();
+        if (!cancelled && me?.accountType) {
+          setAccountType(me.accountType);
+        } else if (!cancelled) {
+          setAccountType("unknown");
+        }
 
         const res = await withTimeout(
           fetch("/api/auth/workspaces", { credentials: "include" }),
@@ -109,10 +145,13 @@ export default function OnboardingPage() {
               <LogIn className="h-5 w-5 text-emerald-400 shrink-0" />
               <div className="min-w-0">
                 <p className="text-base font-medium text-emerald-100 truncate">
-                  Continue to {savedSession.className || savedSession.teamName || "your class"}
+                  Continue to{" "}
+                  {savedSession.solo
+                    ? "solo practice"
+                    : savedSession.className || savedSession.teamName || "your class"}
                 </p>
                 <p className="text-sm text-emerald-400/70 mt-0.5 truncate">
-                  Return to where you left off
+                  {savedSession.solo ? "Pick up where you left off" : "Return to where you left off"}
                 </p>
               </div>
             </div>
@@ -192,20 +231,41 @@ export default function OnboardingPage() {
           <div className="flex-1 h-px bg-slate-800/80" />
         </div>
 
-        <button
-          onClick={() => router.push("/create-class")}
-          className="group w-full flex items-center justify-between rounded-xl border border-slate-800/60 px-6 py-4.5 text-left hover:border-slate-700/60 hover:bg-slate-900/40 transition-all duration-200 focus:outline-none accent-ring"
-        >
-          <div>
-            <p className="text-sm font-medium text-slate-400 group-hover:text-slate-200 transition-colors">
-              Create a class
-            </p>
-            <p className="text-xs text-slate-700 mt-0.5">
-              For mentors — set up your team workspace
-            </p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
-        </button>
+        {showStudentSoloCard && (
+          <button
+            type="button"
+            onClick={() => void startSoloPractice()}
+            disabled={startingSolo}
+            className="group w-full flex items-center justify-between rounded-xl border border-slate-800/60 px-6 py-4.5 text-left hover:border-slate-700/60 hover:bg-slate-900/40 transition-all duration-200 focus:outline-none accent-ring mb-4 disabled:opacity-60"
+          >
+            <div>
+              <p className="text-sm font-medium text-slate-400 group-hover:text-slate-200 transition-colors">
+                Practice on your own
+              </p>
+              <p className="text-xs text-slate-700 mt-0.5">
+                Work through challenges solo — no class code needed
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
+          </button>
+        )}
+
+        {showMentorCreateCard && (
+          <button
+            onClick={() => router.push("/create-class")}
+            className="group w-full flex items-center justify-between rounded-xl border border-slate-800/60 px-6 py-4.5 text-left hover:border-slate-700/60 hover:bg-slate-900/40 transition-all duration-200 focus:outline-none accent-ring"
+          >
+            <div>
+              <p className="text-sm font-medium text-slate-400 group-hover:text-slate-200 transition-colors">
+                Create a class
+              </p>
+              <p className="text-xs text-slate-700 mt-0.5">
+                For mentors — set up your team workspace
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
+          </button>
+        )}
       </div>
     </div>
   );
