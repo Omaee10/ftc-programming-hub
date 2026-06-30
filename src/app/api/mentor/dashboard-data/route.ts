@@ -3,7 +3,8 @@ import { classChallengeAuthorIds } from "@/lib/classChallenges";
 import { createClient } from "@/lib/supabase/server";
 import { hasServiceRoleKey } from "@/lib/supabase/admin";
 import { authorizeMentorWorkspace } from "@/lib/supabase/mentorWorkspaceAuth";
-import { repairItkanOwnerSlotOnce } from "@/lib/supabase/mentorClaim";
+import { ensureClassCodeForOwner } from "@/lib/supabase/classCodeBackfill";
+import { repairClassMentorLinks, repairItkanOwnerSlotOnce } from "@/lib/supabase/mentorClaim";
 import type { MentorDashboardScope } from "@/lib/mentorDashboardApi";
 import {
   CHALLENGE_LIST_COLUMNS,
@@ -67,6 +68,10 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const { session, ownerId, admin: db } = access;
 
+  await repairClassMentorLinks(db, ownerId);
+  await repairItkanOwnerSlotOnce(db, ownerId);
+  const backfilledClassCode = await ensureClassCodeForOwner(db, ownerId);
+
   switch (scope) {
     case "overview": {
       const authorIds = classChallengeAuthorIds(session);
@@ -115,7 +120,10 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       return NextResponse.json({
         className,
-        classCode: (ownerMentor?.class_code as string | null) ?? null,
+        classCode:
+          backfilledClassCode
+          ?? (ownerMentor?.class_code as string | null)
+          ?? null,
         studentCount: studentCount ?? 0,
         pendingCount: pendingCount ?? 0,
         challengeCount: challengeCount ?? 0,
@@ -202,8 +210,6 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "mentors": {
-      await repairItkanOwnerSlotOnce(db, ownerId);
-
       const { data: rows, error } = await db
         .from("mentors")
         .select("id, name, mentor_name, code, created_at, created_by, user_id")

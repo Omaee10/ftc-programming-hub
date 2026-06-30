@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Trophy, Lock, AlertCircle, Loader2, ArrowRight, Mail, CheckCircle2 } from "lucide-react";
 import { signInViaApi } from "@/lib/authSession";
+import { clearWorkspaceSession } from "@/lib/auth";
 import AuthContributorsFooter from "@/components/AuthContributorsFooter";
 
 function LoginForm() {
@@ -33,6 +34,7 @@ function LoginForm() {
         return;
       }
 
+      clearWorkspaceSession();
       router.push("/onboarding");
       router.refresh();
     });

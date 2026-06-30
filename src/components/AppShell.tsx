@@ -7,11 +7,12 @@ import Link from "next/link";
 import Sidebar from "./Sidebar";
 import ThemePanel from "./ThemePanel";
 import DashboardDocSearch from "./DashboardDocSearch";
-import { getSession, setSession as persistSession, type Session, isSoloSession, isSoloBannerDismissed, dismissSoloBanner } from "@/lib/auth";
+import { getSession, setSession as persistSession, clearWorkspaceSession, type Session, isSoloSession, isSoloBannerDismissed, dismissSoloBanner } from "@/lib/auth";
 import { prefetchHomework } from "@/hooks/useHomeworkAssignments";
 import { supabase } from "@/lib/supabase";
 import { signOutAll, getAuthUserId, getProfileDisplayName } from "@/lib/authSession";
 import { fetchClassCode } from "@/lib/mentorDashboardApi";
+import { fetchWorkspacesPayload, sessionMatchesWorkspaces } from "@/lib/workspaceValidation";
 
 function getInitials(name: string): string {
   return name
@@ -35,16 +36,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const showHeaderSearch = pathname !== "/dashboard";
 
   useEffect(() => {
-    const stored = getSession();
-    if (stored) {
-      persistSession(stored);
-      if (stored.role === "student" && !isSoloSession(stored)) {
-        prefetchHomework();
-      }
-    }
-    setSession(stored);
-    setSoloBannerHidden(isSoloBannerDismissed());
-    setMounted(true);
+    let cancelled = false;
 
     const onSessionUpdated = () => {
       const next = getSession();
@@ -53,69 +45,105 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         setSoloBannerHidden(isSoloBannerDismissed());
       }
     };
-    window.addEventListener("ftc-session-updated", onSessionUpdated);
 
-    if (stored?.role === "mentor") {
-      (async () => {
-        const userId = await getAuthUserId();
-        const profileName = userId ? await getProfileDisplayName(userId) : null;
+    (async () => {
+      const stored = getSession();
 
-        const { data: mentorRow } = await supabase
-          .from("mentors")
-          .select("name, mentor_name, class_name, created_by")
-          .eq("id", stored.id)
-          .single();
-        if (!mentorRow) return;
+      if (stored && !isSoloSession(stored)) {
+        const workspaces = await fetchWorkspacesPayload();
+        if (
+          !workspaces
+          || !sessionMatchesWorkspaces(stored, workspaces)
+        ) {
+          if (cancelled) return;
+          clearWorkspaceSession();
+          setSession(null);
+          setMounted(true);
+          router.replace("/signin");
+          return;
+        }
+      }
 
-        const row = mentorRow as {
-          name: string;
-          mentor_name?: string | null;
-          class_name?: string | null;
-          created_by?: string | null;
-        };
-        let personalName: string = profileName ?? row.mentor_name ?? row.name;
-        let teamName: string = row.name;
-        let resolvedClassName: string | undefined = row.class_name?.trim() || undefined;
-        const parentMentorId: string | undefined = row.created_by ?? undefined;
+      if (cancelled) return;
 
-        if (profileName && row.mentor_name !== profileName) {
-          void supabase
+      if (stored) {
+        persistSession(stored);
+        if (stored.role === "student" && !isSoloSession(stored)) {
+          prefetchHomework();
+        }
+      }
+      setSession(stored);
+      setSoloBannerHidden(isSoloBannerDismissed());
+      setMounted(true);
+
+      window.addEventListener("ftc-session-updated", onSessionUpdated);
+
+      if (stored?.role === "mentor") {
+        (async () => {
+          const userId = await getAuthUserId();
+          const profileName = userId ? await getProfileDisplayName(userId) : null;
+
+          const { data: mentorRow } = await supabase
             .from("mentors")
-            .update({ mentor_name: profileName })
-            .eq("id", stored.id);
-        }
+            .select("name, mentor_name, class_name, created_by")
+            .eq("id", stored.id)
+            .single();
+          if (!mentorRow || cancelled) return;
 
-        try {
-          const { classCode: code, className: apiClassName, teamName: apiTeamName } =
-            await fetchClassCode(stored);
-          setClassCode(code);
-          if (apiClassName) {
-            resolvedClassName = apiClassName;
-          }
-          if (parentMentorId && apiTeamName) {
-            teamName = apiTeamName;
-          }
-        } catch {
-          setClassCode(null);
-        }
+          const row = mentorRow as {
+            name: string;
+            mentor_name?: string | null;
+            class_name?: string | null;
+            created_by?: string | null;
+          };
+          const personalName: string = profileName ?? row.mentor_name ?? row.name;
+          let teamName: string = row.name;
+          let resolvedClassName: string | undefined = row.class_name?.trim() || undefined;
+          const parentMentorId: string | undefined = row.created_by ?? undefined;
 
-        const updated: Session = {
-          ...stored,
-          name: personalName,
-          teamName,
-          ...(resolvedClassName ? { className: resolvedClassName } : {}),
-          ...(parentMentorId ? { parentMentorId } : {}),
-        };
-        setSession(updated);
-        persistSession(updated);
-        window.dispatchEvent(new CustomEvent("ftc-session-updated"));
-      })();
-    }
+          if (profileName && row.mentor_name !== profileName) {
+            void supabase
+              .from("mentors")
+              .update({ mentor_name: profileName })
+              .eq("id", stored.id);
+          }
+
+          try {
+            const { classCode: code, className: apiClassName, teamName: apiTeamName } =
+              await fetchClassCode(stored);
+            if (cancelled) return;
+            setClassCode(code);
+            if (apiClassName) {
+              resolvedClassName = apiClassName;
+            }
+            if (parentMentorId && apiTeamName) {
+              teamName = apiTeamName;
+            }
+          } catch {
+            if (!cancelled) setClassCode(null);
+          }
+
+          if (cancelled) return;
+
+          const updated: Session = {
+            ...stored,
+            name: personalName,
+            teamName,
+            ...(resolvedClassName ? { className: resolvedClassName } : {}),
+            ...(parentMentorId ? { parentMentorId } : {}),
+          };
+          setSession(updated);
+          persistSession(updated);
+          window.dispatchEvent(new CustomEvent("ftc-session-updated"));
+        })();
+      }
+    })();
 
     return () => {
+      cancelled = true;
       window.removeEventListener("ftc-session-updated", onSessionUpdated);
     };
-  }, []);
+  }, [router]);
 
   const handleSignOut = () => {
     router.push("/login");

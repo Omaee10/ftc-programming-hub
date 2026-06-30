@@ -2,9 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trophy, ArrowRight, LogIn, UserPlus, LogOut, Shield, Settings, Info } from "lucide-react";
-import { getSession, setSession as persistSession } from "@/lib/auth";
+import {
+  Trophy,
+  ArrowRight,
+  LogIn,
+  UserPlus,
+  LogOut,
+  Shield,
+  Settings,
+  Info,
+  AlertCircle,
+} from "lucide-react";
+import {
+  clearWorkspaceSession,
+  getSession,
+  isSoloSession,
+  setSession as persistSession,
+  type Session,
+} from "@/lib/auth";
 import { signOutAll, getAuthUserId, fetchAuthMe } from "@/lib/authSession";
+import {
+  fetchWorkspacesPayload,
+  sessionMatchesWorkspaces,
+} from "@/lib/workspaceValidation";
 import { withTimeout } from "@/lib/withTimeout";
 
 export default function OnboardingPage() {
@@ -13,15 +33,30 @@ export default function OnboardingPage() {
   const [checkingWorkspaces, setCheckingWorkspaces] = useState(true);
   const [accountType, setAccountType] = useState<"student" | "mentor" | null | "unknown">("unknown");
   const [startingSolo, setStartingSolo] = useState(false);
-  const [savedSession] = useState(() => getSession());
+  const [cachedSession, setCachedSession] = useState<Session | null>(() => getSession());
+  const [savedSessionValid, setSavedSessionValid] = useState(false);
+  const [staleSessionNotice, setStaleSessionNotice] = useState(false);
 
   const showStudentSoloCard = accountType === "student" || accountType === "unknown";
   const showMentorCreateCard = accountType === "mentor" || accountType === "unknown";
 
-  const continueToClass = () => {
-    if (!savedSession) return;
-    persistSession(savedSession);
-    router.push(savedSession.role === "mentor" ? "/mentor/dashboard" : "/dashboard");
+  const continueToClass = async () => {
+    const session = getSession();
+    if (!session) return;
+
+    if (!isSoloSession(session)) {
+      const workspaces = await fetchWorkspacesPayload();
+      if (!workspaces || !sessionMatchesWorkspaces(session, workspaces)) {
+        clearWorkspaceSession();
+        setCachedSession(null);
+        setSavedSessionValid(false);
+        setStaleSessionNotice(true);
+        return;
+      }
+    }
+
+    persistSession(session);
+    router.push(session.role === "mentor" ? "/mentor/dashboard" : "/dashboard");
   };
 
   const startSoloPractice = async () => {
@@ -68,11 +103,46 @@ export default function OnboardingPage() {
           15_000,
           "Loading workspaces"
         );
-        if (res.ok) {
-          const data = (await res.json()) as { studentCount?: number; mentorCount?: number };
-          if (!cancelled) {
-            setHasWorkspaces((data.studentCount ?? 0) + (data.mentorCount ?? 0) > 0);
-          }
+
+        if (!res.ok) return;
+
+        const data = (await res.json()) as {
+          studentCount?: number;
+          mentorCount?: number;
+          students?: { id: string }[];
+          mentors?: { id: string }[];
+        };
+
+        if (cancelled) return;
+
+        const workspaceCount = (data.studentCount ?? 0) + (data.mentorCount ?? 0);
+        setHasWorkspaces(workspaceCount > 0);
+
+        const session = getSession();
+        if (!session) {
+          setCachedSession(null);
+          setSavedSessionValid(false);
+          return;
+        }
+
+        setCachedSession(session);
+
+        if (isSoloSession(session)) {
+          setSavedSessionValid(true);
+          return;
+        }
+
+        const workspaces = {
+          students: data.students ?? [],
+          mentors: data.mentors ?? [],
+        };
+        const valid = sessionMatchesWorkspaces(session, workspaces);
+        setSavedSessionValid(valid);
+
+        if (!valid) {
+          clearWorkspaceSession();
+          setCachedSession(null);
+          setStaleSessionNotice(true);
         }
       } catch (err) {
         console.error("Onboarding workspace check:", err);
@@ -135,10 +205,50 @@ export default function OnboardingPage() {
           </p>
         </div>
 
-        {!checkingWorkspaces && savedSession && (
+        {staleSessionNotice && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+            <p className="text-sm text-amber-200/90 leading-relaxed">
+              Your previous class selection is no longer linked to this account. Tap{" "}
+              <strong className="font-medium">Sign in</strong> below to pick a class, or link/join
+              one first.
+            </p>
+          </div>
+        )}
+
+        {!checkingWorkspaces && !hasWorkspaces && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+            <div className="text-sm text-amber-200/90 leading-relaxed space-y-2">
+              <p className="font-medium text-amber-100">Your account isn&apos;t linked to a class yet.</p>
+              {accountType === "student" && (
+                <p>
+                  Join with your mentor&apos;s <strong className="font-medium">class code</strong>,
+                  or sign up with your personal <strong className="font-medium">student code</strong>{" "}
+                  if your mentor added you manually.
+                </p>
+              )}
+              {accountType === "mentor" && (
+                <p>
+                  Enter your personal <strong className="font-medium">mentor sign-in code</strong>{" "}
+                  via Link mentor workspace, or create a new class if you&apos;re the owner.
+                </p>
+              )}
+              {accountType === "unknown" && (
+                <p>
+                  Students: use <strong className="font-medium">Join new class</strong>. Mentors:
+                  use <strong className="font-medium">Link mentor workspace</strong> or{" "}
+                  <strong className="font-medium">Create a class</strong>.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!checkingWorkspaces && cachedSession && savedSessionValid && (
           <button
             type="button"
-            onClick={continueToClass}
+            onClick={() => void continueToClass()}
             className="group w-full flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-6 py-5 text-left hover:border-emerald-500/30 hover:bg-emerald-500/12 transition-all duration-200 focus:outline-none accent-ring mb-4"
           >
             <div className="flex items-center gap-3 min-w-0">
@@ -146,12 +256,12 @@ export default function OnboardingPage() {
               <div className="min-w-0">
                 <p className="text-base font-medium text-emerald-100 truncate">
                   Continue to{" "}
-                  {savedSession.solo
+                  {cachedSession.solo
                     ? "solo practice"
-                    : savedSession.className || savedSession.teamName || "your class"}
+                    : cachedSession.className || cachedSession.teamName || "your class"}
                 </p>
                 <p className="text-sm text-emerald-400/70 mt-0.5 truncate">
-                  {savedSession.solo ? "Pick up where you left off" : "Return to where you left off"}
+                  {cachedSession.solo ? "Pick up where you left off" : "Return to where you left off"}
                 </p>
               </div>
             </div>
@@ -200,7 +310,7 @@ export default function OnboardingPage() {
                 Join new class
               </p>
               <p className="text-xs text-slate-700 mt-0.5">
-                New student — enter your class code
+                Student — enter your mentor&apos;s class code
               </p>
             </div>
           </div>
@@ -218,7 +328,7 @@ export default function OnboardingPage() {
                 Link mentor workspace
               </p>
               <p className="text-xs text-slate-700 mt-0.5">
-                Co-mentor only — a different class, not your own code
+                Mentor — enter your personal sign-in code
               </p>
             </div>
           </div>
