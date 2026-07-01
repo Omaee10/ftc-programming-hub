@@ -148,6 +148,31 @@ export async function joinClassByCode(
     };
   }
 
+  // A mentor of this class (the owner or a co-mentor) must not also join it as a
+  // student. Fetch this user's mentor rows and check in JS rather than
+  // interpolating owner.id into a PostgREST .or() filter.
+  const { data: userMentorRows, error: mentorLookupErr } = await admin
+    .from("mentors")
+    .select("id, created_by")
+    .eq("user_id", userId);
+
+  if (mentorLookupErr) {
+    return { ok: false, error: mentorLookupErr.message, status: 500 };
+  }
+
+  const alreadyMentorsThisClass = (userMentorRows ?? []).some((row) => {
+    const r = row as { id: string; created_by: string | null };
+    return r.id === owner.id || r.created_by === owner.id;
+  });
+
+  if (alreadyMentorsThisClass) {
+    return {
+      ok: false,
+      error: "You're already a mentor of this class, so you can't join it as a student.",
+      status: 400,
+    };
+  }
+
   const { data: existing } = await admin
     .from("students")
     .select("id")
