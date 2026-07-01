@@ -52,15 +52,19 @@ export async function authorizeMentorWorkspace(
 
   if (!allowed) return null;
 
+  // The class owner is derived from the VERIFIED workspace row, never from the
+  // caller-supplied parentMentorId — otherwise any mentor could pass another
+  // class's owner id and read/mutate that class's data (IDOR). A client value
+  // is accepted only when it agrees with the trusted owner; a mismatch is
+  // rejected rather than trusted.
+  const trustedOwnerId = row.created_by ?? row.id;
+  if (parentMentorId && parentMentorId !== trustedOwnerId) return null;
+
   const session: Session = {
     role: "mentor",
     id: workspaceId,
     name: "",
-    ...(parentMentorId
-      ? { parentMentorId }
-      : row.created_by
-        ? { parentMentorId: row.created_by }
-        : {}),
+    ...(trustedOwnerId !== workspaceId ? { parentMentorId: trustedOwnerId } : {}),
   };
 
   const ownerId = classOwner(session);

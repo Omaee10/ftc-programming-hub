@@ -54,8 +54,5 @@ function handleErr(err: unknown) {
     );
   }
   console.error("requirements route failed:", err);
-  return NextResponse.json(
-    { error: err instanceof Error ? err.message : "Internal grader error." },
-    { status: 503 }
-  );
+  return NextResponse.json({ error: "Internal grader error." }, { status: 503 });
 }

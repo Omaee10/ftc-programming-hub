@@ -1,5 +1,4 @@
-import type { Session } from "@/lib/auth";
-import { classChallengeAuthorIds, classOwner } from "@/lib/classChallenges";
+import { classChallengeAuthorIds } from "@/lib/classChallenges";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
 import { authorizeMentorWorkspace } from "@/lib/supabase/mentorWorkspaceAuth";
@@ -35,14 +34,9 @@ export async function resolveClassChallengeAuthorIds(
     );
     if (!access) return null;
 
-    const session: Session = {
-      role: "mentor",
-      id: scope.workspaceId,
-      name: "",
-      ...(scope.parentMentorId ? { parentMentorId: scope.parentMentorId } : {}),
-    };
-
-    const ownerId = classOwner(session);
+    // Use the trusted session/owner resolved by authorizeMentorWorkspace — the
+    // client-supplied parentMentorId is never used to derive the owner here.
+    const { session, ownerId } = access;
     const coIds = await coMentorIdsForOwner(admin, ownerId);
     return [...new Set([...classChallengeAuthorIds(session), ...coIds, ownerId])];
   }

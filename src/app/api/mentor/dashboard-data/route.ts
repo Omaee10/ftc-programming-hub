@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasServiceRoleKey } from "@/lib/supabase/admin";
 import { authorizeMentorWorkspace } from "@/lib/supabase/mentorWorkspaceAuth";
 import { ensureClassCodeForOwner } from "@/lib/supabase/classCodeBackfill";
-import { repairClassMentorLinks, repairItkanOwnerSlotOnce } from "@/lib/supabase/mentorClaim";
+import { repairClassMentorLinks } from "@/lib/supabase/mentorClaim";
 import type { MentorDashboardScope } from "@/lib/mentorDashboardApi";
 import {
   CHALLENGE_LIST_COLUMNS,
@@ -69,7 +69,6 @@ export async function POST(req: Request): Promise<NextResponse> {
   const { session, ownerId, admin: db } = access;
 
   await repairClassMentorLinks(db, ownerId);
-  await repairItkanOwnerSlotOnce(db, ownerId);
   const backfilledClassCode = await ensureClassCodeForOwner(db, ownerId);
 
   switch (scope) {

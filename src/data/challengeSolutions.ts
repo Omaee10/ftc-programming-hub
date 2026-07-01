@@ -66,7 +66,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 public class EncoderBasicsSolution extends LinearOpMode {
 
     private DcMotor driveMotor;
-    private static final int TARGET_TICKS = 1000;
+    private static final int TARGET_TICKS = 500;
 
     @Override
     public void runOpMode() {

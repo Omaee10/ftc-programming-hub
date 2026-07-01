@@ -48,11 +48,16 @@ export async function flushDebouncedUpsert(
   key: string,
   run: () => Promise<void>
 ): Promise<void> {
+  // Cancel any scheduled debounce for this key so it can't fire later with
+  // stale data, then run the caller's latest upsert unconditionally. Callers
+  // (e.g. Reset, unmount/pagehide) rely on flush to persist the current editor
+  // state even when no debounce is pending — returning early here would
+  // silently drop that write.
   const existing = pendingUpserts.get(key);
-  if (!existing) return;
-
-  clearTimeout(existing.timer);
-  pendingUpserts.delete(key);
+  if (existing) {
+    clearTimeout(existing.timer);
+    pendingUpserts.delete(key);
+  }
   await run();
 }
 

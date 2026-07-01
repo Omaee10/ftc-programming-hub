@@ -35,7 +35,10 @@ public final class ChallengeRubrics {
 
     private ChallengeRubrics() {}
 
-    private static final Pattern NON_ZERO_POWER       = Pattern.compile("\\.setPower\\(\\s*(?!0(?:\\.0*)?\\s*\\))[^)]+\\)");
+    // Possessive `\s*+`: without it the whitespace backtracks to zero width and
+    // the zero-lookahead is evaluated before the leading space, letting
+    // `.setPower( 0 )` (spaces around the zero) wrongly count as non-zero power.
+    private static final Pattern NON_ZERO_POWER       = Pattern.compile("\\.setPower\\(\\s*+(?!0(?:\\.0*)?\\s*\\))[^)]+\\)");
     private static final Pattern ZERO_POWER           = Pattern.compile("\\.setPower\\(\\s*0(?:\\.0*)?\\s*\\)");
     private static final Pattern IS_BUSY_WHILE        = Pattern.compile("while\\s*\\([^{]*\\.isBusy\\s*\\(\\s*\\)[^{]*opModeIsActive|while\\s*\\([^{]*opModeIsActive[^{]*\\.isBusy\\s*\\(\\s*\\)");
     private static final Pattern REVERSE_DIRECTION    = Pattern.compile("setDirection\\s*\\(\\s*(?:DcMotor(?:Simple)?\\.)?Direction\\.REVERSE\\s*\\)");

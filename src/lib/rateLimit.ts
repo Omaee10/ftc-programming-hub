@@ -107,3 +107,6 @@ export const GRADE_IP_RATE = { limit: 20, windowMs: 60_000, backoff: true } as c
 
 /** Playground compile: 30 per IP per minute. */
 export const COMPILE_IP_RATE = { limit: 30, windowMs: 60_000 } as const;
+
+/** AI challenge generation: 10 per IP per minute (expensive upstream calls). */
+export const GENERATE_IP_RATE = { limit: 10, windowMs: 60_000 } as const;

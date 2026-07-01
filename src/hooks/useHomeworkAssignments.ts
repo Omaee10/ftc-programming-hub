@@ -28,6 +28,8 @@ const EMPTY_SNAPSHOT: HomeworkStoreSnapshot = {
 
 let storeSnapshot: HomeworkStoreSnapshot = EMPTY_SNAPSHOT;
 let loadInFlight: Promise<void> | null = null;
+/** Bumped per load so a superseded (older) load can't publish stale results. */
+let loadGeneration = 0;
 const storeListeners = new Set<() => void>();
 
 function publishStore(next: HomeworkStoreSnapshot): void {
@@ -165,6 +167,7 @@ async function ensureHomeworkLoaded(key: HomeworkCacheKey): Promise<void> {
   }
 
   const loadKey = key;
+  const myGen = ++loadGeneration;
   loadInFlight = (async () => {
     try {
       let assignments: HomeworkAssignmentRow[] = [];
@@ -177,7 +180,9 @@ async function ensureHomeworkLoaded(key: HomeworkCacheKey): Promise<void> {
         assignments = await fetchMentorHomework(ownerId);
       }
 
-      if (storeSnapshot.cacheKey !== loadKey) return;
+      // Drop if a newer load superseded this one (same key, concurrent refresh)
+      // or the session's key changed while we were fetching.
+      if (storeSnapshot.cacheKey !== loadKey || myGen !== loadGeneration) return;
 
       writeSessionCache(loadKey, assignments);
       publishStore({
@@ -188,7 +193,7 @@ async function ensureHomeworkLoaded(key: HomeworkCacheKey): Promise<void> {
       });
     } catch (error) {
       console.error("Failed to load homework assignments:", error);
-      if (storeSnapshot.cacheKey !== loadKey) return;
+      if (storeSnapshot.cacheKey !== loadKey || myGen !== loadGeneration) return;
 
       publishStore({
         assignments: [],
@@ -197,7 +202,9 @@ async function ensureHomeworkLoaded(key: HomeworkCacheKey): Promise<void> {
         cacheKey: loadKey,
       });
     } finally {
-      if (loadInFlight) loadInFlight = null;
+      // Only clear the guard if no newer load superseded this one — a
+      // concurrent refresh may have already installed its own promise.
+      if (myGen === loadGeneration) loadInFlight = null;
     }
   })();
 
@@ -362,16 +369,21 @@ export function useHomeworkAssignments() {
         return { error: error.message };
       }
 
-      const next = assignments.filter((a) => a.id !== assignmentId);
+      const next = getStoreSnapshot().assignments.filter(
+        (a) => a.id !== assignmentId
+      );
       publishStore({
         assignments: next,
         hydrated: true,
         loadError: null,
         cacheKey: storeSnapshot.cacheKey,
       });
+      if (storeSnapshot.cacheKey) {
+        writeSessionCache(storeSnapshot.cacheKey, next);
+      }
       return { error: null };
     },
-    [assignments]
+    []
   );
 
   return {

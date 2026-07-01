@@ -1,13 +1,15 @@
 import { getSingletonHighlighter } from "shiki";
 
+// Keep this union in sync with the `langs` loaded in getHighlighter below —
+// advertising a language that isn't loaded makes shiki throw at render time.
+// (Gradle build files use "groovy".)
 export type SupportedLang =
   | "java"
   | "kotlin"
   | "groovy"
   | "bash"
   | "json"
-  | "yaml"
-  | "gradle";
+  | "yaml";
 
 /**
  * Returns a cached shiki highlighter instance loaded with all langs/themes we

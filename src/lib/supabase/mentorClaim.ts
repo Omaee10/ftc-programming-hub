@@ -25,11 +25,19 @@ function namesMatch(
   if (!a || !b) return false;
   if (a === b) return true;
 
-  const aFirst = a.split(/\s+/)[0] ?? "";
-  const bFirst = b.split(/\s+/)[0] ?? "";
-  if (aFirst.length >= 3 && aFirst === bFirst) return true;
+  const aTokens = a.split(/\s+/).filter(Boolean);
+  const bTokens = b.split(/\s+/).filter(Boolean);
 
-  return a.includes(b) || b.includes(a);
+  // Only treat a bare given name as matching a fuller name when the first names
+  // are identical (e.g. "Sam" ↔ "Sam Carter"). The old substring / shared-
+  // first-name heuristics cross-linked DISTINCT people — "Ali" vs "Alice
+  // Johnson", "Sam Carter" vs "Sam Reed" — which let one mentor's login claim
+  // another's slot. Anything less certain must be claimed via the mentor code.
+  if (aTokens.length === 1 || bTokens.length === 1) {
+    return aTokens[0] === bTokens[0];
+  }
+
+  return false;
 }
 
 /** True if this login already owns or co-mentors in the same class as `mentor`. */
@@ -200,8 +208,6 @@ export async function transferMistakenOwnerClaimToCoMentor(
   return (await linkMentorToUser(admin, coSlot.id, userId, resolvedName)).ok;
 }
 
-const ITKAN_OWNER_NAME = "Wadood Mohammed";
-
 /** Students added on/after 3151781 (email/password auth + class picker onboarding). */
 export const NEW_LOGIN_SYSTEM_SINCE = "2026-06-05T05:19:26.000Z";
 
@@ -216,40 +222,6 @@ export function isItkanRoboticsClass(teamLabel: string): boolean {
 
 export function isNewLoginStudent(createdAt: string): boolean {
   return new Date(createdAt).getTime() >= new Date(NEW_LOGIN_SYSTEM_SINCE).getTime();
-}
-
-/** One-time: restore Wadood's Itkan Robotics owner slot so his sign-in code works. */
-export async function repairItkanOwnerSlotOnce(
-  admin: SupabaseClient,
-  ownerId: string
-): Promise<void> {
-  const { data: ownerRow } = await admin
-    .from("mentors")
-    .select("id, name, mentor_name, user_id")
-    .eq("id", ownerId)
-    .maybeSingle();
-
-  if (!ownerRow) return;
-  if (!isItkanRoboticsClass((ownerRow.name as string) ?? "")) return;
-
-  const patch: { mentor_name: string; user_id?: null } = {
-    mentor_name: ITKAN_OWNER_NAME,
-  };
-
-  if (ownerRow.user_id) {
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("display_name")
-      .eq("id", ownerRow.user_id as string)
-      .maybeSingle();
-
-    const linkedName = profile?.display_name?.trim() ?? "";
-    if (!namesMatch(linkedName, ITKAN_OWNER_NAME)) {
-      patch.user_id = null;
-    }
-  }
-
-  await admin.from("mentors").update(patch).eq("id", ownerId);
 }
 
 /** On dashboard load, fix owner-row links that belong on a co-mentor slot. */
@@ -331,7 +303,11 @@ export async function linkMentorToUser(
   return { ok: true };
 }
 
-/** Class owner or co-mentor may clear a mistaken sign-in on a row in their class. */
+/**
+ * Reset a mistaken sign-in on a mentor row. Only the class OWNER may reset other
+ * rows in their class; everyone else may reset only their own row. (A co-mentor
+ * must not be able to clear the owner's link — or a peer's — and lock them out.)
+ */
 export async function clearMentorAccountLink(
   admin: SupabaseClient,
   requesterUserId: string,
@@ -354,12 +330,12 @@ export async function clearMentorAccountLink(
     .select("id, created_by, user_id")
     .eq("user_id", requesterUserId);
 
-  const canManage = (requesterRows ?? []).some((row) => {
-    const r = row as { id: string; created_by?: string | null };
-    return r.id === ownerId || r.created_by === ownerId;
-  });
+  const isClassOwner = (requesterRows ?? []).some(
+    (row) => (row as { id: string }).id === ownerId
+  );
+  const isSelf = (target.user_id as string | null) === requesterUserId;
 
-  if (!canManage) {
+  if (!isClassOwner && !isSelf) {
     return { ok: false, error: "You do not have permission to reset this mentor link." };
   }
 

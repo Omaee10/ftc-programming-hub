@@ -597,6 +597,7 @@ export default function ChallengeWorkspace({
   // Load existing submission for this student + mentor challenge
   useEffect(() => {
     if (!isMentorChallenge || !studentSession?.id) return;
+    let cancelled = false;
     (async () => {
       const { data } = await supabase
         .from("challenge_submissions")
@@ -604,8 +605,15 @@ export default function ChallengeWorkspace({
         .eq("student_id", studentSession.id)
         .eq("challenge_id", challenge.id)
         .maybeSingle();
-      if (data) setSubmission(data as SubmissionRow);
+      // `?? null` so a challenge with no submission clears any prior one.
+      if (!cancelled) setSubmission((data as SubmissionRow) ?? null);
     })();
+    // Cleanup runs before the next challenge's effect, clearing the previous
+    // submission so its grade/feedback banner never leaks onto the next one.
+    return () => {
+      cancelled = true;
+      setSubmission(null);
+    };
   }, [challenge.id, isMentorChallenge, studentSession?.id]);
 
   // ── Editor state ────────────────────────────────────────────────────────

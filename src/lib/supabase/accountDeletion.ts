@@ -23,9 +23,17 @@ export async function releaseLinkedCodesBeforeDelete(
     return { ok: false, error: profileErr.message };
   }
 
-  const accountCreatedAt = profile?.created_at
-    ? new Date(profile.created_at as string)
-    : new Date();
+  // Authoritative account-creation time comes from the auth user; the profile
+  // row is only a fallback. If it can't be determined, DON'T release any
+  // enrollments — the old default of `new Date()` (now) made every student row
+  // look "older than the account" and released them all, orphaning self-joined
+  // rows instead of letting ON DELETE CASCADE remove them.
+  const { data: authUser } = await admin.auth.admin.getUserById(userId);
+  const accountCreatedRaw =
+    authUser?.user?.created_at
+    ?? (profile?.created_at as string | null | undefined)
+    ?? null;
+  const accountCreatedAt = accountCreatedRaw ? new Date(accountCreatedRaw) : null;
 
   const { data: students, error: studentsErr } = await admin
     .from("students")
@@ -39,7 +47,7 @@ export async function releaseLinkedCodesBeforeDelete(
   for (const row of students ?? []) {
     const enrolledAt = new Date(row.created_at as string);
     // Row existed before this account → mentor pre-added slot; release the code.
-    if (enrolledAt < accountCreatedAt) {
+    if (accountCreatedAt && enrolledAt < accountCreatedAt) {
       const { error: releaseErr } = await admin
         .from("students")
         .update({ user_id: null })

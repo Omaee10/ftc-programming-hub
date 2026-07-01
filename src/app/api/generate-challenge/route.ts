@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { applySecurityHeaders } from "@/lib/apiGuard";
+import {
+  GENERATE_IP_RATE,
+  checkRateLimit,
+  clientIdFrom,
+  rateLimitHeaders,
+} from "@/lib/rateLimit";
+import { createClient } from "@/lib/supabase/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 // Lazily instantiated so the module can be imported at build time without
 // requiring OPENAI_API_KEY to be set during static analysis.
@@ -32,6 +43,30 @@ Rules:
 - All code uses the FTC SDK (com.qualcomm.robotcore.*)`;
 
 export async function POST(request: Request) {
+  // Rate-limit per IP: these are billable upstream calls.
+  const clientIp = clientIdFrom(request);
+  const rate = checkRateLimit(`generate:ip:${clientIp}`, GENERATE_IP_RATE);
+  if (!rate.ok) {
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: "Too many generation requests — slow down a bit." },
+        { status: 429, headers: rateLimitHeaders(rate) }
+      )
+    );
+  }
+
+  // Require a signed-in user — this endpoint must not be a free, anonymous
+  // proxy to the OpenAI API.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return applySecurityHeaders(
+      NextResponse.json({ error: "Sign in to generate challenges." }, { status: 401 })
+    );
+  }
+
   try {
     const { gist, title } = (await request.json()) as {
       gist: string;
@@ -39,7 +74,9 @@ export async function POST(request: Request) {
     };
 
     if (!gist?.trim()) {
-      return NextResponse.json({ error: "gist is required" }, { status: 400 });
+      return applySecurityHeaders(
+        NextResponse.json({ error: "gist is required" }, { status: 400 })
+      );
     }
 
     const userPrompt = title?.trim()
@@ -62,12 +99,11 @@ export async function POST(request: Request) {
     const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
     const json = JSON.parse(cleaned);
 
-    return NextResponse.json(json);
+    return applySecurityHeaders(NextResponse.json(json));
   } catch (err) {
     console.error("generate-challenge error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Generation failed" },
-      { status: 500 }
+    return applySecurityHeaders(
+      NextResponse.json({ error: "Generation failed. Please try again." }, { status: 500 })
     );
   }
 }

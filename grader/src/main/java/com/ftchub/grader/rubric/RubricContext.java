@@ -20,12 +20,16 @@ public final class RubricContext {
     public final String source;
     public final String sourceNoComments;
     public final List<String> sourceLines;
+    /** Same lines as {@link #sourceLines} but with comment text blanked out. */
+    public final List<String> sourceLinesNoComments;
 
     public RubricContext(CompileResult compile, String source, String sourceNoComments) {
         this.compile = compile;
         this.source = source;
         this.sourceNoComments = sourceNoComments;
         this.sourceLines = compile.sourceLines();
+        this.sourceLinesNoComments =
+            java.util.Arrays.asList(sourceNoComments.split("\\r?\\n", -1));
     }
 
     public CompilationUnitTree tree() { return compile.parsed(); }

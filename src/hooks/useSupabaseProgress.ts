@@ -443,11 +443,6 @@ export function useSupabaseProgress(challengeId?: number) {
         return;
       }
 
-      const existing = records.find((r) => r.challenge_id === challengeId);
-      const completed =
-        existing?.completed ||
-        isLocallyCompleted(studentId, challengeId);
-
       const hashKey = snapshotKey(studentId, challengeId, "code");
       const upsertKey = snapshotKey(studentId, challengeId, "code");
 
@@ -457,6 +452,15 @@ export function useSupabaseProgress(challengeId?: number) {
         if (lastSavedCodeHash.get(hashKey) === hash) {
           return;
         }
+
+        // Read completion at run time, not schedule time: a markComplete() can
+        // land during the debounce window, and a stale captured `false` would
+        // otherwise revert it here.
+        const liveRecord = getStoreSnapshot().records.find(
+          (r) => r.challenge_id === challengeId
+        );
+        const completed =
+          liveRecord?.completed || isLocallyCompleted(studentId, challengeId);
 
         const { error } = await supabase.from("student_challenge_progress").upsert(
           {
@@ -507,11 +511,6 @@ export function useSupabaseProgress(challengeId?: number) {
         return;
       }
 
-      const existing = records.find((r) => r.challenge_id === challengeId);
-      const completed =
-        existing?.completed ||
-        isLocallyCompleted(studentId, challengeId);
-
       const hashKey = snapshotKey(studentId, challengeId, "blocks");
       const upsertKey = snapshotKey(studentId, challengeId, "blocks");
 
@@ -521,6 +520,15 @@ export function useSupabaseProgress(challengeId?: number) {
         if (lastSavedBlocksHash.get(hashKey) === hash) {
           return;
         }
+
+        // Read completion at run time, not schedule time: a markComplete() can
+        // land during the debounce window, and a stale captured `false` would
+        // otherwise revert it here.
+        const liveRecord = getStoreSnapshot().records.find(
+          (r) => r.challenge_id === challengeId
+        );
+        const completed =
+          liveRecord?.completed || isLocallyCompleted(studentId, challengeId);
 
         const { error } = await supabase.from("student_challenge_progress").upsert(
           {

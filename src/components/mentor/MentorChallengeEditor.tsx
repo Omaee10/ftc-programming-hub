@@ -43,6 +43,14 @@ export default function MentorChallengeEditor({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  // Auto-dismiss the "saved" banner so it doesn't linger over a freshly-cleared
+  // (create mode) or subsequently-edited form, implying unsaved work is saved.
+  useEffect(() => {
+    if (!saveSuccess) return;
+    const timer = setTimeout(() => setSaveSuccess(false), 4000);
+    return () => clearTimeout(timer);
+  }, [saveSuccess]);
+
   useEffect(() => {
     if (mode !== "edit" || !challengeId) return;
 

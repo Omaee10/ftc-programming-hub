@@ -257,11 +257,9 @@ public final class TreeHelpers {
 
     /** First 1-based source line matching {@code pattern} (comments stripped). */
     public static long firstSourceLineMatching(RubricContext ctx, Pattern pattern) {
-        for (int i = 0; i < ctx.sourceLines.size(); i++) {
-            String line = ctx.sourceLines.get(i);
-            int comment = line.indexOf("//");
-            if (comment >= 0) line = line.substring(0, comment);
-            if (pattern.matcher(line).find()) return i + 1L;
+        List<String> lines = ctx.sourceLinesNoComments;
+        for (int i = 0; i < lines.size(); i++) {
+            if (pattern.matcher(lines.get(i)).find()) return i + 1L;
         }
         return -1;
     }
@@ -415,11 +413,16 @@ public final class TreeHelpers {
         }
 
         // Variable-alias negation: capture a name assigned from an expression
-        // that reads the axis, then look for a unary negation of that name.
+        // that reads the axis, then look for a UNARY negation of that name.
+        // The minus must sit in an operand position (after `=`, `(`, `,`, a
+        // statement start, or another operator) — requiring that context stops
+        // plain binary subtraction like `a - y` from counting as a negation.
         Matcher assign = Pattern.compile("(\\w+)\\s*=\\s*[^;=]*" + field).matcher(src);
         while (assign.find()) {
             String var = assign.group(1);
-            if (Pattern.compile("-\\s*" + Pattern.quote(var) + "\\b").matcher(src).find()) {
+            Pattern unaryNeg = Pattern.compile(
+                "[=(,+\\-*/%<>&|!?:{;\\n]\\s*-\\s*" + Pattern.quote(var) + "\\b");
+            if (unaryNeg.matcher(src).find()) {
                 return true;
             }
         }
@@ -428,8 +431,11 @@ public final class TreeHelpers {
 
     public static List<Integer> lineNumbersMatching(RubricContext ctx, Pattern p) {
         List<Integer> out = new ArrayList<>();
-        for (int i = 0; i < ctx.sourceLines.size(); i++) {
-            if (p.matcher(ctx.sourceLines.get(i)).find()) out.add(i + 1);
+        // Match against comment-stripped lines so a pattern that appears only in
+        // a comment (e.g. "// no Thread.sleep()") does not count as a hit.
+        List<String> lines = ctx.sourceLinesNoComments;
+        for (int i = 0; i < lines.size(); i++) {
+            if (p.matcher(lines.get(i)).find()) out.add(i + 1);
         }
         return out;
     }

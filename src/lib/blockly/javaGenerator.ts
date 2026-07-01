@@ -372,7 +372,14 @@ F["ftc_arith"] = (block) => [
   ATOMIC,
 ];
 
-F["ftc_negate"] = (block) => [`-${val(block, "VALUE", "0")}`, ATOMIC];
+F["ftc_negate"] = (block) => {
+  const v = val(block, "VALUE", "0");
+  // Parenthesize unless it's a plain identifier/call, so a child that already
+  // starts with `-` (nested negate, negative literal) doesn't produce `--x`,
+  // which is invalid Java.
+  const simple = /^[A-Za-z_][A-Za-z0-9_.]*(\([^()]*\))?$/.test(v);
+  return [simple ? `-${v}` : `-(${v})`, ATOMIC];
+};
 
 F["ftc_math_unary"] = (block) => [
   `Math.${block.getFieldValue("FN")}(${val(block, "VALUE", "0")})`,

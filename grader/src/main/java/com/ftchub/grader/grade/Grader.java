@@ -288,7 +288,12 @@ public final class Grader {
     }
 
     private static String stripComments(String source) {
-        String noBlock = BLOCK_COMMENT.matcher(source).replaceAll(" ");
-        return LINE_COMMENT.matcher(noBlock).replaceAll("");
+        // Blank out comment text but preserve newlines so that line numbers in
+        // the stripped source still line up with the original — rubric rules
+        // report 1-based line numbers against this.
+        String noBlock = BLOCK_COMMENT.matcher(source)
+            .replaceAll(m -> m.group().replaceAll("[^\n]", " "));
+        String noLine = LINE_COMMENT.matcher(noBlock).replaceAll("");
+        return noLine;
     }
 }

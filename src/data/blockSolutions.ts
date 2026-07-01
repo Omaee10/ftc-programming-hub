@@ -186,7 +186,7 @@ export const BLOCK_SOLUTIONS: Record<number, WorkspaceState> = {
     dev("DcMotorEx", "drive_motor", "driveMotor"),
     wait(),
     resetEncoder("driveMotor"),
-    runToPos("driveMotor", num(1000), num(0.6)),
+    runToPos("driveMotor", num(500), num(0.6)),
     whileCond(isBusy("driveMotor"), [
       teleAdd("Pos", motorPos("driveMotor")),
       teleUpd(),
