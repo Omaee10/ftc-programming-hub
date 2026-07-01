@@ -12,9 +12,11 @@ import {
   Shield,
   UserPlus,
   Settings,
+  LogOut,
 } from "lucide-react";
-import { setSession } from "@/lib/auth";
+import { setSession, getSession, clearWorkspaceSession } from "@/lib/auth";
 import { formatLoadError, withTimeout } from "@/lib/withTimeout";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 const WORKSPACES_TIMEOUT_MS = 20_000;
 
@@ -41,6 +43,11 @@ type PickerItem = StudentEnrollment | MentorWorkspace;
 
 function mentorClassOwnerId(item: MentorWorkspace): string {
   return item.parentMentorId ?? item.id;
+}
+
+/** Students and co-mentors may leave; class owners must delete the class instead. */
+function canLeaveClass(item: PickerItem): boolean {
+  return item.kind === "student" || !item.isOwner;
 }
 
 /** One card per class — prefer the row that matches the user's profile name. */
@@ -92,6 +99,8 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
   const [reloadKey, setReloadKey] = useState(0);
+  const [leaveTarget, setLeaveTarget] = useState<PickerItem | null>(null);
+  const [leaving, setLeaving] = useState(false);
 
   const enterWorkspace = useCallback(
     (item: PickerItem) => {
@@ -188,6 +197,38 @@ export default function SignInPage() {
     enterWorkspace(item);
   };
 
+  const confirmLeave = useCallback(async () => {
+    if (!leaveTarget) return;
+    setLeaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/leave-class", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ kind: leaveTarget.kind, id: leaveTarget.id }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? "Failed to leave class.");
+        return;
+      }
+
+      // If the class we just left is the active workspace, clear it (stay signed in).
+      const active = getSession();
+      if (active && active.id === leaveTarget.id) {
+        clearWorkspaceSession();
+      }
+
+      setLeaveTarget(null);
+      setReloadKey((k) => k + 1); // refresh the class list
+    } catch (err) {
+      setError(formatLoadError(err));
+    } finally {
+      setLeaving(false);
+    }
+  }, [leaveTarget]);
+
   if (loading || isPending) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950">
@@ -279,13 +320,15 @@ export default function SignInPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {items.map((item) => (
-              <button
+              <div
                 key={`${item.kind}-${item.id}`}
-                type="button"
-                onClick={() => handleSelect(item)}
-                className="group w-full flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-900/50 px-5 py-4 text-left hover:border-slate-600/60 hover:bg-slate-800/60 transition-all duration-200 focus:outline-none accent-ring"
+                className="group w-full flex items-center gap-1 rounded-xl border border-slate-800/60 bg-slate-900/50 pr-3 hover:border-slate-600/60 hover:bg-slate-800/60 transition-all duration-200"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => handleSelect(item)}
+                  className="flex flex-1 items-center gap-3 min-w-0 rounded-xl px-5 py-4 text-left focus:outline-none accent-ring"
+                >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-800 border border-slate-700/60">
                     {item.kind === "student" ? (
                       <GraduationCap className="h-5 w-5 text-slate-400" />
@@ -306,9 +349,20 @@ export default function SignInPage() {
                       )}
                     </p>
                   </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-slate-400 shrink-0 transition-colors" />
-              </button>
+                </button>
+                {canLeaveClass(item) && (
+                  <button
+                    type="button"
+                    onClick={() => setLeaveTarget(item)}
+                    title="Leave class"
+                    aria-label={`Leave ${item.className || item.teamName}`}
+                    className="shrink-0 rounded-lg p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                )}
+                <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-slate-400 shrink-0 transition-colors pointer-events-none" />
+              </div>
             ))}
             <button
               type="button"
@@ -320,6 +374,25 @@ export default function SignInPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={leaveTarget !== null}
+        title="Leave this class?"
+        message={
+          leaveTarget
+            ? leaveTarget.kind === "student"
+              ? `Leave ${leaveTarget.className || leaveTarget.teamName}? Your saved progress and assignments for this class will be removed. This can't be undone.`
+              : `Leave ${leaveTarget.className || leaveTarget.teamName}? You'll lose co-mentor access to this class. This can't be undone.`
+            : ""
+        }
+        confirmLabel="Leave class"
+        variant="danger"
+        pending={leaving}
+        onConfirm={confirmLeave}
+        onCancel={() => {
+          if (!leaving) setLeaveTarget(null);
+        }}
+      />
     </div>
   );
 }
