@@ -87,7 +87,7 @@ function ChallengeCard({
       </div>
 
       {/* Description */}
-      <p className="text-xs leading-relaxed text-slate-500 line-clamp-2">
+      <p className="whitespace-pre-line text-xs leading-relaxed text-slate-500 line-clamp-2">
         {challenge.description}
       </p>
 

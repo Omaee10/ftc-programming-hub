@@ -1642,7 +1642,7 @@ export default function ChallengeWorkspace({
             {leftTab === "task" && (
               <>
                 {/* Description */}
-                <p className="break-words text-sm leading-relaxed text-slate-400">
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-400">
                   {challenge.description}
                 </p>
 
