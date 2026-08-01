@@ -12,7 +12,7 @@ import {
   STUDENT_LIST_COLUMNS,
   SUBMISSION_LIST_COLUMNS,
 } from "@/lib/supabase/progressColumns";
-import { hasMorePages, parsePagination } from "@/lib/supabase/queryHelpers";
+import { fetchAllRows, hasMorePages, parsePagination } from "@/lib/supabase/queryHelpers";
 
 const SCOPES: MentorDashboardScope[] = [
   "overview",
@@ -68,11 +68,16 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const { session, ownerId, admin: db } = access;
 
-  await repairClassMentorLinks(db, ownerId);
-  const backfilledClassCode = await ensureClassCodeForOwner(db, ownerId);
-
   switch (scope) {
     case "overview": {
+      // Idempotent link repair + class-code backfill. Scoped to "overview"
+      // because it is the only scope that consumes backfilledClassCode, and
+      // the overview runs on every dashboard mount — so repair coverage is
+      // unchanged while the other six scopes (and every "Load More" page)
+      // no longer pay ~5 serialized round trips for it.
+      await repairClassMentorLinks(db, ownerId);
+      const backfilledClassCode = await ensureClassCodeForOwner(db, ownerId);
+
       const authorIds = classChallengeAuthorIds(session);
 
       const { data: classStudents } = await db
@@ -140,21 +145,32 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       const studentIds = (students ?? []).map((row) => row.id as string);
 
-      // Completions only — the progress tab treats missing rows as incomplete.
+      // Completions only — the progress tab treats missing rows as incomplete,
+      // so a silently truncated read here would show finished work as unfinished.
+      // Both per-student reads scale as students x challenges and can exceed
+      // PostgREST's row cap, hence fetchAllRows rather than a bare select.
       const [{ data: progress }, { data: homework }, { data: challenges }] =
         await Promise.all([
           studentIds.length > 0
-            ? db
-                .from("student_challenge_progress")
-                .select("id, student_id, challenge_id, completed, updated_at")
-                .in("student_id", studentIds)
-                .eq("completed", true)
+            ? fetchAllRows((from, to) =>
+                db
+                  .from("student_challenge_progress")
+                  .select("id, student_id, challenge_id, completed, updated_at")
+                  .in("student_id", studentIds)
+                  .eq("completed", true)
+                  .order("id")
+                  .range(from, to)
+              )
             : Promise.resolve({ data: [], error: null }),
           studentIds.length > 0
-            ? db
-                .from("homework_assignments")
-                .select(HOMEWORK_LIST_COLUMNS)
-                .in("student_id", studentIds)
+            ? fetchAllRows((from, to) =>
+                db
+                  .from("homework_assignments")
+                  .select(HOMEWORK_LIST_COLUMNS)
+                  .in("student_id", studentIds)
+                  .order("id")
+                  .range(from, to)
+              )
             : Promise.resolve({ data: [], error: null }),
           authorIds.length > 0
             ? db
@@ -186,11 +202,17 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       const [{ data: homework }, { data: challenges }] = await Promise.all([
         studentIds.length > 0
-          ? db
-              .from("homework_assignments")
-              .select(HOMEWORK_LIST_COLUMNS)
-              .in("student_id", studentIds)
-              .order("assigned_at", { ascending: false })
+          ? // `id` is the tiebreaker so paging stays deterministic when several
+            // rows share an assigned_at; the primary sort is unchanged.
+            fetchAllRows((from, to) =>
+              db
+                .from("homework_assignments")
+                .select(HOMEWORK_LIST_COLUMNS)
+                .in("student_id", studentIds)
+                .order("assigned_at", { ascending: false })
+                .order("id")
+                .range(from, to)
+            )
           : Promise.resolve({ data: [], error: null }),
         authorIds.length > 0
           ? db

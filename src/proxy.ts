@@ -71,14 +71,6 @@ function routeGuard(
     | "student"
     | undefined;
 
-  if (pathname.startsWith("/api/")) {
-    const guard = validateApiPostRequest(request, pathname);
-    if (!guard.ok) {
-      return copyCookies(sessionResponse, guard.response);
-    }
-    return applySecurityHeaders(copyCookies(sessionResponse, NextResponse.next()));
-  }
-
   if (isPathMatch(pathname, AUTH_PUBLIC_PATHS)) {
     if (user) {
       return copyCookies(
@@ -181,6 +173,20 @@ function routeGuard(
 }
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
+
+  // API routes never consult the refreshed user, so skip the Supabase auth round
+  // trip entirely for them. Every handler builds its own server client and calls
+  // auth.getUser() itself, and that client's setAll writes refreshed cookies —
+  // which is permitted inside Route Handlers — so token refresh is unaffected.
+  if (pathname.startsWith("/api/")) {
+    const guard = validateApiPostRequest(request, pathname);
+    if (!guard.ok) {
+      return guard.response;
+    }
+    return applySecurityHeaders(NextResponse.next());
+  }
+
   const { response: sessionResponse, user } = await refreshAuthSession(request);
   const guarded = routeGuard(request, user, sessionResponse);
   return applySecurityHeaders(guarded);

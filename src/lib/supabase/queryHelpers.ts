@@ -28,3 +28,42 @@ export function parsePagination(
 export function hasMorePages(totalCount: number, pagination: PaginationParams): boolean {
   return (pagination.page + 1) * pagination.pageSize < totalCount;
 }
+
+/** Rows requested per page by {@link fetchAllRows}. */
+export const FETCH_ALL_CHUNK_SIZE = 1000;
+/** Hard stop so a misfiltered query can never loop indefinitely. */
+export const FETCH_ALL_MAX_ROWS = 50_000;
+
+type RowsResult<T> = { data: T[] | null; error: unknown };
+
+/**
+ * Reads every row matching a query by paging with `.range()`.
+ *
+ * PostgREST caps rows per response (Supabase defaults to 1000) and truncates
+ * SILENTLY rather than erroring. An unbounded `.select()` over a per-student
+ * table therefore starts dropping rows once a class grows — and for completion
+ * data that renders finished challenges as unfinished, with no visible failure.
+ *
+ * Advances by the number of rows actually returned rather than by `chunkSize`,
+ * so it stays correct even if the server cap is lower than the requested page.
+ * Callers must apply a deterministic `.order()` or paging may skip/repeat rows.
+ */
+export async function fetchAllRows<T = Record<string, unknown>>(
+  buildQuery: (from: number, to: number) => PromiseLike<RowsResult<T>>,
+  chunkSize = FETCH_ALL_CHUNK_SIZE
+): Promise<{ data: T[]; error: unknown }> {
+  const rows: T[] = [];
+  let from = 0;
+
+  while (from < FETCH_ALL_MAX_ROWS) {
+    const { data, error } = await buildQuery(from, from + chunkSize - 1);
+    if (error) return { data: rows, error };
+
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length === 0) break;
+    from += batch.length;
+  }
+
+  return { data: rows, error: null };
+}
