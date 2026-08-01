@@ -33,6 +33,13 @@ interface SignupBody {
 
 const SIX_DIGIT_CODE = /^\d{6}$/;
 
+/**
+ * Temporarily disabled. Flip to true to require users to click a confirmation
+ * link before signing in — that also re-enables the "Confirm email" dependency
+ * on the Supabase dashboard (Authentication -> Providers -> Email).
+ */
+const REQUIRE_EMAIL_CONFIRMATION = false;
+
 function guardResponse(body: Record<string, unknown>, status: number): NextResponse {
   return applySecurityHeaders(NextResponse.json(body, { status }));
 }
@@ -218,7 +225,7 @@ export async function POST(request: Request) {
   const { data: authData, error: authErr } = await admin.auth.admin.createUser({
     email,
     password,
-    email_confirm: false,
+    email_confirm: !REQUIRE_EMAIL_CONFIRMATION,
   });
 
   if (authErr || !authData.user) {
@@ -283,28 +290,33 @@ export async function POST(request: Request) {
     }
   }
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "")
-    || new URL(request.url).origin;
+  if (REQUIRE_EMAIL_CONFIRMATION) {
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "")
+      || new URL(request.url).origin;
 
-  const { error: resendErr } = await admin.auth.resend({
-    type: "signup",
-    email,
-    options: {
-      emailRedirectTo: `${siteUrl}/login`,
-    },
-  });
-
-  if (resendErr) {
-    console.error("[signup] confirmation email failed:", resendErr.message);
-    return guardResponse(
-      {
-        error:
-          "Account created, but the confirmation email could not be sent. Check Supabase SMTP settings, then ask an admin to resend confirmation or delete the user and try again.",
+    const { error: resendErr } = await admin.auth.resend({
+      type: "signup",
+      email,
+      options: {
+        emailRedirectTo: `${siteUrl}/login`,
       },
-      503
-    );
+    });
+
+    if (resendErr) {
+      console.error("[signup] confirmation email failed:", resendErr.message);
+      return guardResponse(
+        {
+          error:
+            "Account created, but the confirmation email could not be sent. Check Supabase SMTP settings, then ask an admin to resend confirmation or delete the user and try again.",
+        },
+        503
+      );
+    }
   }
 
-  return guardResponse({ ok: true, emailConfirmationRequired: true }, 200);
+  return guardResponse(
+    { ok: true, emailConfirmationRequired: REQUIRE_EMAIL_CONFIRMATION },
+    200
+  );
 }
