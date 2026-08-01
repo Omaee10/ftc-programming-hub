@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   GraderError,
+  isAbortLikeError,
   requirementsViaService,
 } from "@/lib/graderClient";
 
@@ -47,7 +48,7 @@ function handleErr(err: unknown) {
   if (err instanceof GraderError) {
     return NextResponse.json({ error: err.message }, { status: 503 });
   }
-  if (err instanceof Error && err.name === "AbortError") {
+  if (isAbortLikeError(err)) {
     return NextResponse.json(
       { error: "Analyzer timed out — the grader may still be waking up." },
       { status: 504 }

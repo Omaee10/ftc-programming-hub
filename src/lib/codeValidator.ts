@@ -116,7 +116,7 @@ async function postJson<T>(
       signal,
     });
   } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") {
+    if (isAbortLike(e)) {
       throw new GraderTimeoutError();
     }
     throw new GraderUnreachableError();
@@ -145,7 +145,7 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   try {
     res = await fetch(url, { method: "GET", signal });
   } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") throw new GraderTimeoutError();
+    if (isAbortLike(e)) throw new GraderTimeoutError();
     throw new GraderUnreachableError();
   }
   if (!res.ok) {
@@ -153,6 +153,17 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
     throw new GraderUnreachableError(errorFromResponseBody(res.status, txt));
   }
   return (await res.json()) as T;
+}
+
+/**
+ * `AbortSignal.timeout()` aborts with `TimeoutError`, the AbortController
+ * fallback below with `AbortError`. Both mean "we ran out of time".
+ */
+function isAbortLike(e: unknown): boolean {
+  return (
+    (e instanceof DOMException || e instanceof Error) &&
+    (e.name === "AbortError" || e.name === "TimeoutError")
+  );
 }
 
 function timeoutSignal(ms: number): AbortSignal {

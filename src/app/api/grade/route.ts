@@ -4,6 +4,7 @@ import { isValidGradeChallengeId } from "@/lib/challengeIds";
 import {
   GraderError,
   gradeViaService,
+  isAbortLikeError,
 } from "@/lib/graderClient";
 import {
   GRADE_IP_RATE,
@@ -139,7 +140,6 @@ export async function POST(request: Request) {
     return applySecurityHeaders(
       NextResponse.json(trimmed, {
         headers: {
-          "Content-Encoding": "identity",
           "Cache-Control": "no-store",
         },
       })
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
         NextResponse.json({ error: hint }, { status: err.status >= 500 ? 503 : err.status })
       );
     }
-    if (err instanceof Error && err.name === "AbortError") {
+    if (isAbortLikeError(err)) {
       return applySecurityHeaders(
         NextResponse.json(
           {

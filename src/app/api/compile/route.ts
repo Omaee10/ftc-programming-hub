@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { applySecurityHeaders } from "@/lib/apiGuard";
-import { GraderError, compileViaService } from "@/lib/graderClient";
+import { GraderError, compileViaService, isAbortLikeError } from "@/lib/graderClient";
 import {
   COMPILE_IP_RATE,
   checkRateLimit,
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
         NextResponse.json({ error: hint }, { status: err.status >= 500 ? 503 : err.status })
       );
     }
-    if (err instanceof Error && err.name === "AbortError") {
+    if (isAbortLikeError(err)) {
       return applySecurityHeaders(
         NextResponse.json(
           {

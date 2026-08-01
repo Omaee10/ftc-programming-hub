@@ -14,7 +14,14 @@ import { createHash } from "node:crypto";
 
 const GRADER_URL = process.env.GRADER_URL ?? "http://localhost:8080";
 const GRADER_SECRET = process.env.GRADER_SECRET ?? "";
-const GRADER_TIMEOUT_MS = Number(process.env.GRADER_TIMEOUT_MS ?? 60_000);
+// `??` only catches undefined. An empty env value (Vercel permits those) parses
+// to 0 and a non-numeric one to NaN — and both are treated as "abort now", which
+// surfaces as a permanent grader outage disguised as a cold start. Validate.
+const parsedGraderTimeout = Number(process.env.GRADER_TIMEOUT_MS);
+const GRADER_TIMEOUT_MS =
+  Number.isFinite(parsedGraderTimeout) && parsedGraderTimeout > 0
+    ? parsedGraderTimeout
+    : 60_000;
 
 function graderMisconfigured(): string | null {
   const url = process.env.GRADER_URL?.trim();
@@ -91,20 +98,29 @@ function cacheSet<T>(key: string, value: T): void {
 
 export type GraderHealth = { ok: true; stubs: number; libs: number } | { ok: false; error: string };
 
+/**
+ * True for both abort flavours: `AbortController.abort()` produces `AbortError`,
+ * while `AbortSignal.timeout()` produces `TimeoutError`. Callers that map an
+ * abort onto a 504 must accept either name.
+ */
+export function isAbortLikeError(e: unknown): boolean {
+  return e instanceof Error && (e.name === "AbortError" || e.name === "TimeoutError");
+}
+
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    // AbortSignal.timeout stays armed until the body has been fully consumed.
+    // A manual timer cleared in `finally` was disarmed as soon as the response
+    // headers arrived, so a grader that stalled mid-body hung unbounded — no
+    // value of GRADER_TIMEOUT_MS protected against it.
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") throw e;
+    if (isAbortLikeError(e)) throw e;
     const reason = e instanceof Error ? e.message : "network error";
     throw new GraderError(
       `Cannot reach grader at ${GRADER_URL} (${reason}). If Render is on the free tier, wait ~60s and try again.`,
       503
     );
-  } finally {
-    clearTimeout(timer);
   }
 }
 
