@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import Link from "next/link";
 import {
   Archive,
   ArrowLeft,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { getProgramById, pastProgramCatalog, categoryColors } from "@/data/pastPrograms";
+import ArchiveBackLink from "@/components/ArchiveBackLink";
 import CodeBlock from "@/components/CodeBlock";
 
 // ─── Static generation ────────────────────────────────────────────────────────
@@ -85,20 +85,12 @@ function DescriptionBlock({ text }: { text: string }) {
 
 export default async function ProgramPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ programId: string }>;
-  searchParams: Promise<{ category?: string }>;
 }) {
   const { programId } = await params;
-  const { category } = await searchParams;
   const program = getProgramById(programId);
   if (!program) notFound();
-
-  const archiveHref =
-    category && category !== "all"
-      ? `/past-programs?category=${category}`
-      : "/past-programs";
 
   const colors = categoryColors[program.category];
 
@@ -106,13 +98,10 @@ export default async function ProgramPage({
     <div className="mx-auto max-w-screen-2xl px-4 py-8 lg:px-8 space-y-6 page-enter">
       {/* ── Breadcrumb ───────────────────────────────────────────────────── */}
       <nav className="flex items-center gap-1.5 text-xs text-slate-600">
-        <Link
-          href={archiveHref}
-          className="flex items-center gap-1 hover:text-slate-300 transition-colors"
-        >
+        <ArchiveBackLink className="flex items-center gap-1 hover:text-slate-300 transition-colors">
           <Archive className="h-3 w-3" />
           Past Programs
-        </Link>
+        </ArchiveBackLink>
         <ChevronRight className="h-3 w-3" />
         <span className="text-slate-400">{program.name}</span>
       </nav>
@@ -141,13 +130,10 @@ export default async function ProgramPage({
           </div>
         </div>
 
-        <Link
-          href={archiveHref}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-700 hover:text-slate-200 transition-all"
-        >
+        <ArchiveBackLink className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-700 hover:text-slate-200 transition-all">
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to archive
-        </Link>
+        </ArchiveBackLink>
       </div>
 
       {/* ── Tags ─────────────────────────────────────────────────────────── */}

@@ -1191,6 +1191,9 @@ export default function ChallengeWorkspace({
   >([]);
 
   const consoleEndRef = useRef<HTMLDivElement>(null);
+  // Bumped on every submit so an in-flight console stream can detect that a
+  // newer submission has superseded it and stop appending.
+  const submissionSeq = useRef(0);
 
   const appendEntry = useCallback((entry: Omit<ConsoleEntry, "id" | "ts">) => {
     setConsoleEntries((prev) => [
@@ -1212,6 +1215,7 @@ export default function ChallengeWorkspace({
     setConsoleEntries([]);
     setLastGrade(null);
 
+    const runId = ++submissionSeq.current;
     const filename = `Challenge${challenge.id}_${challenge.title.replace(/\s+/g, "")}.java`;
     let finishedGrading = false;
 
@@ -1226,15 +1230,26 @@ export default function ChallengeWorkspace({
       }
     }
 
-    await delay(180);
-    appendEntry({ type: "running", message: `Compiling ${filename} with javac…` });
-
     const submissionCode = await resolveSubmissionCode();
 
     // ── Real grader call ─────────────────────────────────────────────
+    // Started before the intro animation so the request and the animation
+    // overlap instead of running back to back.
+    const gradePromise = gradeCode(
+      submissionCode,
+      challenge.id,
+      challenge.mentorRules
+    );
+    // Marks the rejection as handled while the animation plays; the await
+    // below still throws and is caught exactly as before.
+    gradePromise.catch(() => {});
+
+    await delay(180);
+    appendEntry({ type: "running", message: `Compiling ${filename} with javac…` });
+
     let result: GradedResult;
     try {
-      result = await gradeCode(submissionCode, challenge.id, challenge.mentorRules);
+      result = await gradePromise;
     } catch (err) {
       const msg =
         err instanceof GraderTimeoutError
@@ -1252,9 +1267,9 @@ export default function ChallengeWorkspace({
       return;
     }
 
-    await delay(120);
-    appendEntry({ type: "info", message: "Compilation complete — running rubric checks…" });
-
+    // ── Commit the verdict to state immediately ──────────────────────
+    // The console output below is cosmetic. Gating state on it kept Submit
+    // and "Mark as Complete" disabled for ~3s after the verdict was known.
     if (editorMode === "java") {
       const firstErrorLine = applyGraderMarkers(
         result,
@@ -1265,112 +1280,6 @@ export default function ChallengeWorkspace({
         editorRef.current.revealLineInCenter(firstErrorLine);
         editorRef.current.setPosition({ lineNumber: firstErrorLine, column: 1 });
       }
-    }
-
-    await delay(180);
-    appendEntry({ type: "separator", message: "" });
-
-    // ── Syntax issues ──────────────────────────────────────────────────
-    if (result.syntaxIssues.length > 0) {
-      appendEntry({ type: "info", message: "Syntax check:" });
-      for (const issue of result.syntaxIssues) {
-        await delay(120);
-        appendEntry({
-          type: issue.severity === "error" ? "error" : "warning",
-          message: withLinePrefix(issue.message, issue.lines),
-        });
-      }
-      appendEntry({ type: "separator", message: "" });
-    }
-
-    // ── Universal checks ───────────────────────────────────────────────
-    appendEntry({ type: "info", message: "OpMode requirements:" });
-    for (const r of result.universalResults) {
-      await delay(110);
-      appendEntry({
-        type: r.pass ? "success" : "error",
-        message: r.pass
-          ? `${r.label} — ${r.description}`
-          : withLinePrefix(`${r.label} — ${r.tip ?? r.description}`, r.matchedLines),
-      });
-    }
-
-    await delay(200);
-    appendEntry({ type: "separator", message: "" });
-
-    // ── Required checks ────────────────────────────────────────────────
-    appendEntry({
-      type: "info",
-      message: `Challenge ${challenge.id} — required checks:`,
-    });
-    for (const r of result.requiredResults) {
-      await delay(130);
-      appendEntry({
-        type: r.pass ? "success" : "error",
-        message: r.pass
-          ? `${r.label} — ${r.description}`
-          : withLinePrefix(`${r.label} — ${r.tip ?? r.description}`, r.matchedLines),
-      });
-    }
-
-    // ── Improvement hints (only shown if required all passed) ──────────
-    if (result.improvementResults.length > 0) {
-      await delay(220);
-      appendEntry({ type: "separator", message: "" });
-      appendEntry({ type: "info", message: "Best-practice suggestions:" });
-      for (const r of result.improvementResults) {
-        await delay(130);
-        appendEntry({
-          type: r.pass ? "success" : "warning",
-          message: r.pass
-            ? `${r.label} — ${r.description}`
-            : `${r.label} — ${r.tip ?? r.description}`,
-        });
-      }
-    }
-
-    // ── Style hints ────────────────────────────────────────────────────
-    if (result.styleResults.length > 0) {
-      const styleIssues = result.styleResults.filter((r) => !r.pass);
-      if (styleIssues.length > 0) {
-        await delay(200);
-        appendEntry({ type: "separator", message: "" });
-        appendEntry({ type: "info", message: "Code quality:" });
-        for (const r of styleIssues) {
-          await delay(100);
-          appendEntry({
-            type: "warning",
-            message: `${r.label} — ${r.tip ?? r.description}`,
-          });
-        }
-      }
-    }
-
-    // ── Verdict ────────────────────────────────────────────────────────
-    await delay(300);
-    appendEntry({ type: "separator", message: "" });
-
-    const { grade, verdict } = result;
-
-    const verdictType =
-      grade === "good"
-        ? "verdict-good"
-        : grade === "needs-improvement"
-        ? "verdict-improve"
-        : "verdict-wrong";
-
-    appendEntry({
-      type: verdictType,
-      message: verdict.title,
-      sub: verdict.subtitle,
-    });
-
-    if (grade === "good") {
-      await delay(160);
-      appendEntry({
-        type: "info",
-        message: "Deploy to robot hardware via Android Studio to verify on-field.",
-      });
     }
 
     // ── Populate live check statuses for the left panel ────────────────
@@ -1412,76 +1321,202 @@ export default function ChallengeWorkspace({
         .filter((r) => !r.pass)
         .map((r) => ({ label: r.label, tip: r.tip })),
     ]);
+
+    const { grade, verdict } = result;
     setLastGrade(grade);
+
+    // Local completion is synchronous and drives the "Completed" UI, so it
+    // must not wait on the animation either. The DB writes stay in the
+    // streamed sequence below, where they already were.
+    if (grade === "good" && !homeworkMode) {
+      markCompleteLocal(challenge.id);
+    }
+
     finishedGrading = true;
     setIsRunning(false);
 
-    // ── Auto-complete + mentor submit on "Good" (non-blocking for UI) ──
-    if (grade === "good") {
-      void (async () => {
-        if (homeworkMode && onHomeworkComplete) {
-          try {
-            const hwResult = await onHomeworkComplete(submissionCode);
-            if (hwResult && !hwResult.ok) {
-              appendEntry({
-                type: "warning",
-                message: hwResult.error ?? "Could not save homework completion.",
-              });
-            } else {
-              appendEntry({
-                type: "info",
-                message: "Homework marked complete.",
-              });
-            }
-          } catch {
-            appendEntry({
-              type: "warning",
-              message: "Could not save homework completion — use Mark Homework Complete.",
-            });
-          }
-        } else if (!homeworkMode) {
-          markCompleteLocal(challenge.id);
-          await saveCode(submissionCode, { flush: true });
-          await markCompleteDB(challenge.id, submissionCode);
+    // ── Console output streams in the background ──────────────────────
+    void (async () => {
+      // Resolves false once a newer submission has superseded this run, so a
+      // stale stream stops appending into a console that was already cleared.
+      const step = async (ms: number) => {
+        await delay(ms);
+        return submissionSeq.current === runId;
+      };
+
+      if (!(await step(120))) return;
+      appendEntry({ type: "info", message: "Compilation complete — running rubric checks…" });
+
+      if (!(await step(180))) return;
+      appendEntry({ type: "separator", message: "" });
+
+      // ── Syntax issues ──────────────────────────────────────────────────
+      if (result.syntaxIssues.length > 0) {
+        appendEntry({ type: "info", message: "Syntax check:" });
+        for (const issue of result.syntaxIssues) {
+          if (!(await step(120))) return;
           appendEntry({
-            type: "info",
-            message: "Challenge marked complete — XP awarded.",
+            type: issue.severity === "error" ? "error" : "warning",
+            message: withLinePrefix(issue.message, issue.lines),
           });
         }
+        appendEntry({ type: "separator", message: "" });
+      }
 
-        if (isMentorChallenge) {
-          if (!studentSession?.id) {
+      // ── Universal checks ───────────────────────────────────────────────
+      appendEntry({ type: "info", message: "OpMode requirements:" });
+      for (const r of result.universalResults) {
+        if (!(await step(110))) return;
+        appendEntry({
+          type: r.pass ? "success" : "error",
+          message: r.pass
+            ? `${r.label} — ${r.description}`
+            : withLinePrefix(`${r.label} — ${r.tip ?? r.description}`, r.matchedLines),
+        });
+      }
+
+      if (!(await step(200))) return;
+      appendEntry({ type: "separator", message: "" });
+
+      // ── Required checks ────────────────────────────────────────────────
+      appendEntry({
+        type: "info",
+        message: `Challenge ${challenge.id} — required checks:`,
+      });
+      for (const r of result.requiredResults) {
+        if (!(await step(130))) return;
+        appendEntry({
+          type: r.pass ? "success" : "error",
+          message: r.pass
+            ? `${r.label} — ${r.description}`
+            : withLinePrefix(`${r.label} — ${r.tip ?? r.description}`, r.matchedLines),
+        });
+      }
+
+      // ── Improvement hints (only shown if required all passed) ──────────
+      if (result.improvementResults.length > 0) {
+        if (!(await step(220))) return;
+        appendEntry({ type: "separator", message: "" });
+        appendEntry({ type: "info", message: "Best-practice suggestions:" });
+        for (const r of result.improvementResults) {
+          if (!(await step(130))) return;
+          appendEntry({
+            type: r.pass ? "success" : "warning",
+            message: r.pass
+              ? `${r.label} — ${r.description}`
+              : `${r.label} — ${r.tip ?? r.description}`,
+          });
+        }
+      }
+
+      // ── Style hints ────────────────────────────────────────────────────
+      if (result.styleResults.length > 0) {
+        const styleIssues = result.styleResults.filter((r) => !r.pass);
+        if (styleIssues.length > 0) {
+          if (!(await step(200))) return;
+          appendEntry({ type: "separator", message: "" });
+          appendEntry({ type: "info", message: "Code quality:" });
+          for (const r of styleIssues) {
+            if (!(await step(100))) return;
+            appendEntry({
+              type: "warning",
+              message: `${r.label} — ${r.tip ?? r.description}`,
+            });
+          }
+        }
+      }
+
+      // ── Verdict ────────────────────────────────────────────────────────
+      if (!(await step(300))) return;
+      appendEntry({ type: "separator", message: "" });
+
+      const verdictType =
+        grade === "good"
+          ? "verdict-good"
+          : grade === "needs-improvement"
+          ? "verdict-improve"
+          : "verdict-wrong";
+
+      appendEntry({
+        type: verdictType,
+        message: verdict.title,
+        sub: verdict.subtitle,
+      });
+
+      if (grade === "good") {
+        if (!(await step(160))) return;
+        appendEntry({
+          type: "info",
+          message: "Deploy to robot hardware via Android Studio to verify on-field.",
+        });
+      }
+
+      // ── Auto-complete + mentor submit on "Good" ────────────────────────
+      // Kept at the tail of the stream so these messages stay in order after
+      // the verdict, matching the previous behaviour and timing.
+      if (grade !== "good") return;
+
+      if (homeworkMode && onHomeworkComplete) {
+        try {
+          const hwResult = await onHomeworkComplete(submissionCode);
+          if (hwResult && !hwResult.ok) {
+            appendEntry({
+              type: "warning",
+              message: hwResult.error ?? "Could not save homework completion.",
+            });
+          } else {
+            appendEntry({
+              type: "info",
+              message: "Homework marked complete.",
+            });
+          }
+        } catch {
+          appendEntry({
+            type: "warning",
+            message: "Could not save homework completion — use Mark Homework Complete.",
+          });
+        }
+      } else if (!homeworkMode) {
+        await saveCode(submissionCode, { flush: true });
+        await markCompleteDB(challenge.id, submissionCode);
+        appendEntry({
+          type: "info",
+          message: "Challenge marked complete — XP awarded.",
+        });
+      }
+
+      if (isMentorChallenge) {
+        if (!studentSession?.id) {
+          appendEntry({
+            type: "warning",
+            message:
+              "Sign in as a student and pick your class to submit for mentor review.",
+          });
+        } else {
+          const { javaSnapshot, blocksSnapshot, blocksChanged } =
+            resolveMentorReviewSnapshots();
+          if (!javaSnapshot.trim() && !blocksChanged) {
             appendEntry({
               type: "warning",
               message:
-                "Sign in as a student and pick your class to submit for mentor review.",
+                "Add Java code or FTC Blocks before submitting for mentor review.",
             });
           } else {
-            const { javaSnapshot, blocksSnapshot, blocksChanged } =
-              resolveMentorReviewSnapshots();
-            if (!javaSnapshot.trim() && !blocksChanged) {
+            const { error: reviewErr } = await submitForMentorReview(
+              javaSnapshot,
+              blocksSnapshot,
+              blocksChanged
+            );
+            if (!reviewErr) {
               appendEntry({
-                type: "warning",
-                message:
-                  "Add Java code or FTC Blocks before submitting for mentor review.",
+                type: "info",
+                message: "Submitted to your mentor for review.",
               });
-            } else {
-              const { error: reviewErr } = await submitForMentorReview(
-                javaSnapshot,
-                blocksSnapshot,
-                blocksChanged
-              );
-              if (!reviewErr) {
-                appendEntry({
-                  type: "info",
-                  message: "Submitted to your mentor for review.",
-                });
-              }
             }
           }
         }
-      })();
-    }
+      }
+    })();
     } finally {
       if (!finishedGrading) setIsRunning(false);
     }
