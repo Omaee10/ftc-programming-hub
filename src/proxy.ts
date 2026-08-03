@@ -151,6 +151,7 @@ function routeGuard(
     pathname.startsWith("/challenges") ||
     pathname.startsWith("/playground") ||
     pathname.startsWith("/homework") ||
+    pathname.startsWith("/past-programs") ||
     pathname.startsWith("/docs");
 
   if (isMainApp) {
