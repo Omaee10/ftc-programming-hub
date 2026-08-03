@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import DocPageLayout from "@/components/DocPageLayout";
 import CodeBlock from "@/components/CodeBlock";
+import DocVideo from "@/components/DocVideo";
 import { NoteBox, SpecTable, InfoGrid, Prose, StepList } from "@/components/DocPrimitives";
 
 export const metadata: Metadata = { title: "Android Studio Setup – FTC Programming Hub" };
@@ -44,6 +45,7 @@ export default function AndroidStudioPage() {
           title: "Install Android Studio",
           content: (
             <Prose>
+              <DocVideo docSlug="android-studio" sectionId="install-android-studio" />
               <StepList
                 steps={[
                   "Download Android Studio from developer.android.com/studio. The current version is Ladybug 2024.2.",

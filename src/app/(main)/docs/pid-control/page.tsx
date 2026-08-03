@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import DocPageLayout from "@/components/DocPageLayout";
 import CodeBlock from "@/components/CodeBlock";
+import DocVideo from "@/components/DocVideo";
 import { NoteBox, SpecTable, InfoGrid, Prose, StepList } from "@/components/DocPrimitives";
 
 export const metadata: Metadata = { title: "PID & Control Loops – FTC Programming Hub" };
@@ -192,6 +193,7 @@ while (opModeIsActive()) {
           title: "Tuning PID",
           content: (
             <Prose>
+              <DocVideo docSlug="pid-control" sectionId="pid-tuning" />
               <p>
                 Tune gains in this order — never adjust all three at once:
               </p>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import DocPageLayout from "@/components/DocPageLayout";
 import CodeBlock from "@/components/CodeBlock";
+import DocVideo from "@/components/DocVideo";
 import { NoteBox, SpecTable, InfoGrid, Prose, StepList } from "@/components/DocPrimitives";
 
 export const metadata: Metadata = { title: "Limelight 3A – FTC Programming Hub" };
@@ -56,6 +57,7 @@ export default function LimelightPage() {
           title: "Wiring & Configuration",
           content: (
             <Prose>
+              <DocVideo docSlug="limelight" sectionId="wiring-setup" />
               <p>
                 The Limelight 3A connects to the Control Hub via a single
                 USB-C to USB-A cable. It enumerates as an ethernet device

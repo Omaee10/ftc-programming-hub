@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import DocPageLayout from "@/components/DocPageLayout";
 import CodeBlock from "@/components/CodeBlock";
+import DocVideo from "@/components/DocVideo";
 import { NoteBox, SpecTable, InfoGrid, Prose, StepList } from "@/components/DocPrimitives";
 
 export const metadata: Metadata = { title: "Road Runner – FTC Programming Hub" };
@@ -231,6 +232,7 @@ localizer = new DriveLocalizer(hardwareMap, PARAMS.inPerTick, pose, leftMotors, 
           title: "Tuning Process",
           content: (
             <Prose>
+              <DocVideo docSlug="road-runner" sectionId="tuning" />
               <p>
                 Tuning is the most critical step. Run every OpMode{" "}
                 <strong>in order</strong> — later steps depend on earlier

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import DocPageLayout from "@/components/DocPageLayout";
 import CodeBlock from "@/components/CodeBlock";
+import DocVideo from "@/components/DocVideo";
 import { NoteBox, SpecTable, InfoGrid, Prose, StepList } from "@/components/DocPrimitives";
 
 export const metadata: Metadata = { title: "Mecanum Drive – FTC Programming Hub" };
@@ -23,6 +24,7 @@ export default function MecanumDrivePage() {
           title: "How Mecanum Works",
           content: (
             <Prose>
+              <DocVideo docSlug="mecanum-drive" sectionId="how-mecanum-works" />
               <p>
                 Mecanum wheels have rollers mounted at <strong>45°</strong> to
                 the wheel axle. When a wheel spins, the force on the ground is

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import DocPageLayout from "@/components/DocPageLayout";
 import CodeBlock from "@/components/CodeBlock";
+import DocVideo from "@/components/DocVideo";
 import { NoteBox, SpecTable, InfoGrid, Prose, StepList } from "@/components/DocPrimitives";
 
 export const metadata: Metadata = { title: "REV Robotics – FTC Programming Hub" };
@@ -23,6 +24,7 @@ export default function REVRoboticsPage() {
           title: "Control Hub",
           content: (
             <Prose>
+              <DocVideo docSlug="rev-robotics" sectionId="control-hub" />
               <p>
                 The <strong>REV Control Hub (REV-31-1595)</strong> is the
                 all-in-one robot controller for FTC. It runs the Robot Controller

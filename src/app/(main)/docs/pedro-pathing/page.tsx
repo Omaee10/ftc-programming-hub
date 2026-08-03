@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import DocPageLayout from "@/components/DocPageLayout";
 import CodeBlock from "@/components/CodeBlock";
+import DocVideo from "@/components/DocVideo";
 import { NoteBox, SpecTable, InfoGrid, Prose, StepList } from "@/components/DocPrimitives";
 
 export const metadata: Metadata = { title: "Pedro Pathing – FTC Programming Hub" };
@@ -83,6 +84,7 @@ export default function PedroPathingPage() {
           title: "Installation",
           content: (
             <Prose>
+              <DocVideo docSlug="pedro-pathing" sectionId="installation" />
               <p>
                 The easiest way to get started is the{" "}
                 <strong>Pedro Pathing Quickstart</strong> — a ready-to-use Android
