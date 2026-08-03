@@ -1283,8 +1283,11 @@ export default function ChallengeWorkspace({
     }
 
     // ── Populate live check statuses for the left panel ────────────────
+    // Older grader deployments omit behaviorResults entirely — see GradedResult.
+    const behaviorResults = result.behaviorResults ?? [];
+
     const statuses: Record<string, "pass" | "fail" | "warn"> = {};
-    [...result.universalResults, ...result.requiredResults].forEach((r) => {
+    [...result.universalResults, ...result.requiredResults, ...behaviorResults].forEach((r) => {
       statuses[r.label] = r.pass ? "pass" : "fail";
     });
     result.improvementResults.forEach((r) => {
@@ -1311,7 +1314,17 @@ export default function ChallengeWorkspace({
       .filter((r) => !r.pass)
       .map((r) => ({ label: r.label, tip: r.tip, lines: r.matchedLines }));
 
-    setFailedErrors([...syntaxErrors, ...universalRequiredFails, ...challengeRequiredFails]);
+    // A failed test case is a hard failure, same as a failed required check.
+    const behaviorFails = behaviorResults
+      .filter((r) => !r.pass)
+      .map((r) => ({ label: r.label, tip: r.tip, lines: r.matchedLines }));
+
+    setFailedErrors([
+      ...syntaxErrors,
+      ...universalRequiredFails,
+      ...challengeRequiredFails,
+      ...behaviorFails,
+    ]);
     setFailedImprovements([
       ...universalSoftFails,
       ...result.improvementResults
@@ -1391,6 +1404,26 @@ export default function ChallengeWorkspace({
             ? `${r.label} — ${r.description}`
             : withLinePrefix(`${r.label} — ${r.tip ?? r.description}`, r.matchedLines),
         });
+      }
+
+      // ── Behaviour tests ────────────────────────────────────────────────
+      // Unlike every section above, these ran the student's code. The
+      // description carries the failing case ("mirrorX(0) returned 0,
+      // expected 3657.6"), so print it instead of the generic tip.
+      if (behaviorResults.length > 0) {
+        if (!(await step(220))) return;
+        appendEntry({ type: "separator", message: "" });
+        appendEntry({ type: "info", message: "Test cases:" });
+        for (const r of behaviorResults) {
+          if (!(await step(130))) return;
+          appendEntry({
+            type: r.pass ? "success" : "error",
+            message: `${r.label} — ${r.description}`,
+          });
+          if (!r.pass && r.tip) {
+            appendEntry({ type: "info", message: `  ↳ ${r.tip}` });
+          }
+        }
       }
 
       // ── Improvement hints (only shown if required all passed) ──────────

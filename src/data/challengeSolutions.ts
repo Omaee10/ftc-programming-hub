@@ -1013,7 +1013,7 @@ public class TicksToDegreesSolution extends LinearOpMode {
 
     private DcMotor turretMotor;
     private static final double TICKS_PER_REV = 537.7;
-    private static final double GEAR_RATIO = 1.0;
+    private static final double GEAR_RATIO = 2.0;
 
     private double ticksToDegrees(int ticks) {
         return ticks * 360.0 / (TICKS_PER_REV * GEAR_RATIO);

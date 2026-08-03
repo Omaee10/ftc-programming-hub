@@ -16,8 +16,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Compiles a single source string in-memory using {@link JavaCompiler},
@@ -39,6 +41,16 @@ public final class InMemoryCompiler {
     }
 
     public CompileResult compile(String source) {
+        return compile(source, false);
+    }
+
+    /**
+     * @param emitBytecode when true, run codegen as well as analysis so the
+     *                     behaviour runner can actually execute the submission.
+     *                     Costs an extra javac phase, so callers only ask for it
+     *                     on challenges that have behaviour tests.
+     */
+    public CompileResult compile(String source, boolean emitBytecode) {
         String className = inferClassName(source);
         InMemoryJavaFileObject src = new InMemoryJavaFileObject(className, source);
 
@@ -115,7 +127,53 @@ public final class InMemoryCompiler {
             diagnostics.add(new Diagnostic(kind, line, column, code, friendly, snippet));
         }
 
-        return new CompileResult(diagnostics, fatal, parsed, task, trees, source, source.lines().toList());
+        Map<String, byte[]> classBytes = emitBytecode && !fatal
+                ? generateBytecode(javac, src)
+                : Map.of();
+
+        return new CompileResult(diagnostics, fatal, parsed, task, trees, source,
+                source.lines().toList(), classBytes, className);
+    }
+
+    /**
+     * Second, throwaway compilation whose only job is emitting class files.
+     *
+     * Codegen has to be a separate task: {@code JavacTask.generate()} disposes
+     * the javac context, which invalidates the {@link Trees} instance the rubric
+     * rules traverse with. Running it here keeps the analysis task pristine at
+     * the cost of one extra pass — and only on the handful of challenges that
+     * have behaviour tests.
+     */
+    private Map<String, byte[]> generateBytecode(JavaCompiler javac, InMemoryJavaFileObject src) {
+        try {
+            StandardJavaFileManager standard =
+                    javac.getStandardFileManager(null, Locale.US, StandardCharsets.UTF_8);
+            StubBackedFileManager mgr = new StubBackedFileManager(standard, stubs.compiledStubs());
+
+            List<String> options = new ArrayList<>(Arrays.asList(
+                    "-proc:none",
+                    "-g:none",
+                    "-implicit:none",
+                    "-Xlint:-options"
+            ));
+            if (!classpath.isEmpty()) {
+                options.add("-classpath");
+                options.add(classpath);
+            }
+
+            boolean ok = javac.getTask(null, mgr, null, options, null, List.of(src)).call();
+            if (!ok) return Map.of();
+
+            Map<String, byte[]> out = new HashMap<>();
+            for (Map.Entry<String, InMemoryClassFileObject> e : mgr.outputClasses().entrySet()) {
+                byte[] bytes = e.getValue().bytes();
+                if (bytes.length > 0) out.put(e.getKey(), bytes);
+            }
+            return out;
+        } catch (Throwable t) {
+            log.warn("Bytecode generation failed — behaviour tests will be skipped", t);
+            return Map.of();
+        }
     }
 
     /** Pull the public top-level class name out of the source — falls back to "Submission". */

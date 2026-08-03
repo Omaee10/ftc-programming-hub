@@ -32,8 +32,14 @@ for (const id of SOLUTION_IDS) {
       ...(json.universalResults ?? []),
       ...(json.requiredResults ?? []),
       ...(json.improvementResults ?? []),
+      ...(json.behaviorResults ?? []),
     ].filter((c) => !c.pass);
-    for (const c of failed) console.log(`   [${c.tier}] ${c.label}`);
+    // Behaviour failures carry the offending case in `description`, which is
+    // the only way to tell which input the reference solution got wrong.
+    for (const c of failed) {
+      console.log(`   [${c.tier}] ${c.label}`);
+      if (c.tier === "behavior") console.log(`      ${c.description}`);
+    }
   }
 }
 

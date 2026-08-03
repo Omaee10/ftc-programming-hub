@@ -2,6 +2,8 @@ package com.ftchub.grader.rubric;
 
 import com.ftchub.grader.api.MentorRuleSpec;
 import com.ftchub.grader.api.RequirementPreviewJson;
+import com.ftchub.grader.behavior.BehaviorSpec;
+import com.ftchub.grader.behavior.BehaviorSuite;
 import com.ftchub.grader.rubric.challenges.ChallengeRubrics;
 import com.ftchub.grader.rubric.mentor.JsonRule;
 import com.ftchub.grader.rubric.universal.UniversalRules;
@@ -41,6 +43,13 @@ public final class Rubric {
         }
         for (RubricRule r : forChallenge(challengeId, mentorRules)) {
             if (r.tier() == Tier.REQUIRED) preview.add(toPreview(r, "challenge"));
+        }
+        // Behaviour checks sit with the required tier — they are pass/fail and
+        // they gate the grade. The preview deliberately names the contract but
+        // not the expected values, so the panel can't be used as an answer key.
+        for (BehaviorSpec spec : BehaviorSuite.forChallenge(challengeId)) {
+            preview.add(new RequirementPreviewJson(
+                    spec.label(), spec.description(), Tier.BEHAVIOR.wire(), "challenge"));
         }
         for (RubricRule r : universal()) {
             if (r.tier() != Tier.REQUIRED) preview.add(toPreview(r, "universal"));

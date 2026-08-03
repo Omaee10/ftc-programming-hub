@@ -5,6 +5,7 @@ import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import com.ftchub.grader.api.CompileRequest;
 import com.ftchub.grader.api.GradedResultJson;
 import com.ftchub.grader.api.MentorRuleSpec;
+import com.ftchub.grader.behavior.BehaviorRunner;
 import com.ftchub.grader.compile.InMemoryCompiler;
 import com.ftchub.grader.compile.StubLoader;
 import com.ftchub.grader.grade.Grader;
@@ -42,7 +43,13 @@ public final class GraderServer {
     private static final Logger log = LoggerFactory.getLogger(GraderServer.class);
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .registerModule(new ParameterNamesModule());
-    private static final long COMPILE_TIMEOUT_SECONDS = 10;
+    /**
+     * Ceiling for one /compile request. Behaviour-tested challenges fork a JVM
+     * inside this budget, and a cold free-tier container is slow to do that, so
+     * the default leaves room for {@code BEHAVIOR_PROCESS_TIMEOUT_MS} (15s) plus
+     * the compile itself. Tune with COMPILE_TIMEOUT_SECONDS.
+     */
+    private static final long COMPILE_TIMEOUT_SECONDS = envInt("COMPILE_TIMEOUT_SECONDS", 25);
 
     public static void main(String[] args) throws Exception {
         int port = envInt("PORT", 8080);
@@ -58,7 +65,9 @@ public final class GraderServer {
                 compiled, stubs.classpathLibs().size());
 
         InMemoryCompiler compiler = new InMemoryCompiler(stubs);
-        Grader grader = new Grader(compiler);
+        // The runner needs the stub bytecode too — the sandbox JVM has to
+        // resolve LinearOpMode and friends to instantiate a submission.
+        Grader grader = new Grader(compiler, new BehaviorRunner(stubs.compiledStubs()));
         ExecutorService pool = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "grader-worker");
             t.setDaemon(true);

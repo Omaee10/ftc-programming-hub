@@ -13,7 +13,16 @@
 
 export type Grade = "good" | "needs-improvement" | "wrong";
 
-export type CheckTier = "required" | "improvement" | "style";
+/**
+ * `behavior` checks are executed test cases rather than static rules — the
+ * grader compiles the submission, calls the helper method under test in a
+ * sandbox, and compares what it returns. They gate the grade exactly like
+ * `required` does.
+ */
+export type CheckTier = "required" | "improvement" | "style" | "behavior";
+
+/** Mentors author static rules only; behaviour tests ship with the grader. */
+export type MentorRuleTier = "required" | "improvement" | "style";
 
 export interface CheckResult {
   label: string;
@@ -37,6 +46,13 @@ export interface GradedResult {
   requiredResults: CheckResult[];
   improvementResults: CheckResult[];
   styleResults: CheckResult[];
+  /**
+   * Optional because the grader deploys separately from this app: a Render
+   * image that predates the behaviour tier omits the field entirely. It is also
+   * absent for challenges with no behaviour coverage, and when the sandbox was
+   * unavailable — in every one of those cases the UI simply shows nothing.
+   */
+  behaviorResults?: CheckResult[];
   score: {
     required: { passed: number; total: number };
     improvement: { passed: number; total: number };
@@ -85,7 +101,7 @@ export interface MentorRuleSpec {
   label?: string;
   description?: string;
   tip?: string;
-  tier?: CheckTier;
+  tier?: MentorRuleTier;
 }
 
 // ─── Implementation ──────────────────────────────────────────────────────

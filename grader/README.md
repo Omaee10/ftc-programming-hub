@@ -5,6 +5,9 @@ the real `javax.tools.JavaCompiler`, then runs a type-aware AST rubric on
 the parsed tree. Replaces the regex-based grader that used to live in
 `src/lib/codeValidator.ts`.
 
+A handful of challenges additionally get their helper methods **executed** —
+see [Behaviour tests](#behaviour-tests) below.
+
 ## Keeping rubrics aligned with challenges
 
 Challenge definitions live in `src/data/challenges.ts`. Each rubric method in
@@ -134,6 +137,69 @@ curl https://YOUR-SERVICE.onrender.com/healthz
 CI (`.github/workflows/grader-test.yml`) still builds and smoke-tests the
 grader on every push to `grader/**`; deploy is from the Render dashboard
 (or Blueprint auto-deploy on push).
+
+## Behaviour tests
+
+The AST rubric checks that code has the right *shape*. It cannot tell
+`Math.atan2(dy, dx)` from `Math.atan2(dx, dy)`, or catch a `ticksToDegrees()`
+that forgets the gear ratio — both call the right methods in the right places.
+Behaviour tests close that gap by compiling the submission to bytecode, calling
+the helper method with fixed inputs, and comparing what comes back.
+
+They run **in addition to** the rubric, never instead of it. A behaviour failure
+forces `grade = "wrong"`, exactly like a failed required check, and arrives on
+the wire in a separate `behaviorResults` array.
+
+### Which challenges
+
+Only ones whose answer is a pure helper — callable with plain numbers, no
+hardware, no gamepad, no loop:
+
+| Challenge | Method under test |
+| --------- | ----------------- |
+| 18 Mecanum Power Normalization | `double[] normalize(double, double, double, double)` |
+| 24 Encoder Ticks to Degrees    | `double ticksToDegrees(int)` |
+| 33 Pythagorean Distance to Goal| `double distanceToGoal(double, double)` |
+| 35 Alliance Coordinate Mirror  | `double mirrorX(double)` |
+| 36 Degrees ↔ Radians           | `double toRadians(double)`, `double toDegrees(double)` |
+
+Challenges 23 and 34 are deliberately absent: their math lives inline in
+`runOpMode()`, so there is no method to call. Testing them would mean either
+changing their starter code or building a robot simulator with fake hardware, a
+clock, and scripted gamepad input.
+
+Each method gets **several** cases, including edge cases that a hard-coded
+return of the value quoted in the challenge instructions will fail.
+
+### Sandbox
+
+This is the only path on which student code is executed, so it runs in a
+throwaway JVM — see `behavior/BehaviorRunner.java` (parent) and
+`behavior/TestHarness.java` (child). An infinite loop, a `System.exit`, or an
+allocation bomb costs one child process and nothing else. The child's
+`System.out` is discarded so student prints cannot corrupt the report.
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `BEHAVIOR_CASE_TIMEOUT_MS`    | `1000`  | Wall clock for one method call |
+| `BEHAVIOR_PROCESS_TIMEOUT_MS` | `15000` | Wall clock for the child, JVM startup included |
+| `BEHAVIOR_CHILD_HEAP`         | `64m`   | Child `-Xmx` |
+| `COMPILE_TIMEOUT_SECONDS`     | `25`    | Ceiling for one `/compile` request |
+
+Cost is ~150 ms on a warm host and **zero** for challenges with no suite — the
+extra codegen pass and the fork are both gated on the challenge having tests.
+
+**Failing safe:** a submission that returns the wrong number fails the check,
+but a sandbox that will not start, will not report, or cannot load a class is
+logged and *skipped* — a grader that cannot run tests must not invent failures
+for a student whose code is fine.
+
+### Adding a suite
+
+Add an entry to `behavior/BehaviorSuite.java`. Expectations are exact doubles
+computed from the same constants the challenge defines. `scripts/verify-solutions.mjs`
+guards the whole set: every answer-key solution must still grade `good`, so a
+suite that disagrees with its own reference solution fails there.
 
 ## Adding or tuning challenge rubrics
 
