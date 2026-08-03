@@ -29,6 +29,7 @@ import {
   PenLine,
 } from "lucide-react";
 import { getSession, isSoloSession } from "@/lib/auth";
+import DiscordLink from "./DiscordLink";
 interface NavChild {
   label: string;
   href: string;
@@ -231,6 +232,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const [isStudent, setIsStudent] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
   const [isSolo, setIsSolo] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     const syncRole = () => {
@@ -238,6 +240,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       setIsStudent(session?.role === "student");
       setIsMentor(session?.role === "mentor");
       setIsSolo(isSoloSession(session));
+      setSignedIn(session !== null);
     };
     syncRole();
     window.addEventListener("ftc-session-updated", syncRole);
@@ -327,7 +330,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-slate-800/60 px-4 py-3">
+        <div className="shrink-0 border-t border-slate-800/60 px-4 py-3 space-y-2.5">
+          {/* Community invite is for members only — never shown to signed-out visitors. */}
+          {signedIn && <DiscordLink variant="sidebar" />}
           <div className="flex items-center gap-2">
             <div className="h-1.5 w-1.5 rounded-full accent-dot accent-shadow" />
             <span className="text-[10px] text-slate-600 font-medium">DECODE 2025–26</span>

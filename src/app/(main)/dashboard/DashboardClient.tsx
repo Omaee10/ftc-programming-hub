@@ -28,6 +28,7 @@ import {
 import { fetchClassChallenges } from "@/lib/classChallenges";
 import { fetchOverviewData } from "@/lib/mentorDashboardApi";
 import DashboardDocSearch from "@/components/DashboardDocSearch";
+import DiscordLink from "@/components/DiscordLink";
 
 function calcStreak(completedDates: string[]): number {
   if (completedDates.length === 0) return 0;
@@ -536,6 +537,10 @@ export default function DashboardClient({ name }: { name?: string }) {
             <p className="text-xs text-slate-600">Loading your next challenge…</p>
           </div>
         )}
+      </div>
+
+      <div className="mt-3 flex shrink-0 flex-wrap gap-2">
+        <DiscordLink />
       </div>
     </div>
   );
