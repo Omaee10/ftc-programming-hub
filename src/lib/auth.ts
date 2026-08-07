@@ -1,3 +1,5 @@
+import { mergeIntoLocalProgress, readLocalProgress } from "@/lib/progressStorage";
+
 const SESSION_KEY = "ftc-hub-session";
 const COOKIE_NAME = "ftc-hub-role";
 export const WORKSPACE_ID_COOKIE = "ftc-hub-workspace-id";
@@ -66,7 +68,38 @@ export function getSession(): Session | null {
   }
 }
 
+/**
+ * Carry a solo practiser's progress over when they convert to a class session.
+ *
+ * Progress is keyed by session id. A solo session's id is the auth user id,
+ * while a class session's is the `students` row id — so joining (or entering)
+ * a class changes the key and would orphan everything completed so far. Solo
+ * progress is never synced to Supabase, so there is no server-side copy to fall
+ * back on either.
+ *
+ * Copying it under the new id before the session flips means the bidirectional
+ * sync that `ftc-session-updated` kicks off (syncProgressWithLocal, via
+ * useSupabaseProgress) sees it as local-only and pushes it to the cloud.
+ *
+ * The old entry is deliberately left in place: leaving a class returns the
+ * student to a solo session under the same auth user id, and their practice
+ * history should still be waiting for them.
+ */
+function migrateSoloProgress(previous: Session | null, next: Session): void {
+  if (!previous || !isSoloSession(previous)) return;
+  if (next.role !== "student" || next.solo === true) return;
+  if (previous.id === next.id) return;
+
+  const soloProgress = readLocalProgress(previous.id);
+  if (Object.keys(soloProgress).length === 0) return;
+
+  mergeIntoLocalProgress(next.id, soloProgress);
+}
+
 export function setSession(session: Session): void {
+  // Read before the write — getSession() still returns the outgoing session.
+  migrateSoloProgress(getSession(), session);
+
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   // Cookies let middleware / server components read the active workspace.
   writeWorkspaceCookie(COOKIE_NAME, session.role);

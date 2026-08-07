@@ -2,11 +2,16 @@
 
 import { useSyncExternalStore, useCallback } from "react";
 import { getSession } from "@/lib/auth";
+import {
+  PROGRESS_BASE_KEY as BASE_KEY,
+  mergeIntoLocalProgress,
+  readLocalProgress,
+  studentStorageKey,
+  type ProgressMap,
+} from "@/lib/progressStorage";
 
-const BASE_KEY = "ftc-hub-challenge-progress-v1";
-
-/** Map of challenge id → completion ISO timestamp */
-export type ProgressMap = Record<number, string>;
+export { readLocalProgress, studentStorageKey };
+export type { ProgressMap };
 
 // ─── Per-user storage key ─────────────────────────────────────────────────
 // Each student gets their own key so different users on the same device never
@@ -105,46 +110,15 @@ function writeStorage(map: ProgressMap): void {
 
 // ─── Exported helpers for cross-device sync ───────────────────────────────
 
-export function studentStorageKey(studentId: string): string {
-  return `${BASE_KEY}:${studentId}`;
-}
-
-export function readLocalProgress(studentId: string): ProgressMap {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(studentStorageKey(studentId)) ?? "{}";
-    const parsed = JSON.parse(raw) as Record<string, string>;
-    const map: ProgressMap = {};
-    for (const [idStr, ts] of Object.entries(parsed)) {
-      map[Number(idStr)] = ts;
-    }
-    return map;
-  } catch {
-    return {};
-  }
-}
-
-/** Merge cloud completions into this browser's localStorage. */
+/**
+ * Merge cloud completions into this browser's localStorage, then refresh every
+ * subscriber. The storage write itself lives in @/lib/progressStorage; this
+ * wrapper adds the reactive notification that only this module can provide.
+ */
 export function mergeLocalProgress(studentId: string, additions: ProgressMap): void {
-  if (typeof window === "undefined") return;
-  const current = readLocalProgress(studentId);
-  const next: ProgressMap = { ...current };
-  let changed = false;
-  for (const [id, ts] of Object.entries(additions)) {
-    const numId = Number(id);
-    if (!(numId in next)) {
-      next[numId] = ts;
-      changed = true;
-    }
-  }
-  if (!changed) return;
-  try {
-    localStorage.setItem(studentStorageKey(studentId), JSON.stringify(next));
-    invalidateCache();
-    notifyAll();
-  } catch {
-    // Ignore quota / private-browsing errors
-  }
+  if (!mergeIntoLocalProgress(studentId, additions)) return;
+  invalidateCache();
+  notifyAll();
 }
 
 // ─── Hydration detector ───────────────────────────────────────────────────
