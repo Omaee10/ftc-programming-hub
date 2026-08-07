@@ -10,7 +10,7 @@ export default function PidControlPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/pid-control" },
+        { label: "Docs", href: "/docs" },
         { label: "PID & Control Loops" },
       ]}
       title="PID & Control Loops"

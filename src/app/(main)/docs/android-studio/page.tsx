@@ -10,7 +10,7 @@ export default function AndroidStudioPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/android-studio" },
+        { label: "Docs", href: "/docs" },
         { label: "Android Studio Setup" },
       ]}
       title="Android Studio Setup"

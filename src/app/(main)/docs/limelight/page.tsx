@@ -10,7 +10,7 @@ export default function LimelightPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/limelight" },
+        { label: "Docs", href: "/docs" },
         { label: "Limelight 3A" },
       ]}
       title="Limelight 3A"

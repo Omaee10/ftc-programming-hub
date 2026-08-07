@@ -10,7 +10,7 @@ export default function RoadRunnerPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/road-runner" },
+        { label: "Docs", href: "/docs" },
         { label: "Road Runner" },
       ]}
       title="Road Runner 1.0"

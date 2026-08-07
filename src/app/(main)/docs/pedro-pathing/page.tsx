@@ -10,7 +10,7 @@ export default function PedroPathingPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/pedro-pathing" },
+        { label: "Docs", href: "/docs" },
         { label: "Pedro Pathing" },
       ]}
       title="Pedro Pathing"

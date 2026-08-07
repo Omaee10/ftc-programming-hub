@@ -9,7 +9,7 @@ export default function GoBILDAPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/gobilda" },
+        { label: "Docs", href: "/docs" },
         { label: "goBILDA" },
       ]}
       title="goBILDA Hardware & Subsystems"

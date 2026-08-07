@@ -9,7 +9,7 @@ export default function GamepadPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/gamepad" },
+        { label: "Docs", href: "/docs" },
         { label: "Gamepad & Telemetry" },
       ]}
       title="Gamepad & Telemetry"

@@ -10,7 +10,7 @@ export default function MecanumDrivePage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/mecanum-drive" },
+        { label: "Docs", href: "/docs" },
         { label: "Mecanum Drive" },
       ]}
       title="Mecanum Drive"

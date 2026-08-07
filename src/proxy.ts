@@ -148,6 +148,7 @@ function routeGuard(
 
   const isMainApp =
     pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/learn") ||
     pathname.startsWith("/challenges") ||
     pathname.startsWith("/playground") ||
     pathname.startsWith("/homework") ||

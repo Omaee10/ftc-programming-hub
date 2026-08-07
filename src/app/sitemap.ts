@@ -1,25 +1,10 @@
 import type { MetadataRoute } from "next";
 import { challenges } from "@/data/challenges";
 import { pastProgramCatalog } from "@/data/pastProgramCatalog";
+import { docCatalog } from "@/data/docCatalog";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://ftc-programming-hub.vercel.app";
-
-const DOC_PATHS = [
-  "android-studio",
-  "blocks",
-  "gamepad",
-  "gobilda",
-  "java-basics",
-  "limelight",
-  "mecanum-drive",
-  "motors-servos",
-  "pedro-pathing",
-  "pid-control",
-  "rev-robotics",
-  "road-runner",
-  "swyft-robotics",
-] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
@@ -27,6 +12,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
       url: BASE_URL,
+      lastModified,
+    },
+    {
+      url: `${BASE_URL}/learn`,
       lastModified,
     },
     {
@@ -45,8 +34,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${BASE_URL}/past-programs/${program.id}`,
       lastModified,
     })),
-    ...DOC_PATHS.map((slug) => ({
-      url: `${BASE_URL}/docs/${slug}`,
+    {
+      url: `${BASE_URL}/docs`,
+      lastModified,
+    },
+    ...docCatalog.map((doc) => ({
+      url: `${BASE_URL}/docs/${doc.slug}`,
       lastModified,
     })),
   ];

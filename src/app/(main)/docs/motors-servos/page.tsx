@@ -9,7 +9,7 @@ export default function MotorsServosPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/motors-servos" },
+        { label: "Docs", href: "/docs" },
         { label: "Motors & Servos" },
       ]}
       title="Motors & Servos"

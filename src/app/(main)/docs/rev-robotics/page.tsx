@@ -10,7 +10,7 @@ export default function REVRoboticsPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/rev-robotics" },
+        { label: "Docs", href: "/docs" },
         { label: "REV Robotics" },
       ]}
       title="REV Robotics"

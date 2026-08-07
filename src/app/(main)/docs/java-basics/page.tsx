@@ -9,7 +9,7 @@ export default function JavaBasicsPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/java-basics" },
+        { label: "Docs", href: "/docs" },
         { label: "Java Basics" },
       ]}
       title="Java Basics"

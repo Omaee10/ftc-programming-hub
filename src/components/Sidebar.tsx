@@ -7,41 +7,21 @@ import {
   LayoutDashboard,
   BookOpen,
   Code2,
-  ChevronDown,
   ClipboardList,
-  ChevronRight,
   X,
-  Cpu,
-  Zap,
-  GitBranch,
-  Navigation,
   Trophy,
   Archive,
-  Rocket,
-  MonitorSmartphone,
-  ScanEye,
   GraduationCap,
-  Gamepad2,
-  MoveRight,
-  ActivitySquare,
   KeyRound,
   LayoutGrid,
   PenLine,
 } from "lucide-react";
 import { getSession, isSoloSession } from "@/lib/auth";
 import DiscordLink from "./DiscordLink";
-interface NavChild {
+interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-  badge?: string;
-}
-
-interface NavItem {
-  label: string;
-  href?: string;
-  icon: React.ElementType;
-  children?: NavChild[];
   badge?: string;
   /** Only show this item to mentor sessions. */
   mentorOnly?: boolean;
@@ -67,28 +47,10 @@ const navigation: NavSection[] = [
     section: "Learn",
     items: [
       {
-        label: "Documentation Hub",
-        icon: BookOpen,
-        children: [
-          { label: "Java Basics", href: "/docs/java-basics", icon: GraduationCap, badge: "Start Here" },
-          { label: "Android Studio", href: "/docs/android-studio", icon: MonitorSmartphone },
-          { label: "Motors & Servos", href: "/docs/motors-servos", icon: Cpu },
-          { label: "Mecanum Drive", href: "/docs/mecanum-drive", icon: MoveRight },
-          { label: "Gamepad & Telemetry", href: "/docs/gamepad", icon: Gamepad2 },
-          { label: "FTC Blocks", href: "/docs/blocks", icon: LayoutGrid },
-          { label: "PID & Control Loops", href: "/docs/pid-control", icon: ActivitySquare },
-          { label: "goBILDA", href: "/docs/gobilda", icon: Cpu },
-          { label: "REV Robotics", href: "/docs/rev-robotics", icon: Zap },
-          { label: "Limelight 3A", href: "/docs/limelight", icon: ScanEye },
-          { label: "Road Runner", href: "/docs/road-runner", icon: GitBranch },
-          { label: "Pedro Pathing", href: "/docs/pedro-pathing", icon: Navigation },
-          {
-            label: "Swyft Robotics",
-            href: "/docs/swyft-robotics",
-            icon: Rocket,
-            badge: "New",
-          },
-        ],
+        label: "Learn",
+        href: "/learn",
+        icon: GraduationCap,
+        badge: "Start Here",
       },
       {
         label: "Coding Challenges",
@@ -120,7 +82,39 @@ const navigation: NavSection[] = [
       },
     ],
   },
+  {
+    section: "Reference",
+    items: [
+      {
+        label: "Documentation",
+        href: "/docs",
+        icon: BookOpen,
+      },
+      {
+        label: "FTC Blocks",
+        href: "/docs/blocks",
+        icon: LayoutGrid,
+      },
+    ],
+  },
 ];
+
+/**
+ * Longest matching href wins, so /docs/blocks highlights "FTC Blocks" rather
+ * than also lighting up its "/docs" parent (same for the answer key under
+ * /challenges).
+ */
+function resolveActiveHref(pathname: string, items: NavItem[]): string | null {
+  let best: string | null = null;
+  for (const item of items) {
+    const matches =
+      pathname === item.href || pathname.startsWith(`${item.href}/`);
+    if (matches && (best === null || item.href.length > best.length)) {
+      best = item.href;
+    }
+  }
+  return best;
+}
 
 interface SidebarProps {
   open: boolean;
@@ -132,19 +126,16 @@ function NavLink({
   icon: Icon,
   label,
   badge,
+  isActive,
   onClick,
-  indent = false,
 }: {
   href: string;
   icon: React.ElementType;
   label: string;
   badge?: string;
+  isActive: boolean;
   onClick?: () => void;
-  indent?: boolean;
 }) {
-  const pathname = usePathname();
-  const isActive = pathname === href || pathname.startsWith(href + "/");
-
   return (
     <Link
       href={href}
@@ -153,7 +144,7 @@ function NavLink({
         isActive
           ? "is-active"
           : "text-slate-500 hover:bg-slate-800/40 hover:text-slate-300 font-normal"
-      } ${indent ? "pl-3" : ""}`}
+      }`}
     >
       <Icon
         className={`nav-icon h-3.5 w-3.5 shrink-0 transition-colors ${
@@ -173,57 +164,6 @@ function NavLink({
         </span>
       )}
     </Link>
-  );
-}
-
-function DocsGroup({ onLinkClick }: { onLinkClick?: () => void }) {
-  const pathname = usePathname();
-  const isDocsActive = pathname.startsWith("/docs");
-
-  const [userExpanded, setUserExpanded] = useState(false);
-  const isExpanded = isDocsActive || userExpanded;
-
-  const docsChildren = navigation[1].items[0].children!;
-
-  return (
-    <div>
-      <button
-        onClick={() => setUserExpanded((prev) => !prev)}
-        className={`nav-active-bar group flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-all duration-150 ${
-          isDocsActive
-            ? "is-active"
-            : "text-slate-500 hover:bg-slate-800/40 hover:text-slate-300 font-normal"
-        }`}
-      >
-        <BookOpen
-          className={`nav-icon h-3.5 w-3.5 shrink-0 transition-colors ${
-            isDocsActive ? "" : "text-slate-600 group-hover:text-slate-400"
-          }`}
-        />
-        <span className="flex-1 text-left">Documentation Hub</span>
-        {isExpanded ? (
-          <ChevronDown className="h-3 w-3 text-slate-600" />
-        ) : (
-          <ChevronRight className="h-3 w-3 text-slate-600" />
-        )}
-      </button>
-
-      {isExpanded && (
-        <div className="mt-0.5 ml-2.5 pl-3 border-l border-slate-800/80 space-y-0.5 py-0.5">
-          {docsChildren.map((child) => (
-            <NavLink
-              key={child.href}
-              href={child.href}
-              icon={child.icon}
-              label={child.label}
-              badge={child.badge}
-              onClick={onLinkClick}
-              indent
-            />
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -260,6 +200,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         (!item.mentorOnly || isMentor)
     ),
   }));
+
+  const activeHref = resolveActiveHref(
+    pathname,
+    visibleNavigation.flatMap((section) => section.items)
+  );
 
   return (
     <>
@@ -310,20 +255,17 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 {section.section}
               </p>
               <div className="space-y-0.5">
-                {section.items.map((item) =>
-                  item.children ? (
-                    <DocsGroup key={item.label} onLinkClick={onClose} />
-                  ) : (
-                    <NavLink
-                      key={item.href}
-                      href={item.href!}
-                      icon={item.icon}
-                      label={item.label}
-                      badge={item.badge}
-                      onClick={onClose}
-                    />
-                  )
-                )}
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    href={item.href}
+                    icon={item.icon}
+                    label={item.label}
+                    badge={item.badge}
+                    isActive={activeHref === item.href}
+                    onClick={onClose}
+                  />
+                ))}
               </div>
             </div>
           ))}

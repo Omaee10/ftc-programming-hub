@@ -12,7 +12,7 @@ export default function SwyftRoboticsPage() {
   return (
     <DocPageLayout
       breadcrumbs={[
-        { label: "Docs", href: "/docs/swyft-robotics" },
+        { label: "Docs", href: "/docs" },
         { label: "Swyft Robotics" },
       ]}
       title="Swyft Robotics"
