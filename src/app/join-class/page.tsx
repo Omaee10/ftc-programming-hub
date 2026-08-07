@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useTransition, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Trophy,
   Loader2,
@@ -14,8 +14,27 @@ import { setSession } from "@/lib/auth";
 import { getAuthUserId } from "@/lib/authSession";
 import CodeInput from "@/components/CodeInput";
 
-export default function JoinClassPage() {
+/**
+ * Where "Back" returns to, keyed by the `?from=` entry context.
+ *
+ * The param is a context label, not a destination — an arbitrary path from the
+ * query string is never routed to, so this can't be used as an open redirect.
+ * Anything unrecognised (or absent) falls back to onboarding, which is where
+ * this page was originally only ever entered from.
+ */
+const BACK_DESTINATIONS: Record<string, string> = {
+  app: "/dashboard",
+};
+
+const DEFAULT_BACK_HREF = "/onboarding";
+
+function backHrefFor(from: string | null): string {
+  return (from && BACK_DESTINATIONS[from]) ?? DEFAULT_BACK_HREF;
+}
+
+function JoinClassForm() {
   const router = useRouter();
+  const backHref = backHrefFor(useSearchParams().get("from"));
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [classCode, setClassCode] = useState("");
   const [error, setError] = useState("");
@@ -107,7 +126,7 @@ export default function JoinClassPage() {
     <div className="flex min-h-screen bg-slate-950 px-4">
       <button
         type="button"
-        onClick={() => router.push("/onboarding")}
+        onClick={() => router.push(backHref)}
         className="absolute top-5 left-5 flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-300 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -173,5 +192,19 @@ export default function JoinClassPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function JoinClassPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-950">
+          <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+        </div>
+      }
+    >
+      <JoinClassForm />
+    </Suspense>
   );
 }

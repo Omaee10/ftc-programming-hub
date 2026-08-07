@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, LogOut, Palette, Shield, Copy, Check, Settings, Info, X } from "lucide-react";
+import { Menu, LogOut, Palette, Shield, Copy, Check, Settings, Info, X, UserPlus } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "./Sidebar";
 import ThemePanel from "./ThemePanel";
@@ -284,6 +284,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Shield className="h-3.5 w-3.5" />
               Manage Class
+            </Link>
+          )}
+
+          {/* Join a class — neither enrolled students nor solo practisers can
+              reach /join-class otherwise; it's only linked from the pre-app
+              onboarding and sign-in screens. Solo sessions have no class yet,
+              so they get the "a class" wording instead of "another". */}
+          {session?.role === "student" && (
+            <Link
+              href="/join-class?from=app"
+              title={isSoloSession(session) ? "Join a class" : "Join another class"}
+              className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all duration-150 sm:px-2.5"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Join class</span>
             </Link>
           )}
 
