@@ -2,6 +2,8 @@
 
 import { useRef } from "react";
 
+const LENGTH = 6;
+
 export default function CodeInput({
   value,
   onChange,
@@ -12,24 +14,38 @@ export default function CodeInput({
   disabled?: boolean;
 }) {
   const refs = useRef<Array<HTMLInputElement | null>>([]);
-  const digits = value.padEnd(6, " ").split("").slice(0, 6);
+  // Always a gap-free run of digits, so box N maps to character N and callers
+  // can trust that a length of LENGTH means a complete code.
+  const code = value.replace(/\D/g, "").slice(0, LENGTH);
+  const digits = Array.from({ length: LENGTH }, (_, i) => code[i] ?? "");
 
-  const focus = (idx: number) => refs.current[idx]?.focus();
+  // Select as well as focus: after the last box is filled focus has nowhere to
+  // advance to, and re-focusing an already-focused input fires no onFocus, so
+  // without this the final digit stays unselected and can't be typed over.
+  const focus = (idx: number) => {
+    const el = refs.current[Math.min(idx, LENGTH - 1)];
+    el?.focus();
+    el?.select();
+  };
+
+  const commit = (next: string, focusIdx: number) => {
+    onChange(next);
+    focus(focusIdx);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
     if (e.key === "Backspace") {
       e.preventDefault();
-      if (digits[idx].trim()) {
-        const next = digits.map((d, i) => (i === idx ? " " : d)).join("").trimEnd();
-        onChange(next);
+      // Splice rather than blank in place — a hole would leave a stray space
+      // that still reads as a full-length code to whoever gates the submit.
+      if (digits[idx]) {
+        commit(code.slice(0, idx) + code.slice(idx + 1), idx);
       } else if (idx > 0) {
-        const next = digits.map((d, i) => (i === idx - 1 ? " " : d)).join("").trimEnd();
-        onChange(next);
-        focus(idx - 1);
+        commit(code.slice(0, idx - 1) + code.slice(idx), idx - 1);
       }
     } else if (e.key === "ArrowLeft" && idx > 0) {
       focus(idx - 1);
-    } else if (e.key === "ArrowRight" && idx < 5) {
+    } else if (e.key === "ArrowRight" && idx < LENGTH - 1) {
       focus(idx + 1);
     }
   };
@@ -37,18 +53,15 @@ export default function CodeInput({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>, idx: number) => {
     const char = e.target.value.replace(/\D/g, "").slice(-1);
     if (!char) return;
-    const next = digits.map((d, i) => (i === idx ? char : d)).join("").trimEnd();
-    onChange(next);
-    if (idx < 5) focus(idx + 1);
+    // Typing past the end appends instead of opening a hole before it.
+    const at = Math.min(idx, code.length);
+    commit((code.slice(0, at) + char + code.slice(at + 1)).slice(0, LENGTH), at + 1);
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (pasted) {
-      onChange(pasted);
-      focus(Math.min(pasted.length, 5));
-    }
     e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, LENGTH);
+    if (pasted) commit(pasted, pasted.length);
   };
 
   return (
@@ -61,8 +74,7 @@ export default function CodeInput({
           }}
           type="text"
           inputMode="numeric"
-          maxLength={1}
-          value={d.trim()}
+          value={d}
           onKeyDown={(e) => handleKeyDown(e, i)}
           onChange={(e) => handleChange(e, i)}
           onPaste={handlePaste}
