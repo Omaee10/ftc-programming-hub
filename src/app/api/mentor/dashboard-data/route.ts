@@ -266,17 +266,34 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "mentors": {
-      const { data: rows, error } = await db
-        .from("mentors")
-        .select("id, name, mentor_name, code, created_at, created_by, user_id")
-        .or(`id.eq.${ownerId},created_by.eq.${ownerId}`)
-        .order("name");
+      // The class owner row plus its co-mentors, as two equality filters rather
+      // than one interpolated `.or("id.eq.${ownerId},created_by.eq.${ownerId}")`.
+      // ownerId comes from authorizeMentorWorkspace so it is server-derived and
+      // not attacker-supplied, but joinClass already refuses to build PostgREST
+      // filter strings from values for exactly this reason, and one file doing it
+      // the other way is how the pattern erodes. Two round trips in parallel;
+      // `.order("name")` moves to the merge since it now spans both results.
+      const [ownerResult, coMentorResult] = await Promise.all([
+        db
+          .from("mentors")
+          .select("id, name, mentor_name, code, created_at, created_by, user_id")
+          .eq("id", ownerId),
+        db
+          .from("mentors")
+          .select("id, name, mentor_name, code, created_at, created_by, user_id")
+          .eq("created_by", ownerId),
+      ]);
 
+      const error = ownerResult.error ?? coMentorResult.error;
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      return NextResponse.json({ rows: rows ?? [] });
+      const rows = [...(ownerResult.data ?? []), ...(coMentorResult.data ?? [])].sort(
+        (a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""))
+      );
+
+      return NextResponse.json({ rows });
     }
 
     case "students": {
