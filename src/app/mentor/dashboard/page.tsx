@@ -1397,9 +1397,8 @@ function ManageChallengesTab() {
       setDeleteError("");
 
       // No created_by filter — RLS decides (challenges_delete_mentor /
-      // rls_challenge_author_ids): the class owner may delete anything in the
-      // class, a co-mentor only what they authored. Filtering on the caller's
-      // own id here would stop an owner deleting a co-mentor's challenge.
+      // rls_class_challenge_writer_ids): any mentor in the class may delete any
+      // challenge in it, whoever authored it.
       //
       // `.select("id")` is what makes a refused delete visible: a DELETE
       // matching zero rows is NOT a Postgres error, so checking `error` alone
@@ -1417,7 +1416,7 @@ function ManageChallengesTab() {
 
       if (!deleted?.length) {
         setDeleteError(
-          `Challenge #${id} was not deleted. You can only delete challenges you created, unless you own the class.`
+          `Challenge #${id} was not deleted. It may have already been removed, or you may no longer be a mentor of this class.`
         );
       }
 
