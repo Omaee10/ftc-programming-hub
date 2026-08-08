@@ -25,7 +25,7 @@ import {
   fetchWorkspacesResult,
   sessionMatchesWorkspaces,
 } from "@/lib/workspaceValidation";
-import { withTimeout } from "@/lib/withTimeout";
+import { fetchWithTimeout } from "@/lib/withTimeout";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -115,8 +115,7 @@ export default function OnboardingPage() {
           setAccountType("unknown");
         }
 
-        const res = await withTimeout(
-          fetch("/api/auth/workspaces", { credentials: "include" }),
+        const res = await fetchWithTimeout("/api/auth/workspaces", { credentials: "include" },
           15_000,
           "Loading workspaces"
         );

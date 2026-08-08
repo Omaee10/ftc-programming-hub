@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { clearSession } from "@/lib/auth";
-import { withTimeout } from "@/lib/withTimeout";
+import { fetchWithTimeout, withTimeout } from "@/lib/withTimeout";
 
 const AUTH_TIMEOUT_MS = 10_000;
 
@@ -8,13 +8,12 @@ export async function signOutAll(): Promise<void> {
   clearSession();
 
   try {
-    const res = await withTimeout(
-      fetch("/api/auth/signout", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      }),
+    const res = await fetchWithTimeout("/api/auth/signout", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
       8_000,
       "Sign out"
     );
@@ -35,13 +34,12 @@ export async function signInViaApi(
   password: string
 ): Promise<{ error: string | null }> {
   try {
-    const res = await withTimeout(
-      fetch("/api/auth/signin", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
-      }),
+    const res = await fetchWithTimeout("/api/auth/signin", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    },
       AUTH_TIMEOUT_MS,
       "Sign in"
     );
@@ -64,8 +62,7 @@ export async function fetchAuthMe(): Promise<{
   accountType: "student" | "mentor" | null;
 } | null> {
   try {
-    const res = await withTimeout(
-      fetch("/api/auth/me", { credentials: "include" }),
+    const res = await fetchWithTimeout("/api/auth/me", { credentials: "include" },
       AUTH_TIMEOUT_MS,
       "Auth check"
     );

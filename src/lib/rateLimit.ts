@@ -21,24 +21,64 @@ export type RateLimitResult = {
 type BucketState = {
   hits: number[];
   strikes: number;
+  /** Window this bucket was last checked against, so the sweep knows its TTL. */
+  windowMs: number;
 };
 
 const buckets = new Map<string, BucketState>();
 
 const MAX_BACKOFF_MULTIPLIER = 16;
 
-function bucketFor(key: string): BucketState {
+/** How often {@link sweepExpiredBuckets} is allowed to run. */
+const SWEEP_INTERVAL_MS = 60_000;
+let lastSweepAt = 0;
+
+/**
+ * Drop buckets whose newest hit has aged out of their own window.
+ *
+ * The map is keyed per IP and per user id, so it grew without bound on a
+ * long-lived instance — every IP that ever hit a rate-limited route kept an
+ * entry forever, and nothing removed them. Each bucket is tiny, but the key
+ * space is effectively unbounded.
+ *
+ * Swept lazily from checkRateLimit rather than on a setInterval: a timer would
+ * hold a reference that keeps a serverless instance from idling out, and there
+ * is no shutdown hook here to clear it. The cost is that a burst followed by
+ * total silence leaves entries until the next request arrives, which is exactly
+ * when memory stops mattering.
+ *
+ * A swept bucket loses its `strikes` count, so pausing for a full window resets
+ * backoff escalation. That was already true — `hits` outside the window are
+ * filtered out on every check, so a paused caller starts clean either way.
+ */
+function sweepExpiredBuckets(now: number): void {
+  if (now - lastSweepAt < SWEEP_INTERVAL_MS) return;
+  lastSweepAt = now;
+
+  for (const [key, bucket] of buckets) {
+    const newest = bucket.hits.length > 0 ? bucket.hits[bucket.hits.length - 1] : 0;
+    if (newest < now - bucket.windowMs) {
+      buckets.delete(key);
+    }
+  }
+}
+
+function bucketFor(key: string, windowMs: number): BucketState {
   const existing = buckets.get(key);
-  if (existing) return existing;
-  const fresh: BucketState = { hits: [], strikes: 0 };
+  if (existing) {
+    existing.windowMs = windowMs;
+    return existing;
+  }
+  const fresh: BucketState = { hits: [], strikes: 0, windowMs };
   buckets.set(key, fresh);
   return fresh;
 }
 
 export function checkRateLimit(key: string, opts: RateLimitOptions): RateLimitResult {
   const now = Date.now();
+  sweepExpiredBuckets(now);
   const cutoff = now - opts.windowMs;
-  const bucket = bucketFor(key);
+  const bucket = bucketFor(key, opts.windowMs);
   const hits = bucket.hits.filter((t) => t >= cutoff);
 
   const resetAt = hits.length > 0 ? hits[0] + opts.windowMs : now + opts.windowMs;
@@ -77,10 +117,41 @@ export function checkRateLimit(key: string, opts: RateLimitOptions): RateLimitRe
   };
 }
 
+/**
+ * Best-effort client identity for rate-limit bucketing.
+ *
+ * Order matters. This used to read `x-forwarded-for.split(",")[0]`, the LEFTMOST
+ * entry, which is the wrong end of the chain: XFF is appended to as a request
+ * traverses proxies, so the leftmost value is whatever the original client sent.
+ * On any topology where the platform appends rather than overwrites, a caller
+ * could set `X-Forwarded-For: <random>` per request and get a fresh bucket every
+ * time, bypassing every limit in this file.
+ *
+ * `x-real-ip` is set by the platform edge and has no list semantics to get wrong,
+ * so it goes first. The XFF fallback takes the LAST entry — the hop nearest this
+ * app, i.e. the one appended by infrastructure we control rather than by the
+ * caller.
+ *
+ * Deliberately correct under either XFF behaviour: if the platform overwrites the
+ * header with a single value, first and last are the same value and the change is
+ * a no-op; if it appends, last is the only trustworthy entry. That is why this
+ * does not depend on pinning down exactly what Vercel does with the header.
+ *
+ * Falls back to a shared "anonymous" bucket when neither header is present, which
+ * is local development. That makes the limit global across callers there — the
+ * safe direction to fail.
+ */
 export function clientIdFrom(req: Request): string {
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
   const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
-  return req.headers.get("x-real-ip") ?? "anonymous";
+  if (fwd) {
+    const hops = fwd.split(",").map((h) => h.trim()).filter(Boolean);
+    if (hops.length > 0) return hops[hops.length - 1];
+  }
+
+  return "anonymous";
 }
 
 export function rateLimitHeaders(result: RateLimitResult): Record<string, string> {

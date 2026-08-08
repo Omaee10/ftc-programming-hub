@@ -11,7 +11,7 @@ import type {
   SubmissionRow,
 } from "@/lib/supabase";
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
-import { withTimeout } from "@/lib/withTimeout";
+import { fetchWithTimeout } from "@/lib/withTimeout";
 
 export type MentorSnapshotRequest =
   | { kind: "progress"; studentId: string; challengeId: number }
@@ -97,18 +97,17 @@ async function postMentorDashboard<T>(
   session: Session,
   extra?: Record<string, unknown>
 ): Promise<T> {
-  const res = await withTimeout(
-    fetch("/api/mentor/dashboard-data", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        scope,
-        workspaceId: session.id,
-        parentMentorId: session.parentMentorId,
-        ...extra,
-      }),
+  const res = await fetchWithTimeout("/api/mentor/dashboard-data", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      scope,
+      workspaceId: session.id,
+      parentMentorId: session.parentMentorId,
+      ...extra,
     }),
+  },
     TAB_LOADER_TIMEOUT_MS,
     "Loading class data"
   );
@@ -132,8 +131,7 @@ export async function fetchClassCode(
     params.set("parentMentorId", session.parentMentorId);
   }
 
-  const res = await withTimeout(
-    fetch(`/api/mentor/class-code?${params.toString()}`, { credentials: "include" }),
+  const res = await fetchWithTimeout(`/api/mentor/class-code?${params.toString()}`, { credentials: "include" },
     TAB_LOADER_TIMEOUT_MS,
     "Loading class code"
   );
@@ -200,17 +198,16 @@ export async function fetchMentorSubmissionDetail(
   session: Session,
   request: MentorSnapshotRequest
 ): Promise<MentorSubmissionDetail> {
-  const res = await withTimeout(
-    fetch("/api/mentor/snapshots", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...request,
-        workspaceId: session.id,
-        parentMentorId: session.parentMentorId,
-      }),
+  const res = await fetchWithTimeout("/api/mentor/snapshots", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...request,
+      workspaceId: session.id,
+      parentMentorId: session.parentMentorId,
     }),
+  },
     TAB_LOADER_TIMEOUT_MS,
     "Loading saved code"
   );
@@ -233,19 +230,18 @@ export async function fetchSubmissionCodeOnly(
   session: Session,
   submissionId: string
 ): Promise<string | null> {
-  const res = await withTimeout(
-    fetch("/api/mentor/snapshots", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind: "submission",
-        submissionId,
-        part: "code",
-        workspaceId: session.id,
-        parentMentorId: session.parentMentorId,
-      }),
+  const res = await fetchWithTimeout("/api/mentor/snapshots", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      kind: "submission",
+      submissionId,
+      part: "code",
+      workspaceId: session.id,
+      parentMentorId: session.parentMentorId,
     }),
+  },
     TAB_LOADER_TIMEOUT_MS,
     "Loading submission code"
   );
@@ -261,19 +257,18 @@ export async function fetchSubmissionBlocksOnly(
   session: Session,
   submissionId: string
 ): Promise<Record<string, unknown> | null> {
-  const res = await withTimeout(
-    fetch("/api/mentor/snapshots", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind: "submission",
-        submissionId,
-        part: "blocks",
-        workspaceId: session.id,
-        parentMentorId: session.parentMentorId,
-      }),
+  const res = await fetchWithTimeout("/api/mentor/snapshots", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      kind: "submission",
+      submissionId,
+      part: "blocks",
+      workspaceId: session.id,
+      parentMentorId: session.parentMentorId,
     }),
+  },
     TAB_LOADER_TIMEOUT_MS,
     "Loading submission blocks"
   );
@@ -314,8 +309,7 @@ async function getAnswerKey<T>(
 ): Promise<AnswerKeyResult<T>> {
   let res: Response;
   try {
-    res = await withTimeout(
-      fetch(`/api/mentor/answer-key?${params.toString()}`, { credentials: "include" }),
+    res = await fetchWithTimeout(`/api/mentor/answer-key?${params.toString()}`, { credentials: "include" },
       TAB_LOADER_TIMEOUT_MS,
       label
     );
@@ -374,18 +368,17 @@ export async function deleteClassMember(
   type: "student" | "mentor",
   memberId: string
 ): Promise<{ error: string | null }> {
-  const res = await withTimeout(
-    fetch("/api/mentor/delete-member", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type,
-        memberId,
-        workspaceId: session.id,
-        parentMentorId: session.parentMentorId,
-      }),
+  const res = await fetchWithTimeout("/api/mentor/delete-member", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type,
+      memberId,
+      workspaceId: session.id,
+      parentMentorId: session.parentMentorId,
     }),
+  },
     TAB_LOADER_TIMEOUT_MS,
     "Deleting member"
   );

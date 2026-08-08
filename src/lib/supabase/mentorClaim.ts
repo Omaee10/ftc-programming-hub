@@ -369,13 +369,31 @@ export async function cleanupStaleCoMentorSlots(
   const displayName = row.mentor_name?.trim() || row.name?.trim();
   if (!displayName) return;
 
-  await admin
+  // The label being matched is `mentor_name || name`, so the filter has to be too.
+  // This used to derive displayName that way and then compare it against `name`
+  // alone — two different columns. A slot whose mentor_name was set (the normal
+  // case once a name has been edited) matched on its stale `name`, so a legitimate
+  // pending invite for a different person could be deleted, while the duplicate
+  // this is meant to clear survived.
+  //
+  // No PostgREST filter expresses "coalesce these two columns then compare", so
+  // the candidates are narrowed in SQL and the label comparison happens here.
+  // Delete by explicit id afterwards — never by the label — so the DELETE can only
+  // ever touch rows this function has actually inspected.
+  const { data: candidates } = await admin
     .from("mentors")
-    .delete()
+    .select("id, name, mentor_name")
     .eq("created_by", row.created_by)
     .is("user_id", null)
-    .neq("id", claimedMentorId)
-    .eq("name", displayName);
+    .neq("id", claimedMentorId);
+
+  const staleIds = ((candidates ?? []) as MentorClaimRow[])
+    .filter((c) => (c.mentor_name?.trim() || c.name?.trim()) === displayName)
+    .map((c) => c.id);
+
+  if (staleIds.length === 0) return;
+
+  await admin.from("mentors").delete().in("id", staleIds);
 }
 
 export function databaseKeyErrorMessage(lookupError?: string): string {

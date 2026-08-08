@@ -65,5 +65,19 @@ export async function fetchAllRows<T = Record<string, unknown>>(
     from += batch.length;
   }
 
+  // Hitting the ceiling is the one way this helper can do the very thing it
+  // exists to prevent, so it reports rather than returning short and clean.
+  // Callers already branch on `error`, so an over-cap read now surfaces the same
+  // way a failed one does instead of looking like a complete result.
+  if (from >= FETCH_ALL_MAX_ROWS) {
+    return {
+      data: rows,
+      error: new Error(
+        `fetchAllRows hit its ${FETCH_ALL_MAX_ROWS}-row ceiling; the result is truncated. `
+        + `Narrow the query or paginate it explicitly.`
+      ),
+    };
+  }
+
   return { data: rows, error: null };
 }
