@@ -128,6 +128,11 @@ export default function MentorChallengeEditor({
       concepts_covered: [],
     };
 
+    // Both branches `.select("id")` so a write that touched nothing is
+    // detectable. An UPDATE matching zero rows is not a Postgres error, so
+    // checking `result.error` alone showed "Challenge updated successfully"
+    // while nothing was saved — the `created_by` filter uses the class OWNER id
+    // (challengeCreatedBy), which does not match rows a co-mentor authored.
     const result =
       mode === "edit" && challengeId
         ? await supabase
@@ -135,15 +140,28 @@ export default function MentorChallengeEditor({
             .update(payload)
             .eq("id", challengeId)
             .eq("created_by", authorId)
-        : await supabase.from("challenges").insert({
-            ...payload,
-            created_by: authorId,
-          });
+            .select("id")
+        : await supabase
+            .from("challenges")
+            .insert({
+              ...payload,
+              created_by: authorId,
+            })
+            .select("id");
 
     setSaving(false);
 
     if (result.error) {
       setSaveError(result.error.message);
+      return;
+    }
+
+    if (!result.data?.length) {
+      setSaveError(
+        mode === "edit"
+          ? "Nothing was saved — this challenge was created by a co-mentor, or it no longer exists."
+          : "Nothing was saved. Reload the page and try again."
+      );
       return;
     }
 
