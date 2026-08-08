@@ -412,6 +412,10 @@ CREATE POLICY homework_update_own ON homework_assignments FOR UPDATE USING (
 CREATE POLICY homework_select_mentor ON homework_assignments FOR SELECT USING (
   student_id IN (SELECT rls_mentor_scope_student_ids())
 );
+-- SUPERSEDED on an existing database — supabase-fix-homework-insert-scope.sql
+-- adds the missing student_id scope, without which a mentor can write homework
+-- for a student in another class. Kept here so a fresh database has a working
+-- policy from this file alone; RUN that file immediately after this one.
 CREATE POLICY homework_insert_mentor ON homework_assignments FOR INSERT WITH CHECK (
   assigned_by IN (SELECT rls_mentor_scope_ids())
 );
