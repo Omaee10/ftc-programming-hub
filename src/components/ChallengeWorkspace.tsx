@@ -860,6 +860,14 @@ export default function ChallengeWorkspace({
 
   // Re-load drafts when the signed-in student changes (avoid showing another account's work)
   useEffect(() => {
+    // Answer-key mode has no drafts to reload, and its editor holds the reference
+    // solution rather than the student's work. Resetting it to starterCode here
+    // blanked the answer key: AppShell re-persists the session on mount (and again
+    // for mentors after fetchClassCode), and each of those fires
+    // `ftc-session-updated` — so mentors reliably saw starter code instead of the
+    // solution they opened.
+    if (answerKeyMode) return;
+
     const onSessionChange = () => {
       clearTimeout(saveTimer.current);
       clearTimeout(blockDraftTimer.current);
@@ -882,7 +890,7 @@ export default function ChallengeWorkspace({
     };
     window.addEventListener("ftc-session-updated", onSessionChange);
     return () => window.removeEventListener("ftc-session-updated", onSessionChange);
-  }, [blocksConfig, challenge.starterCode]);
+  }, [answerKeyMode, blocksConfig, challenge.starterCode]);
 
   useEffect(() => {
     if (answerKeyMode) return;
