@@ -22,7 +22,7 @@ import {
 } from "@/lib/auth";
 import { signOutAll, getAuthUserId, fetchAuthMe } from "@/lib/authSession";
 import {
-  fetchWorkspacesPayload,
+  fetchWorkspacesResult,
   sessionMatchesWorkspaces,
 } from "@/lib/workspaceValidation";
 import { withTimeout } from "@/lib/withTimeout";
@@ -36,6 +36,8 @@ export default function OnboardingPage() {
   const [cachedSession, setCachedSession] = useState<Session | null>(() => getSession());
   const [savedSessionValid, setSavedSessionValid] = useState(false);
   const [staleSessionNotice, setStaleSessionNotice] = useState(false);
+  /** Server unreachable — the saved session may still be fine, so keep it. */
+  const [workspaceCheckFailed, setWorkspaceCheckFailed] = useState(false);
 
   const showStudentSoloCard = accountType === "student" || accountType === "unknown";
   const showMentorCreateCard = accountType === "mentor" || accountType === "unknown";
@@ -45,12 +47,27 @@ export default function OnboardingPage() {
     if (!session) return;
 
     if (!isSoloSession(session)) {
-      const workspaces = await fetchWorkspacesPayload();
-      if (!workspaces || !sessionMatchesWorkspaces(session, workspaces)) {
+      setWorkspaceCheckFailed(false);
+      const result = await fetchWorkspacesResult();
+
+      // Same rule as AppShell: only a confirmed mismatch or a 401 means the
+      // saved session is genuinely stale. "unreachable" must not clear it —
+      // doing so signed people out whenever the network hiccupped.
+      const definitivelyInvalid =
+        (result.ok && !sessionMatchesWorkspaces(session, result.data))
+        || (!result.ok && result.reason === "unauthorized");
+
+      if (definitivelyInvalid) {
         clearWorkspaceSession();
         setCachedSession(null);
         setSavedSessionValid(false);
         setStaleSessionNotice(true);
+        return;
+      }
+
+      if (!result.ok) {
+        // Could not verify — keep the session and let them try again.
+        setWorkspaceCheckFailed(true);
         return;
       }
     }
@@ -204,6 +221,17 @@ export default function OnboardingPage() {
             Learn FTC programming, complete challenges, and track your progress.
           </p>
         </div>
+
+        {workspaceCheckFailed && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+            <p className="text-sm text-amber-200/90 leading-relaxed">
+              Couldn&apos;t reach the server to confirm your class. Your saved selection is
+              still here — check your connection and tap{" "}
+              <strong className="font-medium">Continue</strong> again.
+            </p>
+          </div>
+        )}
 
         {staleSessionNotice && (
           <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3">

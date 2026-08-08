@@ -128,15 +128,34 @@ export function setSession(session: Session): void {
   // Read before the write — getSession() still returns the outgoing session.
   migrateSoloWorkspaceData(getSession(), session);
 
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  const previousRaw = localStorage.getItem(SESSION_KEY);
+  const nextRaw = JSON.stringify(session);
+
+  localStorage.setItem(SESSION_KEY, nextRaw);
   // Cookies let middleware / server components read the active workspace.
   writeWorkspaceCookie(COOKIE_NAME, session.role);
   writeWorkspaceCookie(WORKSPACE_ID_COOKIE, session.id);
+
   if (typeof window !== "undefined") {
     if (session.solo) {
       localStorage.removeItem(SOLO_BANNER_DISMISSED_KEY);
     }
-    window.dispatchEvent(new CustomEvent("ftc-session-updated"));
+
+    // Only announce a session that actually changed.
+    //
+    // Listeners treat `ftc-session-updated` as "the active account switched" —
+    // ChallengeWorkspace resets the editor to starter code on it. AppShell
+    // re-persists the identical stored session on every mount (and the mentor
+    // branch re-persists an object that also serialises identically), so a
+    // student or mentor opening a challenge had their restored draft wiped
+    // moments after it loaded, with the restore effect unable to re-run because
+    // clearing its ref changes no dependency.
+    //
+    // Every listener calls its handler directly on mount before subscribing, so
+    // none of them depend on a redundant event to reach initial state.
+    if (previousRaw !== nextRaw) {
+      window.dispatchEvent(new CustomEvent("ftc-session-updated"));
+    }
   }
 }
 

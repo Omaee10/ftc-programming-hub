@@ -12,7 +12,7 @@ import { prefetchHomework } from "@/hooks/useHomeworkAssignments";
 import { supabase } from "@/lib/supabase";
 import { signOutAll, getAuthUserId, getProfileDisplayName } from "@/lib/authSession";
 import { fetchClassCode } from "@/lib/mentorDashboardApi";
-import { fetchWorkspacesPayload, sessionMatchesWorkspaces } from "@/lib/workspaceValidation";
+import { fetchWorkspacesResult, sessionMatchesWorkspaces } from "@/lib/workspaceValidation";
 
 function getInitials(name: string): string {
   return name
@@ -30,6 +30,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [classCode, setClassCode] = useState<string | null>(null);
   const [classCodeCopied, setClassCodeCopied] = useState(false);
   const [soloBannerHidden, setSoloBannerHidden] = useState(false);
+  /** Workspace ownership could not be confirmed (offline / server error). */
+  const [workspaceCheckFailed, setWorkspaceCheckFailed] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const lockScroll = pathname === "/dashboard";
@@ -50,18 +52,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       const stored = getSession();
 
       if (stored && !isSoloSession(stored)) {
-        const workspaces = await fetchWorkspacesPayload();
-        if (
-          !workspaces
-          || !sessionMatchesWorkspaces(stored, workspaces)
-        ) {
-          if (cancelled) return;
+        const result = await fetchWorkspacesResult();
+        if (cancelled) return;
+
+        // Only drop the session when the server actually told us it is no longer
+        // valid — a confirmed mismatch, or a 401. "unreachable" (offline,
+        // timeout, 5xx) proves nothing about the stored workspace, and clearing
+        // on it signed people out mid-session and discarded unsaved editor work.
+        const definitivelyInvalid =
+          (result.ok && !sessionMatchesWorkspaces(stored, result.data))
+          || (!result.ok && result.reason === "unauthorized");
+
+        if (definitivelyInvalid) {
           clearWorkspaceSession();
           setSession(null);
           setMounted(true);
           router.replace("/signin");
           return;
         }
+
+        // Could not verify. Keep working and offer a retry.
+        setWorkspaceCheckFailed(!result.ok);
       }
 
       if (cancelled) return;
@@ -133,8 +144,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             ...(parentMentorId ? { parentMentorId } : {}),
           };
           setSession(updated);
+          // persistSession dispatches ftc-session-updated itself, and only when
+          // the session actually changed. The manual dispatch that used to
+          // follow this line fired unconditionally, double-announcing every
+          // mentor load and defeating that check — which is what reset the
+          // editor a second and third time on a plain page load.
           persistSession(updated);
-          window.dispatchEvent(new CustomEvent("ftc-session-updated"));
         })();
       }
     })();
@@ -169,6 +184,33 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const handleDismissSoloBanner = () => {
     dismissSoloBanner();
     setSoloBannerHidden(true);
+  };
+
+  /**
+   * Re-run the workspace ownership check after an unreachable result.
+   * Clears the session only on a definitive answer, same rule as on mount.
+   */
+  const retryWorkspaceCheck = async () => {
+    const stored = getSession();
+    if (!stored || isSoloSession(stored)) {
+      setWorkspaceCheckFailed(false);
+      return;
+    }
+
+    const result = await fetchWorkspacesResult();
+    if (result.ok && !sessionMatchesWorkspaces(stored, result.data)) {
+      clearWorkspaceSession();
+      setSession(null);
+      router.replace("/signin");
+      return;
+    }
+    if (!result.ok && result.reason === "unauthorized") {
+      clearWorkspaceSession();
+      setSession(null);
+      router.replace("/signin");
+      return;
+    }
+    setWorkspaceCheckFailed(!result.ok);
   };
 
   const showSoloBanner = isSoloSession(session) && !soloBannerHidden;
@@ -383,6 +425,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             lockScroll ? "overflow-y-auto lg:overflow-hidden" : "overflow-y-auto",
           ].join(" ")}
         >
+          {workspaceCheckFailed && (
+            <div className="mx-4 mt-4 flex items-start gap-2 rounded-xl border border-amber-500/15 bg-amber-500/8 px-4 py-3">
+              <Info className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-amber-300/90">
+                  Couldn&apos;t reach the server
+                </p>
+                <p className="text-xs text-amber-300/70 mt-0.5">
+                  We couldn&apos;t confirm your class just now. You can keep working — your
+                  work is still being saved on this device.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void retryWorkspaceCheck()}
+                className="shrink-0 rounded-md border border-amber-500/25 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/10 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {showSoloBanner && (
             <div className="mx-4 mt-4 flex items-start gap-2 rounded-xl border border-sky-500/15 bg-sky-500/8 px-4 py-3">
               <Info className="h-4 w-4 shrink-0 text-sky-400 mt-0.5" />
