@@ -148,18 +148,41 @@ export default function AccountPage() {
         return;
       }
 
-      await supabase.from("students").update({ name: trimmed }).eq("user_id", userId);
+      // profiles is the canonical name, but the class-facing copies in
+      // `students` / `mentors` are what classmates and mentors actually see.
+      // These used to be unchecked awaits: a failure left the rename half
+      // applied while the page still reported "Name updated."
+      const { error: studentErr } = await supabase
+        .from("students")
+        .update({ name: trimmed })
+        .eq("user_id", userId);
 
       const session = getSession();
+
+      let mentorErr: { message: string } | null = null;
       if (session?.role === "mentor" && session.id) {
-        await supabase.from("mentors").update({ mentor_name: trimmed }).eq("id", session.id);
+        ({ error: mentorErr } = await supabase
+          .from("mentors")
+          .update({ mentor_name: trimmed })
+          .eq("id", session.id));
       }
 
       if (session) {
         // persistSession dispatches ftc-session-updated itself when the session
         // actually changed; the manual dispatch that used to follow fired even
         // on a no-op rename and bypassed that check.
+        // Runs even when a class sync failed below — `profiles` is what the
+        // session name mirrors, and that write already landed.
         persistSession({ ...session, name: trimmed });
+      }
+
+      const syncErr = studentErr ?? mentorErr;
+      if (syncErr) {
+        setNameMsg({
+          type: "error",
+          text: `Your name was saved, but your classes could not be updated: ${syncErr.message}`,
+        });
+        return;
       }
 
       setNameMsg({ type: "success", text: "Name updated." });
