@@ -3,6 +3,7 @@
 import { useSyncExternalStore, useEffect, useCallback } from "react";
 import { supabase, type HomeworkAssignmentRow } from "@/lib/supabase";
 import { HOMEWORK_LIST_COLUMNS } from "@/lib/supabase/progressColumns";
+import { fetchAllRows } from "@/lib/supabase/queryHelpers";
 import { getSession, isSoloSession } from "@/lib/auth";
 import { useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
@@ -128,35 +129,68 @@ async function fetchStudentHomework(studentId: string): Promise<HomeworkAssignme
   return body.assignments ?? [];
 }
 
+/** fetchAllRows types its error as `unknown`; Supabase returns a plain object. */
+function queryErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  const message = (error as { message?: unknown } | null)?.message;
+  return typeof message === "string" && message.trim() ? message : fallback;
+}
+
+/**
+ * Every read here goes through {@link fetchAllRows}.
+ *
+ * PostgREST caps a response at 1000 rows and truncates SILENTLY. Homework rows
+ * scale as students x challenges, so a class of 30 students with 40 assignments
+ * each is already past the cap — and the missing rows render as "not assigned"
+ * with no visible failure. The server route (/api/mentor/dashboard-data) has
+ * always paged its equivalent reads; this client hook never did.
+ *
+ * Both queries carry an explicit `.order()` so paging stays deterministic —
+ * `id` is the tiebreaker on homework, where several rows share an assigned_at.
+ */
 async function fetchMentorHomework(ownerId: string): Promise<HomeworkAssignmentRow[]> {
-  const { data: students } = await withTimeout(
-    Promise.resolve(
-      supabase.from("students").select("id").eq("mentor_id", ownerId)
+  const { data: students, error: studentsError } = await withTimeout(
+    fetchAllRows<{ id: string }>((from, to) =>
+      supabase
+        .from("students")
+        .select("id")
+        .eq("mentor_id", ownerId)
+        .order("id")
+        .range(from, to)
     ),
     TAB_LOADER_TIMEOUT_MS,
     "Loading students"
   );
 
-  const studentIds = ((students ?? []) as { id: string }[]).map((s) => s.id);
+  // Discarding this error turned an RLS rejection into `data: null` -> no
+  // student ids -> an empty homework list, so a class with plenty of homework
+  // rendered "no homework assigned" with no error anywhere.
+  if (studentsError) {
+    throw new Error(queryErrorMessage(studentsError, "Failed to load students."));
+  }
+
+  const studentIds = students.map((s) => s.id);
   if (studentIds.length === 0) return [];
 
   const { data, error } = await withTimeout(
-    Promise.resolve(
+    fetchAllRows((from, to) =>
       supabase
         .from("homework_assignments")
         .select(HOMEWORK_LIST_COLUMNS)
         .in("student_id", studentIds)
         .order("assigned_at", { ascending: false })
+        .order("id")
+        .range(from, to)
     ),
     TAB_LOADER_TIMEOUT_MS,
     "Loading homework"
   );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(queryErrorMessage(error, "Failed to load homework."));
   }
 
-  return (data ?? []) as HomeworkAssignmentRow[];
+  return data as unknown as HomeworkAssignmentRow[];
 }
 
 async function ensureHomeworkLoaded(key: HomeworkCacheKey): Promise<void> {
