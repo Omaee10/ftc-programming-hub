@@ -128,11 +128,11 @@ export default function MentorChallengeEditor({
       concepts_covered: [],
     };
 
-    // The edit no longer filters on created_by. RLS is the gate now
-    // (challenges_update_mentor / rls_challenge_author_ids), and it permits
-    // exactly what we want: a class owner may edit any challenge in their class,
-    // a co-mentor only their own. The old `.eq("created_by", authorId)` would
-    // block the owner from co-mentor rows, since authorId is the editor's own id.
+    // The edit does not filter on created_by. RLS is the gate
+    // (challenges_update_mentor / rls_class_challenge_writer_ids): any mentor in
+    // the class may edit any challenge in it. INSERT is scoped separately and
+    // more tightly, to the caller's own mentor rows, so `created_by: authorId`
+    // below is both the attribution and the only value the policy will accept.
     //
     // Both branches still `.select("id")` — an UPDATE matching zero rows is not
     // a Postgres error, so without it a write RLS refused reported success.
@@ -161,7 +161,7 @@ export default function MentorChallengeEditor({
     if (!result.data?.length) {
       setSaveError(
         mode === "edit"
-          ? "Nothing was saved. You can only edit challenges you created, unless you own the class."
+          ? "Nothing was saved. This challenge may have been deleted, or you may no longer be a mentor of this class."
           : "Nothing was saved. Reload the page and try again."
       );
       return;
