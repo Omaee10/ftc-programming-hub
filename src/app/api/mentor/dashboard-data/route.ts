@@ -242,16 +242,19 @@ export async function POST(req: Request): Promise<NextResponse> {
             )
           : Promise.resolve({ data: [], error: null }),
         authorIds.length > 0
-          ? db
-              .from("challenges")
-              .select(CHALLENGE_LIST_COLUMNS)
-              .in("created_by", authorIds)
-              .order("id")
+          ? fetchAllRows((from, to) =>
+              db
+                .from("challenges")
+                .select(CHALLENGE_LIST_COLUMNS)
+                .in("created_by", authorIds)
+                .order("id")
+                .range(from, to)
+            )
           : Promise.resolve({ data: [], error: null }),
       ]);
 
       return NextResponse.json({
-        students: students ?? [],
+        students,
         homework: homework ?? [],
         challenges: challenges ?? [],
       });
