@@ -1,4 +1,3 @@
-import { classChallengeAuthorIds } from "@/lib/classChallenges";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
 import { authorizeMentorWorkspace } from "@/lib/supabase/mentorWorkspaceAuth";
@@ -15,6 +14,24 @@ async function coMentorIdsForOwner(
 ): Promise<string[]> {
   const { data } = await admin.from("mentors").select("id").eq("created_by", ownerId);
   return (data ?? []).map((row) => (row as { id: string }).id);
+}
+
+/**
+ * Mentor ids whose challenges belong to this class: the owner plus every
+ * co-mentor, whoever authored a given row.
+ *
+ * The service-role client bypasses RLS, so every admin-side read has to
+ * reproduce the scope of rls_class_challenge_reader_ids explicitly. This is that
+ * scope. It replaces the old classChallengeAuthorIds(session), which resolved to
+ * owner-plus-self and so hid a co-mentor's challenges from the class owner
+ * everywhere the mentor dashboard reads them.
+ */
+export async function challengeAuthorIdsForClass(
+  admin: SupabaseClient,
+  ownerId: string
+): Promise<string[]> {
+  const coIds = await coMentorIdsForOwner(admin, ownerId);
+  return [...new Set([ownerId, ...coIds])];
 }
 
 /** Resolve mentor UUIDs whose custom challenges belong to this workspace. */
@@ -34,11 +51,9 @@ export async function resolveClassChallengeAuthorIds(
     );
     if (!access) return null;
 
-    // Use the trusted session/owner resolved by authorizeMentorWorkspace — the
+    // Use the trusted owner resolved by authorizeMentorWorkspace — the
     // client-supplied parentMentorId is never used to derive the owner here.
-    const { session, ownerId } = access;
-    const coIds = await coMentorIdsForOwner(admin, ownerId);
-    return [...new Set([...classChallengeAuthorIds(session), ...coIds, ownerId])];
+    return challengeAuthorIdsForClass(admin, access.ownerId);
   }
 
   const { data: student, error } = await admin
@@ -52,8 +67,7 @@ export async function resolveClassChallengeAuthorIds(
   const ownerId = (student.mentor_id as string | null) ?? null;
   if (!ownerId) return null;
 
-  const coIds = await coMentorIdsForOwner(admin, ownerId);
-  return [...new Set([ownerId, ...coIds])];
+  return challengeAuthorIdsForClass(admin, ownerId);
 }
 
 export function getAdminClientOrNull(): SupabaseClient | null {

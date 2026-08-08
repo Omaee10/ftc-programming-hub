@@ -109,25 +109,33 @@ CREATE POLICY mentors_select_class_owner ON mentors FOR SELECT USING (
 );
 
 -- Challenges
-DROP POLICY IF EXISTS challenges_select_mentor ON challenges;
-DROP POLICY IF EXISTS challenges_insert_mentor ON challenges;
-DROP POLICY IF EXISTS challenges_update_mentor ON challenges;
-DROP POLICY IF EXISTS challenges_delete_mentor ON challenges;
-
-CREATE POLICY challenges_select_mentor ON challenges FOR SELECT USING (
-  created_by IN (SELECT rls_mentor_scope_ids())
-  OR created_by IN (SELECT rls_student_mentor_ids())
-  OR created_by IN (SELECT rls_student_class_owner_ids())
-);
-CREATE POLICY challenges_insert_mentor ON challenges FOR INSERT WITH CHECK (
-  created_by IN (SELECT rls_mentor_scope_ids())
-);
-CREATE POLICY challenges_update_mentor ON challenges FOR UPDATE USING (
-  created_by IN (SELECT rls_mentor_scope_ids())
-);
-CREATE POLICY challenges_delete_mentor ON challenges FOR DELETE USING (
-  created_by IN (SELECT rls_mentor_scope_ids())
-);
+--
+-- SUPERSEDED — do not reinstate. Owned by supabase-fix-challenge-authorship.sql,
+-- which scopes challenge writes by real authorship. The definitions below are
+-- wrong in both directions: they block a class owner from co-mentor-authored
+-- rows while letting co-mentors edit and delete the owner's, and they hide
+-- co-mentor-authored challenges from students entirely. Same policy names, so
+-- running this section would overwrite the correct ones in place.
+--
+-- DROP POLICY IF EXISTS challenges_select_mentor ON challenges;
+-- DROP POLICY IF EXISTS challenges_insert_mentor ON challenges;
+-- DROP POLICY IF EXISTS challenges_update_mentor ON challenges;
+-- DROP POLICY IF EXISTS challenges_delete_mentor ON challenges;
+--
+-- CREATE POLICY challenges_select_mentor ON challenges FOR SELECT USING (
+--   created_by IN (SELECT rls_mentor_scope_ids())
+--   OR created_by IN (SELECT rls_student_mentor_ids())
+--   OR created_by IN (SELECT rls_student_class_owner_ids())
+-- );
+-- CREATE POLICY challenges_insert_mentor ON challenges FOR INSERT WITH CHECK (
+--   created_by IN (SELECT rls_mentor_scope_ids())
+-- );
+-- CREATE POLICY challenges_update_mentor ON challenges FOR UPDATE USING (
+--   created_by IN (SELECT rls_mentor_scope_ids())
+-- );
+-- CREATE POLICY challenges_delete_mentor ON challenges FOR DELETE USING (
+--   created_by IN (SELECT rls_mentor_scope_ids())
+-- );
 
 -- Progress
 DROP POLICY IF EXISTS progress_select_own ON student_challenge_progress;

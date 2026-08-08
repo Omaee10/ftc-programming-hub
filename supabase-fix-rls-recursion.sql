@@ -180,26 +180,38 @@ CREATE POLICY mentors_select_class_owner ON mentors FOR SELECT USING (
 );
 
 -- ─── Challenges ──────────────────────────────────────────────────────────────
-
-DROP POLICY IF EXISTS challenges_select_mentor ON challenges;
-DROP POLICY IF EXISTS challenges_insert_mentor ON challenges;
-DROP POLICY IF EXISTS challenges_update_mentor ON challenges;
-DROP POLICY IF EXISTS challenges_delete_mentor ON challenges;
-
-CREATE POLICY challenges_select_mentor ON challenges FOR SELECT USING (
-  created_by IN (SELECT rls_mentor_scope_ids())
-  OR created_by IN (SELECT rls_student_mentor_ids())
-  OR created_by IN (SELECT rls_student_class_owner_ids())
-);
-CREATE POLICY challenges_insert_mentor ON challenges FOR INSERT WITH CHECK (
-  created_by IN (SELECT rls_mentor_scope_ids())
-);
-CREATE POLICY challenges_update_mentor ON challenges FOR UPDATE USING (
-  created_by IN (SELECT rls_mentor_scope_ids())
-);
-CREATE POLICY challenges_delete_mentor ON challenges FOR DELETE USING (
-  created_by IN (SELECT rls_mentor_scope_ids())
-);
+--
+-- SUPERSEDED — do not reinstate. These four policies now live in
+-- supabase-fix-challenge-authorship.sql, which scopes challenge writes by real
+-- authorship: a class owner may write any challenge in their class, a co-mentor
+-- only their own. The definitions below predate that and are wrong in both
+-- directions — they block the owner from co-mentor rows while letting co-mentors
+-- edit and delete the owner's, and they hide co-mentor-authored challenges from
+-- students entirely. Running them would silently revoke and re-grant exactly the
+-- wrong things.
+--
+-- DROP POLICY IF EXISTS challenges_select_mentor ON challenges;
+-- DROP POLICY IF EXISTS challenges_insert_mentor ON challenges;
+-- DROP POLICY IF EXISTS challenges_update_mentor ON challenges;
+-- DROP POLICY IF EXISTS challenges_delete_mentor ON challenges;
+--
+-- CREATE POLICY challenges_select_mentor ON challenges FOR SELECT USING (
+--   created_by IN (SELECT rls_mentor_scope_ids())
+--   OR created_by IN (SELECT rls_student_mentor_ids())
+--   OR created_by IN (SELECT rls_student_class_owner_ids())
+-- );
+-- CREATE POLICY challenges_insert_mentor ON challenges FOR INSERT WITH CHECK (
+--   created_by IN (SELECT rls_mentor_scope_ids())
+-- );
+-- CREATE POLICY challenges_update_mentor ON challenges FOR UPDATE USING (
+--   created_by IN (SELECT rls_mentor_scope_ids())
+-- );
+-- CREATE POLICY challenges_delete_mentor ON challenges FOR DELETE USING (
+--   created_by IN (SELECT rls_mentor_scope_ids())
+-- );
+--
+-- The rls_mentor_scope_ids() definition above is UNCHANGED and still required —
+-- students, progress, submissions and homework all depend on it.
 
 -- ─── Progress ────────────────────────────────────────────────────────────────
 

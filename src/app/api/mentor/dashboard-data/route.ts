@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { classChallengeAuthorIds } from "@/lib/classChallenges";
+import { challengeAuthorIdsForClass } from "@/lib/supabase/classChallengeAccess";
 import { createClient } from "@/lib/supabase/server";
 import { hasServiceRoleKey } from "@/lib/supabase/admin";
 import { authorizeMentorWorkspace } from "@/lib/supabase/mentorWorkspaceAuth";
@@ -66,7 +66,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { session, ownerId, admin: db } = access;
+  // Author ids are resolved per scope from `ownerId` via challengeAuthorIdsForClass,
+  // which reads the class's co-mentors. The session-derived list it replaced
+  // resolved to owner-plus-self, so a class owner never saw a co-mentor's
+  // challenges in any tab — harmless while every row was owner-authored, and a
+  // hole the moment authorship became real.
+  const { ownerId, admin: db } = access;
 
   switch (scope) {
     case "overview": {
@@ -78,7 +83,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       await repairClassMentorLinks(db, ownerId);
       const backfilledClassCode = await ensureClassCodeForOwner(db, ownerId);
 
-      const authorIds = classChallengeAuthorIds(session);
+      const authorIds = await challengeAuthorIdsForClass(db, ownerId);
 
       // Paged: `studentIds` is the filter for the pending-submission count
       // below, so a truncated read here would undercount pending reviews on the
@@ -142,7 +147,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "progress": {
-      const authorIds = classChallengeAuthorIds(session);
+      const authorIds = await challengeAuthorIdsForClass(db, ownerId);
 
       // Paged like the reads below it: a class past PostgREST's 1000-row cap
       // would silently lose students here, and every per-student read below
@@ -209,7 +214,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "homework": {
-      const authorIds = classChallengeAuthorIds(session);
+      const authorIds = await challengeAuthorIdsForClass(db, ownerId);
 
       // Paged for the same reason as the homework read below it: `studentIds`
       // filters that read, so losing students here silently drops their
@@ -289,7 +294,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "challenges": {
-      const authorIds = classChallengeAuthorIds(session);
+      const authorIds = await challengeAuthorIdsForClass(db, ownerId);
       if (authorIds.length === 0) {
         return NextResponse.json({ rows: [] });
       }
@@ -316,7 +321,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     case "submissions": {
-      const authorIds = classChallengeAuthorIds(session);
+      const authorIds = await challengeAuthorIdsForClass(db, ownerId);
       const pagination = parsePagination(page, pageSize);
 
       // Paged: `studentIds` filters both count queries AND the submission page

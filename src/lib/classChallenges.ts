@@ -15,20 +15,6 @@ export function isCustomChallengeId(id: number): boolean {
   return id >= 1000;
 }
 
-/** Who may have created challenges visible to this class. */
-export function classChallengeAuthorIds(session: Session): string[] {
-  const ownerId = classOwner(session);
-  if (!ownerId) return [];
-
-  if (session.role === "mentor") {
-    const ids = new Set([ownerId]);
-    if (session.id !== ownerId) ids.add(session.id);
-    return [...ids];
-  }
-
-  return [ownerId];
-}
-
 function classChallengeQuery(session: Session): URLSearchParams {
   const params = new URLSearchParams({
     workspaceId: session.id,
@@ -89,11 +75,21 @@ export async function fetchClassChallengeById(
   }
 }
 
-/** created_by value to store when a mentor saves a new challenge. */
+/**
+ * created_by value to store when a mentor saves a new challenge — the creating
+ * mentor's OWN row id, not the class owner's.
+ *
+ * This used to return the class owner id for everyone, so a co-mentor's work was
+ * attributed to the owner and no row could ever be co-mentor-authored. Three
+ * places were already written for real authorship — the class challenge author
+ * resolution, leaveClass and delete-member, the last two reassigning a departing
+ * co-mentor's challenges to the owner — so they operated on rows that never
+ * existed. Challenge reads scope by class, not by author, so a co-mentor's
+ * challenge is still visible to the whole class; see
+ * rls_class_challenge_reader_ids in supabase-fix-challenge-authorship.sql.
+ */
 export function challengeCreatedBy(session: Session | null): string | null {
-  if (!session?.id) return null;
-  const owner = classOwner(session);
-  return owner || session.id;
+  return session?.id || null;
 }
 
 /** Resolve the mentor that owns a student's class. */
