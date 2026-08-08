@@ -99,6 +99,7 @@ const BlocklyWorkspace = dynamic(() => import("./BlocklyWorkspace"), {
 
 type EditorMode = "java" | "blocks";
 
+
 function workspaceRestoreKey(
   studentId: string | null | undefined,
   challengeId: number
@@ -626,13 +627,43 @@ export default function ChallengeWorkspace({
   const progressStudentIdRef = useRef(progressStudentId);
   progressStudentIdRef.current = progressStudentId;
 
-  const canPersistForSession = useCallback((): boolean => {
+  /**
+   * May the Supabase upsert run?
+   *
+   * Cloud progress is filed against a class student's `students` row, so only an
+   * enrolled student has anywhere to write. Mentors, solo practisers and guests
+   * do not. The hook-id comparison matters during a workspace switch: the
+   * progress hook can still hold the previous student id, and writing then would
+   * file this work under the wrong student. useSupabaseProgress re-checks the
+   * same thing internally; this keeps the call sites honest.
+   */
+  const canPersistToCloud = useCallback((): boolean => {
     const session = getSession();
-    if (!session || session.role !== "student") return !session;
+    if (!session || session.role !== "student" || isSoloSession(session)) return false;
     const hookId = progressStudentIdRef.current;
-    if (!hookId) return false;
-    return session.id === hookId;
+    return !!hookId && session.id === hookId;
   }, []);
+
+  /**
+   * May a local draft be written?
+   *
+   * Yes for anyone at the keyboard — mentor, solo practiser, class student or
+   * signed-out guest. Drafts are keyed by session id (see challengeCodeDrafts),
+   * so each writes its own bucket and none can overwrite another.
+   *
+   * These two used to be a single predicate whose first line read
+   * `if (!session || session.role !== "student") return !session;`. A mentor fell
+   * through to `return !session` — false — and a solo student failed the
+   * progress-hook id check below it, so neither could save code at all: edits
+   * were written nowhere and reverted to starter on the next load. Solo sessions
+   * never sync to Supabase, so localStorage was their only copy. A signed-out
+   * guest could save, which is what marks it as an expression bug rather than a
+   * policy.
+   *
+   * Answer-key mode is excluded: that editor holds the reference solution, not
+   * the viewer's work.
+   */
+  const canPersistDraft = useCallback((): boolean => !answerKeyMode, [answerKeyMode]);
 
   const editorRef = useRef<
     Parameters<
@@ -687,15 +718,15 @@ export default function ChallengeWorkspace({
   );
 
   const flushBlocksSnapshot = useCallback(() => {
-    if (answerKeyMode || !blocksConfig || !canPersistForSession()) return;
+    if (!blocksConfig || !canPersistDraft()) return;
     const state =
       blocklyHandleRef.current?.getState()
       ?? blockStateRef.current;
     if (!state) return;
     clearTimeout(blockDraftTimer.current);
     saveBlockDraft(challenge.id, state);
-    void saveBlocks(state, { flush: true });
-  }, [answerKeyMode, blocksConfig, canPersistForSession, challenge.id, saveBlocks]);
+    if (canPersistToCloud()) void saveBlocks(state, { flush: true });
+  }, [blocksConfig, canPersistDraft, canPersistToCloud, challenge.id, saveBlocks]);
 
   const confirmModeSwitch = useCallback(() => {
     flushBlocksSnapshot();
@@ -720,10 +751,8 @@ export default function ChallengeWorkspace({
         );
         setCode(generated);
         editorRef.current?.setValue(generated);
-        if (canPersistForSession()) {
-          saveCodeDraft(challenge.id, generated);
-          void saveCode(generated);
-        }
+        if (canPersistDraft()) saveCodeDraft(challenge.id, generated);
+        if (canPersistToCloud()) void saveCode(generated);
       } catch {
         // If generation fails, fall back to keeping the existing Java code.
       }
@@ -731,7 +760,7 @@ export default function ChallengeWorkspace({
     flushBlocksSnapshot();
     setPendingMode(null);
     setEditorMode("java");
-  }, [blocksConfig, canPersistForSession, challenge.id, flushBlocksSnapshot, saveCode]);
+  }, [blocksConfig, canPersistDraft, canPersistToCloud, challenge.id, flushBlocksSnapshot, saveCode]);
 
   useEffect(() => {
     restoredBlocksRef.current = null;
@@ -787,11 +816,11 @@ export default function ChallengeWorkspace({
 
   const persistBlocks = useCallback(
     (state: WorkspaceState, options?: { flushCloud?: boolean }) => {
-      if (!canPersistForSession()) return;
+      if (!canPersistDraft()) return;
       saveBlockDraft(challenge.id, state);
-      void saveBlocks(state, { flush: options?.flushCloud });
+      if (canPersistToCloud()) void saveBlocks(state, { flush: options?.flushCloud });
     },
-    [canPersistForSession, challenge.id, saveBlocks]
+    [canPersistDraft, canPersistToCloud, challenge.id, saveBlocks]
   );
 
   const handleBlocksChange = useCallback(
@@ -814,9 +843,11 @@ export default function ChallengeWorkspace({
   const resetCode = useCallback(() => {
     setCode(challenge.starterCode);
     editorRef.current?.setValue(challenge.starterCode);
-    saveCodeDraft(challenge.id, challenge.starterCode);
-    void saveCode(challenge.starterCode, { flush: true });
-  }, [challenge.id, challenge.starterCode, saveCode]);
+    // Previously wrote unconditionally, bypassing the rules every other write
+    // path follows.
+    if (canPersistDraft()) saveCodeDraft(challenge.id, challenge.starterCode);
+    if (canPersistToCloud()) void saveCode(challenge.starterCode, { flush: true });
+  }, [canPersistDraft, canPersistToCloud, challenge.id, challenge.starterCode, saveCode]);
 
   // Reset resets the *active* editor: starter Java in Java mode, starter blocks
   // in Blocks mode. The two modes keep independent drafts.
@@ -833,11 +864,11 @@ export default function ChallengeWorkspace({
 
   const persistCode = useCallback(
     (next: string, options?: { flushCloud?: boolean }) => {
-      if (!canPersistForSession()) return;
+      if (!canPersistDraft()) return;
       saveCodeDraft(challenge.id, next);
-      void saveCode(next, { flush: options?.flushCloud });
+      if (canPersistToCloud()) void saveCode(next, { flush: options?.flushCloud });
     },
-    [canPersistForSession, challenge.id, saveCode]
+    [canPersistDraft, canPersistToCloud, challenge.id, saveCode]
   );
 
   const persistCodeRef = useRef(persistCode);
