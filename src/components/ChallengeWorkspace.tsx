@@ -56,7 +56,7 @@ import {
 import { useChallengeProgress } from "@/hooks/useChallengeProgress";
 import { useSupabaseProgress } from "@/hooks/useSupabaseProgress";
 import { supabase, type SubmissionRow } from "@/lib/supabase";
-import { getSession } from "@/lib/auth";
+import { getSession, isSoloSession } from "@/lib/auth";
 import { useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import type { BlocklyWorkspaceHandle } from "./BlocklyWorkspace";
 import {
@@ -869,6 +869,37 @@ export default function ChallengeWorkspace({
     if (answerKeyMode) return;
 
     const onSessionChange = () => {
+      // Only wipe the editor when the workspace this content was restored under
+      // is genuinely no longer the active one. The event also fires for reasons
+      // that leave the identity untouched — and treating those as an account
+      // switch discarded the student's restored draft, after which the restore
+      // effect could not recover it (clearing restoredChallengeRef changes no
+      // dependency, so it never re-runs). Worse, the unmount flush then wrote
+      // that starter code over their saved code_snapshot.
+      //
+      // restoredChallengeRef encodes the owner via workspaceRestoreKey, built
+      // from progressStudentId. Recompute that identity from scratch rather than
+      // reading progressStudentId here: useSupabaseProgress updates it from this
+      // same event, so its value mid-dispatch depends on listener registration
+      // order. setSession has already written localStorage before dispatching,
+      // so getSession() reliably reflects the incoming session.
+      //
+      // Must match useSupabaseProgress exactly — solo students resolve to null
+      // there, so treating them as owners would key them differently and reset
+      // on every event.
+      const activeSession = getSession();
+      const activeOwnerId =
+        activeSession?.role === "student" && !isSoloSession(activeSession)
+          ? activeSession.id
+          : null;
+      const activeKey = workspaceRestoreKey(activeOwnerId, challenge.id);
+      if (
+        restoredChallengeRef.current !== null &&
+        restoredChallengeRef.current === activeKey
+      ) {
+        return;
+      }
+
       clearTimeout(saveTimer.current);
       clearTimeout(blockDraftTimer.current);
       restoredChallengeRef.current = null;
@@ -890,7 +921,7 @@ export default function ChallengeWorkspace({
     };
     window.addEventListener("ftc-session-updated", onSessionChange);
     return () => window.removeEventListener("ftc-session-updated", onSessionChange);
-  }, [answerKeyMode, blocksConfig, challenge.starterCode]);
+  }, [answerKeyMode, blocksConfig, challenge.id, challenge.starterCode]);
 
   useEffect(() => {
     if (answerKeyMode) return;
