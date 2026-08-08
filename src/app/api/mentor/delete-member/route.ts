@@ -109,6 +109,23 @@ export async function POST(req: Request): Promise<NextResponse> {
       );
     }
 
+    // Move authorship to the class owner BEFORE deleting the row.
+    // `challenges.created_by` is ON DELETE SET NULL (supabase-setup.sql), and
+    // every read path filters `.in("created_by", authorIds)` — dashboard-data,
+    // challenges/class, classChallengeAccess — so a NULL author matches nothing.
+    // Deleting first silently removed this co-mentor's challenges from the
+    // mentor dashboard and from every student's challenge list, leaving orphaned
+    // challenge_submissions behind. leaveClass.ts does the same reassignment for
+    // self-removal; this owner-initiated path had been missing it.
+    const { error: reassignErr } = await admin
+      .from("challenges")
+      .update({ created_by: ownerId })
+      .eq("created_by", memberId);
+
+    if (reassignErr) {
+      return NextResponse.json({ error: reassignErr.message }, { status: 500 });
+    }
+
     const { error: deleteErr } = await admin
       .from("mentors")
       .delete()
