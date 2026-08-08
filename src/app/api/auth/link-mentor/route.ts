@@ -12,10 +12,19 @@ import {
   tryRepairMistakenOwnerClaim,
   userAlreadyHasClassAccess,
 } from "@/lib/supabase/mentorClaim";
+import {
+  CODE_REDEEM_IP_RATE,
+  CODE_REDEEM_USER_RATE,
+  checkRateLimit,
+  clientIdFrom,
+  rateLimitHeaders,
+} from "@/lib/rateLimit";
 
 interface LinkMentorBody {
   mentorCode?: string;
 }
+
+const TOO_MANY = "Too many mentor code attempts. Wait a few minutes and try again.";
 
 export async function POST(request: Request) {
   const envStatus = getSupabaseEnvStatus();
@@ -30,6 +39,18 @@ export async function POST(request: Request) {
     );
   }
 
+  // A mentor code claims a whole class workspace, so this is the higher-value of
+  // the two redemption endpoints and had no limit at all. Same buckets as
+  // join-class: IP first, before any database work, then per user.
+  const clientIp = clientIdFrom(request);
+  const ipRate = checkRateLimit(`linkmentor:ip:${clientIp}`, CODE_REDEEM_IP_RATE);
+  if (!ipRate.ok) {
+    return NextResponse.json(
+      { error: TOO_MANY },
+      { status: 429, headers: rateLimitHeaders(ipRate) }
+    );
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -37,6 +58,14 @@ export async function POST(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
+  }
+
+  const userRate = checkRateLimit(`linkmentor:user:${user.id}`, CODE_REDEEM_USER_RATE);
+  if (!userRate.ok) {
+    return NextResponse.json(
+      { error: TOO_MANY },
+      { status: 429, headers: rateLimitHeaders(userRate) }
+    );
   }
 
   let body: LinkMentorBody;
