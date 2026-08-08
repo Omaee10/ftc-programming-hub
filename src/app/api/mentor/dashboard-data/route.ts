@@ -80,12 +80,19 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       const authorIds = classChallengeAuthorIds(session);
 
-      const { data: classStudents } = await db
-        .from("students")
-        .select("id")
-        .eq("mentor_id", ownerId);
+      // Paged: `studentIds` is the filter for the pending-submission count
+      // below, so a truncated read here would undercount pending reviews on the
+      // dashboard tile rather than showing up as a short list anywhere.
+      const { data: classStudents } = await fetchAllRows((from, to) =>
+        db
+          .from("students")
+          .select("id")
+          .eq("mentor_id", ownerId)
+          .order("id")
+          .range(from, to)
+      );
 
-      const studentIds = (classStudents ?? []).map((row) => row.id as string);
+      const studentIds = classStudents.map((row) => row.id as string);
 
       const [
         { count: studentCount },
@@ -137,13 +144,22 @@ export async function POST(req: Request): Promise<NextResponse> {
     case "progress": {
       const authorIds = classChallengeAuthorIds(session);
 
-      const { data: students } = await db
-        .from("students")
-        .select(STUDENT_LIST_COLUMNS)
-        .eq("mentor_id", ownerId)
-        .order("name");
+      // Paged like the reads below it: a class past PostgREST's 1000-row cap
+      // would silently lose students here, and every per-student read below
+      // filters on `studentIds` — so the truncation would cascade into missing
+      // progress and homework rather than showing up as a short student list.
+      // `id` is the paging tiebreaker; the display sort on `name` is unchanged.
+      const { data: students } = await fetchAllRows((from, to) =>
+        db
+          .from("students")
+          .select(STUDENT_LIST_COLUMNS)
+          .eq("mentor_id", ownerId)
+          .order("name")
+          .order("id")
+          .range(from, to)
+      );
 
-      const studentIds = (students ?? []).map((row) => row.id as string);
+      const studentIds = students.map((row) => row.id as string);
 
       // Completions only — the progress tab treats missing rows as incomplete,
       // so a silently truncated read here would show finished work as unfinished.
@@ -173,16 +189,19 @@ export async function POST(req: Request): Promise<NextResponse> {
               )
             : Promise.resolve({ data: [], error: null }),
           authorIds.length > 0
-            ? db
-                .from("challenges")
-                .select(CHALLENGE_LIST_COLUMNS)
-                .in("created_by", authorIds)
-                .order("id")
+            ? fetchAllRows((from, to) =>
+                db
+                  .from("challenges")
+                  .select(CHALLENGE_LIST_COLUMNS)
+                  .in("created_by", authorIds)
+                  .order("id")
+                  .range(from, to)
+              )
             : Promise.resolve({ data: [], error: null }),
         ]);
 
       return NextResponse.json({
-        students: students ?? [],
+        students,
         progress: progress ?? [],
         homework: homework ?? [],
         challenges: challenges ?? [],
@@ -192,13 +211,21 @@ export async function POST(req: Request): Promise<NextResponse> {
     case "homework": {
       const authorIds = classChallengeAuthorIds(session);
 
-      const { data: students } = await db
-        .from("students")
-        .select(STUDENT_LIST_COLUMNS)
-        .eq("mentor_id", ownerId)
-        .order("name");
+      // Paged for the same reason as the homework read below it: `studentIds`
+      // filters that read, so losing students here silently drops their
+      // homework too — the tab would render a short roster AND missing work.
+      // `id` is the paging tiebreaker; the display sort on `name` is unchanged.
+      const { data: students } = await fetchAllRows((from, to) =>
+        db
+          .from("students")
+          .select(STUDENT_LIST_COLUMNS)
+          .eq("mentor_id", ownerId)
+          .order("name")
+          .order("id")
+          .range(from, to)
+      );
 
-      const studentIds = (students ?? []).map((row) => row.id as string);
+      const studentIds = students.map((row) => row.id as string);
 
       const [{ data: homework }, { data: challenges }] = await Promise.all([
         studentIds.length > 0
@@ -264,29 +291,44 @@ export async function POST(req: Request): Promise<NextResponse> {
         return NextResponse.json({ rows: [] });
       }
 
-      const { data: rows, error } = await db
-        .from("challenges")
-        .select(CHALLENGE_LIST_COLUMNS)
-        .in("created_by", authorIds)
-        .order("id");
+      // Manage Challenges lists every custom challenge in the class, so a
+      // truncated read would hide the tail of the list with no indication.
+      const { data: rows, error } = await fetchAllRows((from, to) =>
+        db
+          .from("challenges")
+          .select(CHALLENGE_LIST_COLUMNS)
+          .in("created_by", authorIds)
+          .order("id")
+          .range(from, to)
+      );
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json(
+          { error: (error as { message?: string }).message ?? "Failed to load challenges." },
+          { status: 500 }
+        );
       }
 
-      return NextResponse.json({ rows: rows ?? [] });
+      return NextResponse.json({ rows });
     }
 
     case "submissions": {
       const authorIds = classChallengeAuthorIds(session);
       const pagination = parsePagination(page, pageSize);
 
-      const { data: students } = await db
-        .from("students")
-        .select("id, name")
-        .eq("mentor_id", ownerId);
+      // Paged: `studentIds` filters both count queries AND the submission page
+      // below, so truncation here would hide whole students' submissions while
+      // still reporting a confident total — the pagination would look correct.
+      const { data: students } = await fetchAllRows((from, to) =>
+        db
+          .from("students")
+          .select("id, name")
+          .eq("mentor_id", ownerId)
+          .order("id")
+          .range(from, to)
+      );
 
-      if (!students || students.length === 0) {
+      if (students.length === 0) {
         return NextResponse.json({
           students: [],
           submissions: [],

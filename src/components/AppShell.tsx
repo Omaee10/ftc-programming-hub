@@ -113,10 +113,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           const parentMentorId: string | undefined = row.created_by ?? undefined;
 
           if (profileName && row.mentor_name !== profileName) {
+            // Best-effort background sync — the UI already renders profileName,
+            // so there is nothing for the mentor to act on. It is logged rather
+            // than discarded so a persistently failing sync (RLS, offline) is
+            // diagnosable instead of invisible.
             void supabase
               .from("mentors")
               .update({ mentor_name: profileName })
-              .eq("id", stored.id);
+              .eq("id", stored.id)
+              .then(({ error }) => {
+                if (error) {
+                  console.error("Failed to sync mentor_name:", error.message);
+                }
+              });
           }
 
           try {

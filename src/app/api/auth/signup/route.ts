@@ -44,6 +44,58 @@ function guardResponse(body: Record<string, unknown>, status: number): NextRespo
   return applySecurityHeaders(NextResponse.json(body, { status }));
 }
 
+/**
+ * Shown when the compensating delete ITSELF failed, so an auth user exists with
+ * no `profiles` row. That state is a dead end for the user, not a retry: the
+ * next attempt's `findRegisteredSignupEmail` check looks in `profiles`, finds
+ * nothing, and lets signup proceed to `createUser` — which fails with "already
+ * registered". Telling them to retry would loop them forever, so point them at
+ * support instead, and see the loud log for the id to clean up.
+ */
+const ORPHANED_AUTH_USER_MESSAGE =
+  "Account setup failed and could not be cleaned up automatically. "
+  + "This email is temporarily unusable — contact support before trying again.";
+
+/**
+ * Undo `createUser` after a later step failed.
+ *
+ * Returns false when the rollback did not happen, so the caller can report the
+ * dead end above instead of a plain "try again". The error is logged with the
+ * user id and email because manual deletion in the Supabase dashboard is the
+ * only way out.
+ *
+ * Longer-term fix: this whole sequence wants to be one transaction. It is not
+ * reachable via a single RPC as written — `auth.admin.createUser` is a GoTrue
+ * API call, not SQL, so a Postgres function cannot create the auth user, and
+ * the profile insert + code linking cannot run BEFORE it either (profiles.id is
+ * a FK to auth.users.id and the trigger-created profiles row is keyed on it).
+ * The tractable version is an RPC that does the profile insert and the student/
+ * mentor code linking together in one transaction, called once after
+ * createUser: that collapses three failure points into one, leaving a single
+ * compensating delete rather than three. Worth doing, but it is a schema-level
+ * change (new SECURITY DEFINER function + tests), not part of this sweep.
+ */
+async function rollbackAuthUser(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  email: string,
+  reason: string
+): Promise<boolean> {
+  const { error } = await admin.auth.admin.deleteUser(userId);
+
+  if (error) {
+    console.error(
+      `[signup] ORPHANED AUTH USER — manual cleanup required. `
+      + `userId=${userId} email=${email} reason="${reason}" `
+      + `deleteError="${error.message}". `
+      + `Delete this user in Supabase Auth or the email stays unusable.`
+    );
+    return false;
+  }
+
+  return true;
+}
+
 export async function POST(request: Request) {
   const clientIp = clientIdFrom(request);
   const rate = checkRateLimit(`auth:signup:${clientIp}`, AUTH_RATE);
@@ -257,11 +309,14 @@ export async function POST(request: Request) {
   const { error: profileErr } = await admin.from("profiles").insert(profilePayload);
 
   if (profileErr) {
-    await admin.auth.admin.deleteUser(userId);
+    const rolledBack = await rollbackAuthUser(admin, userId, email, "profile insert failed");
     const profileMessage = isDuplicateProfileError(profileErr.message ?? "")
       ? DUPLICATE_SIGNUP_EMAIL_MESSAGE
       : (profileErr.message ?? "Failed to create profile.");
-    return NextResponse.json({ error: profileMessage }, { status: 400 });
+    return NextResponse.json(
+      { error: rolledBack ? profileMessage : ORPHANED_AUTH_USER_MESSAGE },
+      { status: rolledBack ? 400 : 500 }
+    );
   }
 
   if (studentCode) {
@@ -273,18 +328,36 @@ export async function POST(request: Request) {
       .select("id");
 
     if (linkErr || !linked?.length) {
-      await admin.auth.admin.deleteUser(userId);
+      const rolledBack = await rollbackAuthUser(
+        admin,
+        userId,
+        email,
+        "student code linking failed"
+      );
       return NextResponse.json(
-        { error: linkErr?.message ?? "Failed to link student code." },
+        {
+          error: rolledBack
+            ? (linkErr?.message ?? "Failed to link student code.")
+            : ORPHANED_AUTH_USER_MESSAGE,
+        },
         { status: 500 }
       );
     }
   } else if (mentorToClaim) {
     const linked = await linkMentorToUser(admin, mentorToClaim.id, userId, displayName);
     if (!linked.ok) {
-      await admin.auth.admin.deleteUser(userId);
+      const rolledBack = await rollbackAuthUser(
+        admin,
+        userId,
+        email,
+        "mentor code linking failed"
+      );
       return NextResponse.json(
-        { error: linked.error ?? "Failed to link mentor code." },
+        {
+          error: rolledBack
+            ? (linked.error ?? "Failed to link mentor code.")
+            : ORPHANED_AUTH_USER_MESSAGE,
+        },
         { status: 500 }
       );
     }

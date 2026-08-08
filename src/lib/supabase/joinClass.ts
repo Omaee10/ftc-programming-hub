@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateAccessCode, isUniqueViolation } from "@/lib/accessCodes";
+import { fetchAllRows } from "@/lib/supabase/queryHelpers";
 
 const SIX_DIGIT_CODE = /^\d{6}$/;
 
@@ -51,20 +52,29 @@ async function findClassOwnerByCode(
     return directMatch as ClassOwnerRow;
   }
 
-  const { data: owners, error: ownersErr } = await admin
-    .from("mentors")
-    .select("id, name, class_name, class_code")
-    .is("created_by", null)
-    .not("class_code", "is", null);
+  // Whitespace-tolerant fallback: scans every class owner, so it must page.
+  // A bare .select() stops at PostgREST's 1000-row cap and truncates silently
+  // — past that, a valid code stored with stray whitespace would fail with
+  // "Invalid class code" and nothing would say why.
+  const { data: owners, error: ownersErr } = await fetchAllRows<ClassOwnerRow>(
+    (from, to) =>
+      admin
+        .from("mentors")
+        .select("id, name, class_name, class_code")
+        .is("created_by", null)
+        .not("class_code", "is", null)
+        .order("id")
+        .range(from, to)
+  );
 
   if (ownersErr) {
-    throw new Error(ownersErr.message);
+    throw new Error(
+      (ownersErr as { message?: string }).message ?? "Failed to look up class code."
+    );
   }
 
   return (
-    (owners as ClassOwnerRow[] | null)?.find(
-      (row) => normalizeStoredCode(row.class_code) === classCode
-    ) ?? null
+    owners.find((row) => normalizeStoredCode(row.class_code) === classCode) ?? null
   );
 }
 

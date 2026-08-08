@@ -1380,6 +1380,7 @@ function CodeManager({
 function ManageChallengesTab() {
   const [rows, setRows] = useState<ChallengeSummaryRow[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const { loading, session, sessionMissing, loadError, reload: load } = useTabLoader(async (s) => {
@@ -1390,12 +1391,36 @@ function ManageChallengesTab() {
   const handleDelete = (id: number) => {
     startTransition(async () => {
       const authorId = challengeCreatedBy(getSession());
-      if (!authorId) return;
-      await supabase
+      if (!authorId) {
+        setDeleteError("Session expired. Sign in again.");
+        return;
+      }
+      setDeleteError("");
+
+      // `.select("id")` is what makes a no-op delete visible. A DELETE that
+      // matches zero rows is NOT a Postgres error, so checking `error` alone
+      // reported success when RLS hid the row or `created_by` didn't match —
+      // and the challenge stayed put. challengeCreatedBy() always returns the
+      // class OWNER id, while co-mentor-authored rows carry that co-mentor's
+      // mentor row id, so the mismatch is a real case, not a theoretical one.
+      const { data: deleted, error } = await supabase
         .from("challenges")
         .delete()
         .eq("id", id)
-        .eq("created_by", authorId);
+        .eq("created_by", authorId)
+        .select("id");
+
+      if (error) {
+        setDeleteError(error.message);
+        return;
+      }
+
+      if (!deleted?.length) {
+        setDeleteError(
+          `Challenge #${id} was not deleted — it may have been created by a co-mentor, or already removed.`
+        );
+      }
+
       load();
     });
   };
@@ -1421,6 +1446,13 @@ function ManageChallengesTab() {
               }}
             />
           </div>
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+          <span className="text-xs text-red-400">{deleteError}</span>
         </div>
       )}
 
@@ -1497,6 +1529,8 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [gradeInputs, setGradeInputs] = useState<Record<string, { grade: string; feedback: string }>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  /** Per-submission grade write failure, keyed the same way as `saving`. */
+  const [gradeErrors, setGradeErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -1621,7 +1655,17 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
     const s = getSession();
     if (!input?.grade || !s?.id) return;
     setSaving((prev) => ({ ...prev, [sub.id]: true }));
-    await supabase
+    setGradeErrors((prev) => {
+      const next = { ...prev };
+      delete next[sub.id];
+      return next;
+    });
+
+    // `.select("id")` alongside the error check: an UPDATE the mentor's RLS
+    // scope doesn't cover matches zero rows WITHOUT erroring, so an unchecked
+    // await reported a grade that was never written — load() then quietly
+    // reverted the row and the mentor believed they had graded it.
+    const { data: updated, error } = await supabase
       .from("challenge_submissions")
       .update({
         status: "graded",
@@ -1630,8 +1674,21 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
         graded_at: new Date().toISOString(),
         graded_by: s.id,
       })
-      .eq("id", sub.id);
+      .eq("id", sub.id)
+      .select("id");
+
     setSaving((prev) => ({ ...prev, [sub.id]: false }));
+
+    if (error || !updated?.length) {
+      setGradeErrors((prev) => ({
+        ...prev,
+        [sub.id]:
+          error?.message
+          ?? "Grade was not saved — this submission is no longer in your class. Reload and try again.",
+      }));
+      return;
+    }
+
     load();
   };
 
@@ -1760,6 +1817,13 @@ function GradeSubmissionsTab({ onCountChange }: { onCountChange?: (count: number
                         )}
                         {isSaving ? "Saving…" : "Submit Grade"}
                       </button>
+
+                      {gradeErrors[sub.id] && (
+                        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                          <span className="text-xs text-red-400">{gradeErrors[sub.id]}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
