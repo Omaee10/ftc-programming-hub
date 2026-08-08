@@ -67,6 +67,32 @@ export async function POST(request: Request) {
     );
   }
 
+  // Authentication was the whole check here, which left every signed-in student
+  // able to spend OpenAI credit at the IP rate limit above. Only mentors author
+  // challenges, so only mentors may generate them. The read runs under the
+  // caller's own session, so mentors_select_own is what scopes it — a user with
+  // no mentor row gets no rows back and cannot spoof one.
+  const { data: mentorRows, error: mentorErr } = await supabase
+    .from("mentors")
+    .select("id")
+    .eq("user_id", user.id)
+    .limit(1);
+
+  if (mentorErr) {
+    return applySecurityHeaders(
+      NextResponse.json({ error: "Could not verify your account." }, { status: 500 })
+    );
+  }
+
+  if (!mentorRows?.length) {
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: "Only mentors can generate challenges." },
+        { status: 403 }
+      )
+    );
+  }
+
   try {
     const { gist, title } = (await request.json()) as {
       gist: string;
@@ -83,21 +109,44 @@ export async function POST(request: Request) {
       ? `Title: ${title}\nGist: ${gist}`
       : `Gist: ${gist}`;
 
-    const completion = await getOpenAI().chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 2048,
-    });
+    // Bounded like every other external call in this codebase (graderClient
+    // uses AbortSignal.timeout, the Supabase loaders use withTimeout). The SDK
+    // default is 10 minutes, which held a serverless invocation open until the
+    // platform killed it — no response, no log, just a timed-out request.
+    const completion = await getOpenAI().chat.completions.create(
+      {
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 2048,
+      },
+      { timeout: 30_000, maxRetries: 1 }
+    );
 
     const raw = completion.choices[0]?.message?.content ?? "{}";
 
     // Strip any accidental markdown fences
     const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    const json = JSON.parse(cleaned);
+
+    // Parsed separately from the call above so a model that returns prose or
+    // truncated JSON is not reported as "Generation failed" alongside genuine
+    // upstream errors — that pointed debugging at the API call when the request
+    // had actually succeeded and only the response shape was wrong.
+    let json: unknown;
+    try {
+      json = JSON.parse(cleaned);
+    } catch {
+      console.error("generate-challenge: model returned unparseable JSON:", cleaned.slice(0, 500));
+      return applySecurityHeaders(
+        NextResponse.json(
+          { error: "The model returned malformed JSON. Try again, or reword the gist." },
+          { status: 502 }
+        )
+      );
+    }
 
     return applySecurityHeaders(NextResponse.json(json));
   } catch (err) {

@@ -78,38 +78,22 @@ async function findClassOwnerByCode(
   );
 }
 
-async function wrongCodeHint(
-  admin: SupabaseClient,
-  code: string
-): Promise<string | null> {
-  const { data: mentorRow } = await admin
-    .from("mentors")
-    .select("id")
-    .eq("code", code)
-    .maybeSingle();
-
-  if (mentorRow) {
-    return (
-      "That looks like a mentor sign-in code, not the student class code. "
-      + "Ask your mentor for the \"Student Class Code\" from their dashboard."
-    );
-  }
-
-  const { data: studentRow } = await admin
-    .from("students")
-    .select("id")
-    .eq("code", code)
-    .maybeSingle();
-
-  if (studentRow) {
-    return (
-      "That is an individual student code, not a class code. "
-      + "Use it when creating a new account, or ask your mentor for the class code."
-    );
-  }
-
-  return null;
-}
+/**
+ * Guidance for a code that did not resolve to a class.
+ *
+ * This used to look the code up in `mentors.code` and `students.code` and say
+ * which of the two it matched. That was a code-existence oracle: an attacker
+ * could confirm whether an arbitrary 6-digit string was a live mentor or student
+ * code without needing it to be a class code, which is most of the work of
+ * finding one. It also meant two extra queries on every failed join.
+ *
+ * The wording below teaches the same thing — that there are three kinds of code
+ * and which one belongs here — without confirming anything about the code that
+ * was actually submitted.
+ */
+const WRONG_CODE_HINT =
+  "Invalid class code. Make sure you're using the 6-digit Student Class Code from "
+  + "your mentor's dashboard — not a mentor sign-in code, and not your own student code.";
 
 export async function joinClassByCode(
   admin: SupabaseClient,
@@ -150,12 +134,7 @@ export async function joinClassByCode(
   }
 
   if (!owner) {
-    const hint = await wrongCodeHint(admin, trimmedCode);
-    return {
-      ok: false,
-      error: hint ?? "Invalid class code. Check with your mentor and try again.",
-      status: 400,
-    };
+    return { ok: false, error: WRONG_CODE_HINT, status: 400 };
   }
 
   // A mentor of this class (the owner or a co-mentor) must not also join it as a

@@ -196,9 +196,15 @@ CREATE POLICY homework_update_own ON homework_assignments FOR UPDATE USING (
 CREATE POLICY homework_select_mentor ON homework_assignments FOR SELECT USING (
   student_id IN (SELECT rls_mentor_scope_student_ids())
 );
-CREATE POLICY homework_insert_mentor ON homework_assignments FOR INSERT WITH CHECK (
-  assigned_by IN (SELECT rls_mentor_scope_ids())
-);
+-- SUPERSEDED — do not reinstate. supabase-fix-homework-insert-scope.sql owns
+-- this policy. The version below checks only who is assigning, never which
+-- student is targeted, so a mentor could write homework for a student in another
+-- class. Same policy name, so running this line would silently drop the scoped
+-- version and restore the hole.
+--
+-- CREATE POLICY homework_insert_mentor ON homework_assignments FOR INSERT WITH CHECK (
+--   assigned_by IN (SELECT rls_mentor_scope_ids())
+-- );
 CREATE POLICY homework_update_mentor ON homework_assignments FOR UPDATE USING (
   student_id IN (SELECT rls_mentor_scope_student_ids())
 );

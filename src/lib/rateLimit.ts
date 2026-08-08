@@ -99,6 +99,36 @@ export function rateLimitHeaders(result: RateLimitResult): Record<string, string
 /** Auth endpoints: 5 attempts per IP per 15 minutes. */
 export const AUTH_RATE = { limit: 5, windowMs: 15 * 60_000 } as const;
 
+/**
+ * Redeeming a class or mentor code: 5 attempts per signed-in user per 15
+ * minutes, with backoff.
+ *
+ * This is the binding control on guessing codes, not the IP bucket below. One
+ * legitimate user redeems once and needs a retry or two for a typo, so 5 is
+ * generous; an attacker working through the 900k code space needs a fresh
+ * account every 5 guesses, and signup is itself capped at AUTH_RATE per IP.
+ */
+export const CODE_REDEEM_USER_RATE = {
+  limit: 5,
+  windowMs: 15 * 60_000,
+  backoff: true,
+} as const;
+
+/**
+ * Redeeming a class or mentor code: 100 attempts per IP per 15 minutes.
+ *
+ * Deliberately loose. The common case for this endpoint is a teacher reading a
+ * class code aloud and thirty students joining at once from one school network,
+ * behind a single public IP — a per-IP limit near the per-user one would lock
+ * out the back half of the room. It exists to bound automated hammering from a
+ * single host, with the per-user limit doing the real work.
+ */
+export const CODE_REDEEM_IP_RATE = {
+  limit: 100,
+  windowMs: 15 * 60_000,
+  backoff: true,
+} as const;
+
 /** Grade submissions: 10 per authenticated student per minute (with backoff). */
 export const GRADE_STUDENT_RATE = { limit: 10, windowMs: 60_000, backoff: true } as const;
 
