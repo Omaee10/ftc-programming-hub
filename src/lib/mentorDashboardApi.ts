@@ -1,4 +1,7 @@
 import type { Session } from "@/lib/auth";
+// `import type` only — a value import would pull every reference solution back
+// into the client bundle, which is the leak /api/mentor/answer-key exists to close.
+import type { ChallengeSolution } from "@/data/challengeSolutions";
 import type {
   ChallengeRow,
   HomeworkAssignmentRow,
@@ -280,6 +283,90 @@ export async function fetchSubmissionBlocksOnly(
     throw new Error(data.error ?? `Request failed (${res.status})`);
   }
   return data.blocks ?? null;
+}
+
+// ─── Answer key (mentor-only reference solutions) ──────────────────────────
+
+/** One catalog entry — metadata only, never solution content. */
+export type AnswerKeyIndexEntry = { id: number; hasBlocks: boolean };
+
+/**
+ * Callers need to tell "you may not see this" (403 — bounce to /challenges)
+ * apart from "it broke" (show an error), so the status comes back rather than
+ * collapsing everything into a thrown Error.
+ */
+export type AnswerKeyResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; status: number; error: string };
+
+function answerKeyParams(session: Session): URLSearchParams {
+  const params = new URLSearchParams({ workspaceId: session.id });
+  if (session.parentMentorId) {
+    params.set("parentMentorId", session.parentMentorId);
+  }
+  return params;
+}
+
+async function getAnswerKey<T>(
+  params: URLSearchParams,
+  label: string,
+  pick: (body: Record<string, unknown>) => T | undefined
+): Promise<AnswerKeyResult<T>> {
+  let res: Response;
+  try {
+    res = await withTimeout(
+      fetch(`/api/mentor/answer-key?${params.toString()}`, { credentials: "include" }),
+      TAB_LOADER_TIMEOUT_MS,
+      label
+    );
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      error: err instanceof Error ? err.message : "Failed to load answer key.",
+    };
+  }
+
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      error: (body.error as string) ?? `Request failed (${res.status})`,
+    };
+  }
+
+  const data = pick(body);
+  if (data === undefined) {
+    return { ok: false, status: res.status, error: "Unexpected server response." };
+  }
+  return { ok: true, data };
+}
+
+/** Which challenges have a reference solution (no solution content). */
+export function fetchAnswerKeyIndex(
+  session: Session
+): Promise<AnswerKeyResult<AnswerKeyIndexEntry[]>> {
+  return getAnswerKey(
+    answerKeyParams(session),
+    "Loading answer key",
+    (body) => body.solutions as AnswerKeyIndexEntry[] | undefined
+  );
+}
+
+/** The full reference solution for one challenge. */
+export function fetchAnswerKeySolution(
+  session: Session,
+  challengeId: number
+): Promise<AnswerKeyResult<ChallengeSolution>> {
+  const params = answerKeyParams(session);
+  params.set("challengeId", String(challengeId));
+  return getAnswerKey(
+    params,
+    "Loading reference solution",
+    (body) => body.solution as ChallengeSolution | undefined
+  );
 }
 
 export async function deleteClassMember(
