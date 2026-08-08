@@ -28,7 +28,7 @@ import { supabase, type MentorRow, type StudentRow, type SubmissionRow } from "@
 import { getSession } from "@/lib/auth";
 import { useTabLoader, useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import Link from "next/link";
-import { classOwner, challengeCreatedBy } from "@/lib/classChallenges";
+import { classOwner } from "@/lib/classChallenges";
 import {
   fetchChallengesData,
   fetchClassCode,
@@ -1390,24 +1390,24 @@ function ManageChallengesTab() {
 
   const handleDelete = (id: number) => {
     startTransition(async () => {
-      const authorId = challengeCreatedBy(getSession());
-      if (!authorId) {
+      if (!getSession()?.id) {
         setDeleteError("Session expired. Sign in again.");
         return;
       }
       setDeleteError("");
 
-      // `.select("id")` is what makes a no-op delete visible. A DELETE that
-      // matches zero rows is NOT a Postgres error, so checking `error` alone
-      // reported success when RLS hid the row or `created_by` didn't match —
-      // and the challenge stayed put. challengeCreatedBy() always returns the
-      // class OWNER id, while co-mentor-authored rows carry that co-mentor's
-      // mentor row id, so the mismatch is a real case, not a theoretical one.
+      // No created_by filter — RLS decides (challenges_delete_mentor /
+      // rls_challenge_author_ids): the class owner may delete anything in the
+      // class, a co-mentor only what they authored. Filtering on the caller's
+      // own id here would stop an owner deleting a co-mentor's challenge.
+      //
+      // `.select("id")` is what makes a refused delete visible: a DELETE
+      // matching zero rows is NOT a Postgres error, so checking `error` alone
+      // reported success while the challenge stayed put.
       const { data: deleted, error } = await supabase
         .from("challenges")
         .delete()
         .eq("id", id)
-        .eq("created_by", authorId)
         .select("id");
 
       if (error) {
@@ -1417,7 +1417,7 @@ function ManageChallengesTab() {
 
       if (!deleted?.length) {
         setDeleteError(
-          `Challenge #${id} was not deleted — it may have been created by a co-mentor, or already removed.`
+          `Challenge #${id} was not deleted. You can only delete challenges you created, unless you own the class.`
         );
       }
 

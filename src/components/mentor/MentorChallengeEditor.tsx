@@ -128,18 +128,20 @@ export default function MentorChallengeEditor({
       concepts_covered: [],
     };
 
-    // Both branches `.select("id")` so a write that touched nothing is
-    // detectable. An UPDATE matching zero rows is not a Postgres error, so
-    // checking `result.error` alone showed "Challenge updated successfully"
-    // while nothing was saved — the `created_by` filter uses the class OWNER id
-    // (challengeCreatedBy), which does not match rows a co-mentor authored.
+    // The edit no longer filters on created_by. RLS is the gate now
+    // (challenges_update_mentor / rls_challenge_author_ids), and it permits
+    // exactly what we want: a class owner may edit any challenge in their class,
+    // a co-mentor only their own. The old `.eq("created_by", authorId)` would
+    // block the owner from co-mentor rows, since authorId is the editor's own id.
+    //
+    // Both branches still `.select("id")` — an UPDATE matching zero rows is not
+    // a Postgres error, so without it a write RLS refused reported success.
     const result =
       mode === "edit" && challengeId
         ? await supabase
             .from("challenges")
             .update(payload)
             .eq("id", challengeId)
-            .eq("created_by", authorId)
             .select("id")
         : await supabase
             .from("challenges")
@@ -159,7 +161,7 @@ export default function MentorChallengeEditor({
     if (!result.data?.length) {
       setSaveError(
         mode === "edit"
-          ? "Nothing was saved — this challenge was created by a co-mentor, or it no longer exists."
+          ? "Nothing was saved. You can only edit challenges you created, unless you own the class."
           : "Nothing was saved. Reload the page and try again."
       );
       return;
