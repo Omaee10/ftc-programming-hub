@@ -347,6 +347,15 @@ CREATE POLICY mentors_select_class_owner ON mentors FOR SELECT USING (
 -- See supabase-fix-cross-tenant-rls.sql.
 
 -- Challenges: mentors manage own; students read class challenges
+--
+-- SUPERSEDED on an existing database — supabase-fix-challenge-authorship.sql
+-- replaces all four of these, scoping writes by real authorship (owner writes
+-- anything in their class, co-mentor only their own) and making co-mentor
+-- challenges readable by the class. These definitions predate co-mentors owning
+-- what they create; keep them here so a fresh database has working policies from
+-- this file alone, but RUN supabase-fix-challenge-authorship.sql immediately
+-- after this one. Until you do, a co-mentor can edit and delete the owner's
+-- challenges, the owner cannot touch theirs, and students cannot see them.
 CREATE POLICY challenges_select_mentor ON challenges FOR SELECT USING (
   created_by IN (SELECT rls_mentor_scope_ids())
   OR created_by IN (SELECT rls_student_mentor_ids())
