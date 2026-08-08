@@ -144,8 +144,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             ...(parentMentorId ? { parentMentorId } : {}),
           };
           setSession(updated);
+          // persistSession dispatches ftc-session-updated itself, and only when
+          // the session actually changed. The manual dispatch that used to
+          // follow this line fired unconditionally, double-announcing every
+          // mentor load and defeating that check — which is what reset the
+          // editor a second and third time on a plain page load.
           persistSession(updated);
-          window.dispatchEvent(new CustomEvent("ftc-session-updated"));
         })();
       }
     })();

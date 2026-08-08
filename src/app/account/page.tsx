@@ -156,8 +156,10 @@ export default function AccountPage() {
       }
 
       if (session) {
+        // persistSession dispatches ftc-session-updated itself when the session
+        // actually changed; the manual dispatch that used to follow fired even
+        // on a no-op rename and bypassed that check.
         persistSession({ ...session, name: trimmed });
-        window.dispatchEvent(new CustomEvent("ftc-session-updated"));
       }
 
       setNameMsg({ type: "success", text: "Name updated." });
