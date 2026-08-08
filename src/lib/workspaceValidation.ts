@@ -1,6 +1,6 @@
 import type { Session } from "@/lib/auth";
 import { isSoloSession } from "@/lib/auth";
-import { withTimeout } from "@/lib/withTimeout";
+import { fetchWithTimeout } from "@/lib/withTimeout";
 
 export interface WorkspacesPayload {
   students: { id: string }[];
@@ -49,8 +49,7 @@ export type WorkspacesResult =
  */
 export async function fetchWorkspacesResult(): Promise<WorkspacesResult> {
   try {
-    const res = await withTimeout(
-      fetch("/api/auth/workspaces", { credentials: "include" }),
+    const res = await fetchWithTimeout("/api/auth/workspaces", { credentials: "include" },
       WORKSPACES_TIMEOUT_MS,
       "Loading workspaces"
     );

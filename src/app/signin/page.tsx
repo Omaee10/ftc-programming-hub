@@ -15,7 +15,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { setSession, getSession, clearWorkspaceSession } from "@/lib/auth";
-import { formatLoadError, withTimeout } from "@/lib/withTimeout";
+import { fetchWithTimeout, formatLoadError } from "@/lib/withTimeout";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
 const WORKSPACES_TIMEOUT_MS = 20_000;
@@ -140,8 +140,7 @@ export default function SignInPage() {
       setError("");
 
       const fetchOnce = async (): Promise<Response> =>
-        withTimeout(
-          fetch("/api/auth/workspaces", { credentials: "include" }),
+        fetchWithTimeout("/api/auth/workspaces", { credentials: "include" },
           WORKSPACES_TIMEOUT_MS,
           "Loading workspaces"
         );

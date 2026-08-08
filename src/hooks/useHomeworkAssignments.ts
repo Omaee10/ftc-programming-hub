@@ -7,7 +7,7 @@ import { fetchAllRows } from "@/lib/supabase/queryHelpers";
 import { getSession, isSoloSession } from "@/lib/auth";
 import { useWorkspaceSession } from "@/lib/useWorkspaceSession";
 import { TAB_LOADER_TIMEOUT_MS } from "@/lib/useWorkspaceSession";
-import { formatLoadError, withTimeout } from "@/lib/withTimeout";
+import { fetchWithTimeout, formatLoadError, withTimeout } from "@/lib/withTimeout";
 
 import { classOwner } from "@/lib/classChallenges";
 
@@ -109,10 +109,9 @@ export function prefetchHomework(): void {
 }
 
 async function fetchStudentHomework(studentId: string): Promise<HomeworkAssignmentRow[]> {
-  const res = await withTimeout(
-    fetch(`/api/student/homework?studentId=${encodeURIComponent(studentId)}`, {
-      credentials: "include",
-    }),
+  const res = await fetchWithTimeout(`/api/student/homework?studentId=${encodeURIComponent(studentId)}`, {
+    credentials: "include",
+  },
     TAB_LOADER_TIMEOUT_MS,
     "Loading homework"
   );
