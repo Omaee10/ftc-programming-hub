@@ -88,6 +88,35 @@ CREATE TABLE IF NOT EXISTS challenges (
   --   { "kind": "callsMethod", "arg": "DcMotor.setDirection",
   --     "label": "Sets motor direction", "tier": "improvement" }
   rubric_json      jsonb,
+  -- Authorship AND class membership, in one column. Read that twice before
+  -- touching anything that deletes a `mentors` row.
+  --
+  -- There is no `classes` table — a class IS the `mentors` row with
+  -- created_by IS NULL, and co-mentors are `mentors` rows pointing at it. A
+  -- challenge therefore belongs to a class only transitively, through the mentor
+  -- who wrote it, and every read resolves the class by expanding owner ->
+  -- co-mentors and filtering `created_by IN (...)`: see the two /api/challenges/class
+  -- routes and all five scopes of /api/mentor/dashboard-data.
+  --
+  -- Which makes ON DELETE SET NULL a trap. `created_by IN (...)` is never true
+  -- for NULL, so a nulled row matches no RLS policy and no read filter — it does
+  -- not lose its author, it silently leaves its class. Invisible to the owner,
+  -- the co-mentors and the students, unwritable by anyone, and still there.
+  --
+  -- Two paths delete a mentor row, and BOTH reassign challenges to the class
+  -- owner first, specifically to avoid that:
+  --   src/lib/supabase/leaveClass.ts            (co-mentor removes themselves)
+  --   src/app/api/mentor/delete-member/route.ts (owner removes a co-mentor)
+  -- Any third such path must do the same. Nothing in the schema enforces it.
+  --
+  -- The structural fix is a NOT NULL challenges.class_id, splitting membership
+  -- from attribution so SET NULL becomes harmless and the invariant is enforced
+  -- by the database instead of by remembering. Considered and deferred 2026-08-08:
+  -- ~20 code sites, two migrations, and a backfill that cannot derive a class for
+  -- any already-nulled row. Revisit when a third deletion path appears, when
+  -- `select count(*) from challenges where created_by is null` stops returning 0
+  -- (verified 0 on 2026-08-08), or when one mentor needs two classes — that last
+  -- one wants a real `classes` table rather than this half-step.
   created_by       uuid REFERENCES mentors(id) ON DELETE SET NULL,
   created_at       timestamptz DEFAULT now()
 );
