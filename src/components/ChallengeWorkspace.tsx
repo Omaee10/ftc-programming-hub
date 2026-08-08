@@ -1378,10 +1378,61 @@ export default function ChallengeWorkspace({
     setLastGrade(grade);
 
     // Local completion is synchronous and drives the "Completed" UI, so it
-    // must not wait on the animation either. The DB writes stay in the
-    // streamed sequence below, where they already were.
+    // must not wait on the animation either.
     if (grade === "good" && !homeworkMode) {
       markCompleteLocal(challenge.id);
+    }
+
+    // ── Start every persistent write NOW, before the console animation ──────
+    //
+    // These used to sit at the tail of the streaming IIFE below, behind roughly
+    // a dozen `await step(...)` delays totalling ~2.5s — and every one of those
+    // bails out when a newer submission bumps submissionSeq. So passing a
+    // challenge and then resubmitting, or closing the tab, silently dropped the
+    // write. Challenge completion self-healed via syncProgressWithLocal only
+    // while localStorage survived; homework has no local fallback at all, and a
+    // dropped mentor submission is simply lost.
+    //
+    // The stream still awaits these so its messages keep their original order,
+    // but the requests are already in flight by then.
+    let completionWrite: Promise<void> | null = null;
+    let homeworkWrite: Promise<{ ok: boolean; error: string | null } | void> | null = null;
+    let mentorReviewWrite: Promise<{ error: string | null }> | null = null;
+    let mentorReviewSkipped: "no-session" | "empty" | null = null;
+
+    if (grade === "good") {
+      if (homeworkMode && onHomeworkComplete) {
+        homeworkWrite = onHomeworkComplete(submissionCode);
+      } else if (!homeworkMode) {
+        completionWrite = (async () => {
+          await saveCode(submissionCode, { flush: true });
+          await markCompleteDB(challenge.id, submissionCode);
+        })();
+      }
+
+      if (isMentorChallenge) {
+        if (!studentSession?.id) {
+          mentorReviewSkipped = "no-session";
+        } else {
+          const { javaSnapshot, blocksSnapshot, blocksChanged } =
+            resolveMentorReviewSnapshots();
+          if (!javaSnapshot.trim() && !blocksChanged) {
+            mentorReviewSkipped = "empty";
+          } else {
+            mentorReviewWrite = submitForMentorReview(
+              javaSnapshot,
+              blocksSnapshot,
+              blocksChanged
+            );
+          }
+        }
+      }
+
+      // Mark the rejections handled so an unawaited failure cannot surface as an
+      // unhandled rejection; the awaits below still observe them.
+      completionWrite?.catch(() => {});
+      homeworkWrite?.catch(() => {});
+      mentorReviewWrite?.catch(() => {});
     }
 
     finishedGrading = true;
@@ -1523,14 +1574,14 @@ export default function ChallengeWorkspace({
         });
       }
 
-      // ── Auto-complete + mentor submit on "Good" ────────────────────────
-      // Kept at the tail of the stream so these messages stay in order after
-      // the verdict, matching the previous behaviour and timing.
+      // ── Report the writes started before this stream ───────────────────
+      // Only messaging here — the requests were issued immediately after the
+      // verdict so they cannot be lost to a resubmit or a tab close.
       if (grade !== "good") return;
 
-      if (homeworkMode && onHomeworkComplete) {
+      if (homeworkWrite) {
         try {
-          const hwResult = await onHomeworkComplete(submissionCode);
+          const hwResult = await homeworkWrite;
           if (hwResult && !hwResult.ok) {
             appendEntry({
               type: "warning",
@@ -1548,43 +1599,45 @@ export default function ChallengeWorkspace({
             message: "Could not save homework completion — use Mark Homework Complete.",
           });
         }
-      } else if (!homeworkMode) {
-        await saveCode(submissionCode, { flush: true });
-        await markCompleteDB(challenge.id, submissionCode);
-        appendEntry({
-          type: "info",
-          message: "Challenge marked complete — XP awarded.",
-        });
+      } else if (completionWrite) {
+        try {
+          await completionWrite;
+          appendEntry({
+            type: "info",
+            message: "Challenge marked complete — XP awarded.",
+          });
+        } catch {
+          appendEntry({
+            type: "warning",
+            message: "Saved locally, but syncing completion to the cloud failed.",
+          });
+        }
       }
 
       if (isMentorChallenge) {
-        if (!studentSession?.id) {
+        if (mentorReviewSkipped === "no-session") {
           appendEntry({
             type: "warning",
             message:
               "Sign in as a student and pick your class to submit for mentor review.",
           });
-        } else {
-          const { javaSnapshot, blocksSnapshot, blocksChanged } =
-            resolveMentorReviewSnapshots();
-          if (!javaSnapshot.trim() && !blocksChanged) {
-            appendEntry({
-              type: "warning",
-              message:
-                "Add Java code or FTC Blocks before submitting for mentor review.",
-            });
-          } else {
-            const { error: reviewErr } = await submitForMentorReview(
-              javaSnapshot,
-              blocksSnapshot,
-              blocksChanged
-            );
+        } else if (mentorReviewSkipped === "empty") {
+          appendEntry({
+            type: "warning",
+            message:
+              "Add Java code or FTC Blocks before submitting for mentor review.",
+          });
+        } else if (mentorReviewWrite) {
+          try {
+            const { error: reviewErr } = await mentorReviewWrite;
             if (!reviewErr) {
               appendEntry({
                 type: "info",
                 message: "Submitted to your mentor for review.",
               });
             }
+          } catch {
+            // submitForMentorReview surfaces its own error via setSubmitError.
           }
         }
       }
