@@ -319,13 +319,19 @@ async function ensureSnapshotsLoaded(
       const row = data as ProgressSnapshot | null;
       const codeSnapshot = row?.code_snapshot ?? null;
       const blocksSnapshot = row?.blocks_snapshot ?? null;
+
+      // Awaited rather than fire-and-forget. These were `void digest(...).then(set)`,
+      // so a save landing between the select and the digest resolving had its fresh
+      // hash overwritten by the hash of the older loaded snapshot — after which the
+      // next save saw a false mismatch and did one redundant upsert. Awaiting makes
+      // the ordering against publishStore deterministic.
       if (codeSnapshot !== null) {
         const hashKey = snapshotKey(studentId, challengeId, "code");
-        void digestText(codeSnapshot).then((hash) => lastSavedCodeHash.set(hashKey, hash));
+        lastSavedCodeHash.set(hashKey, await digestText(codeSnapshot));
       }
       if (blocksSnapshot !== null) {
         const hashKey = snapshotKey(studentId, challengeId, "blocks");
-        void digestJson(blocksSnapshot).then((hash) => lastSavedBlocksHash.set(hashKey, hash));
+        lastSavedBlocksHash.set(hashKey, await digestJson(blocksSnapshot));
       }
       publishStore({
         ...getStoreSnapshot(),

@@ -580,6 +580,15 @@ export default function ChallengeWorkspace({
     isCompletedLocal(id) || isCompletedDB(id);
   const done = homeworkMode ? homeworkCompleted : isCompleted(challenge.id);
 
+  // Read by the pagehide beacon, which cannot call isCompleted() itself: that
+  // closure would be captured when the flush effect mounts and go stale the moment
+  // the challenge is completed.
+  const isCompletedRef = useRef(false);
+  useEffect(() => {
+    isCompletedRef.current = isCompleted(challenge.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [challenge.id, isCompletedLocal, isCompletedDB]);
+
   // Combined mark-complete: writes to both localStorage and Supabase
   const markComplete = async (id: number) => {
     markCompleteLocal(id);
@@ -982,18 +991,73 @@ export default function ChallengeWorkspace({
     progressStudentId,
   ]);
 
-  // Flush the latest editor contents when leaving the page or unmounting
+  // Flush the latest editor contents when leaving the page or unmounting.
+  //
+  // Unmount and pagehide need different transports. On unmount the page lives on,
+  // so the normal debounced-upsert path works. On pagehide it does not: that path
+  // ends in a supabase-js upsert, i.e. an ordinary fetch, and browsers cancel
+  // in-flight fetches during unload — so closing the tab fired a save that was
+  // routinely killed mid-request. The synchronous localStorage draft still landed,
+  // which is why this never looked like data loss on the same device, but the
+  // cloud snapshot stayed behind and the work did not follow the student to
+  // another one.
+  //
+  // sendBeacon is the fix: the browser takes ownership of the request and delivers
+  // it after the document is gone. It cannot be awaited and its response cannot be
+  // read, so it posts to /api/student/progress-flush, which re-checks ownership
+  // and upserts server-side.
   useEffect(() => {
     if (answerKeyMode) return;
+
     const flush = () => {
       clearTimeout(saveTimer.current);
       persistCodeRef.current(codeRef.current, { flushCloud: true });
       flushBlocksSnapshotRef.current();
     };
 
-    window.addEventListener("pagehide", flush);
+    const beaconFlush = () => {
+      clearTimeout(saveTimer.current);
+
+      // Local draft first and always — synchronous, so unload cannot interrupt it,
+      // and it is what makes the next load on this device correct regardless of
+      // whether the beacon arrives.
+      persistCodeRef.current(codeRef.current, { flushCloud: false });
+      flushBlocksSnapshotRef.current();
+
+      // Cloud half only applies to a class student; solo and mentor sessions have
+      // no student_challenge_progress row to write.
+      const session = getSession();
+      if (
+        !session
+        || session.role !== "student"
+        || isSoloSession(session)
+        || typeof navigator.sendBeacon !== "function"
+      ) {
+        return;
+      }
+
+      // Unconditional — the usual "skip if the digest is unchanged" check is async
+      // (Web Crypto) and there is no time to await it here. One redundant upsert
+      // per page-leave is the right trade for not losing the snapshot.
+      navigator.sendBeacon(
+        "/api/student/progress-flush",
+        new Blob(
+          [
+            JSON.stringify({
+              studentId: session.id,
+              challengeId: challenge.id,
+              code: codeRef.current,
+              completed: isCompletedRef.current,
+            }),
+          ],
+          { type: "application/json" }
+        )
+      );
+    };
+
+    window.addEventListener("pagehide", beaconFlush);
     return () => {
-      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("pagehide", beaconFlush);
       flush();
     };
   }, [answerKeyMode, challenge.id]);
