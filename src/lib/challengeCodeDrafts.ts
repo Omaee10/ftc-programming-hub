@@ -1,40 +1,32 @@
 import { getSession } from "@/lib/auth";
-
-const BASE_KEY = "ftc-hub-challenge-code-v1";
+import {
+  CODE_DRAFT_BASE_KEY,
+  GUEST_DRAFT_OWNER,
+  readDraftMap,
+  writeDraftMap,
+  type DraftMap,
+} from "@/lib/draftStorage";
 
 export interface CodeDraft {
   code: string;
   updatedAt: string;
 }
 
-type DraftMap = Record<string, CodeDraft>;
-
-function storageKey(): string {
+/** Owner id for the active session — drafts are per session id, like progress. */
+function ownerId(): string {
   try {
-    const session = getSession();
-    if (!session) return `${BASE_KEY}:guest`;
-    return `${BASE_KEY}:${session.id}`;
+    return getSession()?.id ?? GUEST_DRAFT_OWNER;
   } catch {
-    return `${BASE_KEY}:guest`;
+    return GUEST_DRAFT_OWNER;
   }
 }
 
-function readMap(): DraftMap {
-  if (typeof window === "undefined") return {};
-  try {
-    return JSON.parse(localStorage.getItem(storageKey()) ?? "{}") as DraftMap;
-  } catch {
-    return {};
-  }
+function readMap(): DraftMap<CodeDraft> {
+  return readDraftMap<CodeDraft>(CODE_DRAFT_BASE_KEY, ownerId());
 }
 
-function writeMap(map: DraftMap): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(storageKey(), JSON.stringify(map));
-  } catch {
-    // Ignore quota / private-browsing errors
-  }
+function writeMap(map: DraftMap<CodeDraft>): void {
+  writeDraftMap(CODE_DRAFT_BASE_KEY, ownerId(), map);
 }
 
 export function readCodeDraft(challengeId: number): CodeDraft | null {

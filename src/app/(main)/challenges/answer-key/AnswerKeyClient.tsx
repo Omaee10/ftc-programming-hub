@@ -11,13 +11,20 @@ import {
   type Challenge,
   type Difficulty,
 } from "@/data/challenges";
-import { getChallengeSolution } from "@/data/challengeSolutions";
-import { isBlocksEnabled } from "@/data/blockChallenges";
 import { getSession } from "@/lib/auth";
+import {
+  fetchAnswerKeyIndex,
+  type AnswerKeyIndexEntry,
+} from "@/lib/mentorDashboardApi";
 
-function AnswerCard({ challenge }: { challenge: Challenge }) {
+function AnswerCard({
+  challenge,
+  hasBlocks,
+}: {
+  challenge: Challenge;
+  hasBlocks: boolean;
+}) {
   const diff = difficultyConfig[challenge.difficulty];
-  const hasBlocks = !!getChallengeSolution(challenge.id)?.blocks || isBlocksEnabled(challenge.id);
 
   return (
     <Link
@@ -73,20 +80,45 @@ function AnswerCard({ challenge }: { challenge: Challenge }) {
 
 export default function AnswerKeyClient() {
   const router = useRouter();
-  const [allowed, setAllowed] = useState(false);
+  const [index, setIndex] = useState<AnswerKeyIndexEntry[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
+    // The role check here is a fast redirect only — it reads localStorage, which
+    // a student can edit. The real gate is /api/mentor/answer-key, which checks
+    // mentor status against the database and 403s otherwise.
     const session = getSession();
-    if (session?.role === "mentor") {
-      setAllowed(true);
-    } else {
+    if (session?.role !== "mentor") {
       router.replace("/challenges");
+      return;
     }
+
+    (async () => {
+      const result = await fetchAnswerKeyIndex(session);
+      if (cancelled) return;
+
+      if (!result.ok) {
+        if (result.status === 401 || result.status === 403) {
+          router.replace("/challenges");
+          return;
+        }
+        setLoadError(result.error);
+        return;
+      }
+      setIndex(result.data);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
-  // Only static challenges that ship a reference solution.
+  // Only static challenges the server confirmed ship a reference solution.
+  const blocksById = new Map((index ?? []).map((e) => [e.id, e.hasBlocks]));
   const solved = staticChallenges
-    .filter((c) => !!getChallengeSolution(c.id))
+    .filter((c) => blocksById.has(c.id))
     .sort((a, b) => a.id - b.id);
 
   const byDifficulty: Record<Difficulty, Challenge[]> = {
@@ -95,7 +127,23 @@ export default function AnswerKeyClient() {
     Advanced: solved.filter((c) => c.difficulty === "Advanced"),
   };
 
-  if (!allowed) {
+  if (loadError) {
+    return (
+      <div className="flex h-[calc(100svh-3.5rem)] flex-col items-center justify-center gap-3 px-6 text-center">
+        <KeyRound className="h-6 w-6 text-slate-600" />
+        <p className="text-sm text-slate-400">{loadError}</p>
+        <Link
+          href="/challenges"
+          className="inline-flex items-center gap-1 text-xs accent-text hover:underline"
+        >
+          Back to Coding Challenges
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
+    );
+  }
+
+  if (index === null) {
     return (
       <div className="flex h-[calc(100svh-3.5rem)] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
@@ -139,7 +187,11 @@ export default function AnswerKeyClient() {
             </div>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {items.map((challenge) => (
-                <AnswerCard key={challenge.id} challenge={challenge} />
+                <AnswerCard
+                  key={challenge.id}
+                  challenge={challenge}
+                  hasBlocks={blocksById.get(challenge.id) ?? false}
+                />
               ))}
             </div>
           </div>

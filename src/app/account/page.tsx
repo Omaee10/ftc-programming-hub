@@ -202,7 +202,14 @@ export default function AccountPage() {
         return;
       }
 
-      await supabase.from("profiles").update({ email: trimmedEmail }).eq("id", userId);
+      // Deliberately NOT writing profiles.email here. updateUser only SENDS a
+      // confirmation — auth.users.email is unchanged until the link is clicked.
+      // Writing the new address now desynced the two, and since
+      // findRegisteredSignupEmail (and the profiles_email_lower_unique index)
+      // read profiles.email, it let anyone squat an address they don't own:
+      // request a change to it, never confirm, and the real owner could never
+      // sign up. /api/auth/me reconciles profiles.email from auth.users once the
+      // change is actually confirmed.
 
       setEmailMsg({
         type: "success",

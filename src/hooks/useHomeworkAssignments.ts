@@ -19,8 +19,18 @@ interface HomeworkStoreSnapshot {
   cacheKey: HomeworkCacheKey | null;
 }
 
+/**
+ * Stable empty list for sessions with no homework workspace.
+ *
+ * Must be a shared constant, not a fresh `[]` per render: it feeds `assignedIds`
+ * and the `useCallback` deps below, and a new identity each render would make
+ * `isAssigned` unstable — re-firing the effects in ChallengeRedirectGuard and
+ * HomeworkWorkspace that depend on it.
+ */
+const NO_ASSIGNMENTS: HomeworkAssignmentRow[] = [];
+
 const EMPTY_SNAPSHOT: HomeworkStoreSnapshot = {
-  assignments: [],
+  assignments: NO_ASSIGNMENTS,
   hydrated: false,
   loadError: null,
   cacheKey: null,
@@ -213,11 +223,12 @@ async function ensureHomeworkLoaded(key: HomeworkCacheKey): Promise<void> {
 
 export function useHomeworkAssignments() {
   const workspaceSession = useWorkspaceSession();
-  const { assignments, hydrated, loadError } = useSyncExternalStore(
-    subscribeToStore,
-    getStoreSnapshot,
-    getServerStoreSnapshot
-  );
+  const {
+    assignments: storeAssignments,
+    hydrated: storeHydrated,
+    loadError,
+    cacheKey: storeCacheKey,
+  } = useSyncExternalStore(subscribeToStore, getStoreSnapshot, getServerStoreSnapshot);
 
   const cacheKey = workspaceSession && !isSoloSession(workspaceSession)
     ? workspaceSession.role === "student"
@@ -226,6 +237,22 @@ export function useHomeworkAssignments() {
         ? `mentor:${classOwner(workspaceSession)}`
         : null
     : null;
+
+  // Solo practice and signed-out sessions have no homework workspace, so there
+  // is nothing to load and never will be. Report that as hydrated-with-zero
+  // rather than never-hydrated: callers gate their first paint on `hydrated`
+  // (ChallengeRedirectGuard, HomeworkWorkspace, HomeworkClient), so leaving it
+  // false forever left solo students on a permanent spinner for every challenge.
+  const hasWorkspace = cacheKey !== null;
+
+  // Only serve rows that belong to the ACTIVE workspace. The store is a module
+  // global, so without this a student leaving a class for solo would keep the
+  // old class's assignments — and now that solo reports hydrated, `isAssigned`
+  // would redirect them into /homework for challenges they're no longer
+  // assigned. Also covers the render before ensureHomeworkLoaded re-keys.
+  const assignments =
+    hasWorkspace && storeCacheKey === cacheKey ? storeAssignments : NO_ASSIGNMENTS;
+  const hydrated = hasWorkspace ? storeHydrated : true;
 
   useEffect(() => {
     if (!cacheKey) return;
@@ -389,7 +416,7 @@ export function useHomeworkAssignments() {
   return {
     assignments,
     assignedIds,
-    hydrated: cacheKey ? hydrated : false,
+    hydrated,
     loadError,
     isAssigned,
     getAssignment,

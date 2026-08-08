@@ -53,9 +53,25 @@ async function refreshAuthSession(request: NextRequest): Promise<{
   return { response: supabaseResponse, user };
 }
 
+/**
+ * Move the refreshed auth cookies from the Supabase response onto the response
+ * we actually return (usually a redirect).
+ *
+ * `getAll()` yields fully-parsed cookies, so the WHOLE object must be handed to
+ * `set()`. Passing only `(name, value)` silently dropped every attribute the
+ * refresh had set. For @supabase/ssr's defaults that meant losing
+ * `maxAge: 400 days` and `sameSite: "lax"` — demoting a refreshed token to a
+ * session cookie that dies the moment the browser closes, which reads to the
+ * user as being randomly signed out. (`path` survived either way: Next's
+ * normalizeCookie defaults it to "/". httpOnly/secure are not set on these
+ * cookies — the browser client has to be able to read them.)
+ *
+ * Only fires when a token refresh and a redirect land on the same request, so
+ * the symptom is intermittent rather than reproducible on demand.
+ */
 function copyCookies(source: NextResponse, target: NextResponse): NextResponse {
   source.cookies.getAll().forEach((cookie) => {
-    target.cookies.set(cookie.name, cookie.value);
+    target.cookies.set(cookie);
   });
   return target;
 }

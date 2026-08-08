@@ -85,6 +85,8 @@ DROP POLICY IF EXISTS mentors_insert_co_mentor ON mentors;
 DROP POLICY IF EXISTS mentors_delete_co_mentor ON mentors;
 DROP POLICY IF EXISTS mentors_select_class_owner ON mentors;
 -- mentors_select_class_code does not use auth.uid() or cross-table subqueries; unchanged.
+-- NOTE (2026-08-07): that policy has since been DROPPED as a cross-tenant leak.
+-- Do not reinstate it. See supabase-setup.sql and supabase-fix-cross-tenant-rls.sql.
 
 CREATE POLICY mentors_select_own ON mentors FOR SELECT USING ((select auth.uid()) = user_id);
 CREATE POLICY mentors_insert_own ON mentors FOR INSERT WITH CHECK ((select auth.uid()) = user_id);

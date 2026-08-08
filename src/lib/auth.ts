@@ -1,4 +1,10 @@
 import { mergeIntoLocalProgress, readLocalProgress } from "@/lib/progressStorage";
+import {
+  BLOCK_DRAFT_BASE_KEY,
+  CODE_DRAFT_BASE_KEY,
+  mergeIntoDraftMap,
+  readDraftMap,
+} from "@/lib/draftStorage";
 
 const SESSION_KEY = "ftc-hub-session";
 const COOKIE_NAME = "ftc-hub-role";
@@ -69,36 +75,58 @@ export function getSession(): Session | null {
 }
 
 /**
- * Carry a solo practiser's progress over when they convert to a class session.
+ * True when a session change converts a solo practiser into a class member.
  *
- * Progress is keyed by session id. A solo session's id is the auth user id,
- * while a class session's is the `students` row id — so joining (or entering)
- * a class changes the key and would orphan everything completed so far. Solo
- * progress is never synced to Supabase, so there is no server-side copy to fall
- * back on either.
+ * Everything keyed by session id has to be carried across that boundary: a solo
+ * session's id is the auth user id, while a class session's is the `students`
+ * row id, so joining (or entering) a class changes the key.
  *
- * Copying it under the new id before the session flips means the bidirectional
- * sync that `ftc-session-updated` kicks off (syncProgressWithLocal, via
- * useSupabaseProgress) sees it as local-only and pushes it to the cloud.
+ * Deliberately narrow. Migrating on any other transition would be wrong:
+ *   - non-solo → student: the outgoing data belongs to a different enrolment.
+ *   - solo → mentor: mentors never own student progress or drafts.
+ *   - solo → solo (same id): a no-op re-persist, nothing to move.
+ */
+function isSoloConversion(previous: Session | null, next: Session): boolean {
+  if (!previous || !isSoloSession(previous)) return false;
+  if (next.role !== "student" || next.solo === true) return false;
+  if (previous.id === next.id) return false;
+  return true;
+}
+
+/**
+ * Carry a solo practiser's work over when they convert to a class session.
  *
- * The old entry is deliberately left in place: leaving a class returns the
+ * Covers all three id-keyed stores — completion progress, Java drafts and Blocks
+ * drafts. None of them sync to Supabase while solo, so localStorage is the only
+ * copy; without this the work is orphaned under the old id and the student sees
+ * their challenges reset to starter code.
+ *
+ * Copying before the session flips means the bidirectional sync that
+ * `ftc-session-updated` kicks off (syncProgressWithLocal, via useSupabaseProgress)
+ * sees the progress as local-only and pushes it to the cloud.
+ *
+ * The old entries are deliberately left in place: leaving a class returns the
  * student to a solo session under the same auth user id, and their practice
  * history should still be waiting for them.
  */
-function migrateSoloProgress(previous: Session | null, next: Session): void {
-  if (!previous || !isSoloSession(previous)) return;
-  if (next.role !== "student" || next.solo === true) return;
-  if (previous.id === next.id) return;
+function migrateSoloWorkspaceData(previous: Session | null, next: Session): void {
+  if (!isSoloConversion(previous, next)) return;
+  // isSoloConversion guarantees a non-null previous.
+  const from = previous!.id;
 
-  const soloProgress = readLocalProgress(previous.id);
-  if (Object.keys(soloProgress).length === 0) return;
+  const soloProgress = readLocalProgress(from);
+  if (Object.keys(soloProgress).length > 0) {
+    mergeIntoLocalProgress(next.id, soloProgress);
+  }
 
-  mergeIntoLocalProgress(next.id, soloProgress);
+  for (const baseKey of [CODE_DRAFT_BASE_KEY, BLOCK_DRAFT_BASE_KEY]) {
+    mergeIntoDraftMap(baseKey, next.id, readDraftMap(baseKey, from));
+  }
 }
 
 export function setSession(session: Session): void {
   // Read before the write — getSession() still returns the outgoing session.
-  migrateSoloProgress(getSession(), session);
+  migrateSoloWorkspaceData(getSession(), session);
 
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   // Cookies let middleware / server components read the active workspace.
