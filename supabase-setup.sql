@@ -324,10 +324,27 @@ CREATE POLICY mentors_delete_co_mentor ON mentors FOR DELETE USING (
 CREATE POLICY mentors_select_class_owner ON mentors FOR SELECT USING (
   id IN (SELECT rls_class_owner_ids())
 );
--- Allow lookup by class_code for joining a class (no cross-table subqueries)
-CREATE POLICY mentors_select_class_code ON mentors FOR SELECT USING (
-  created_by IS NULL AND class_code IS NOT NULL
-);
+-- REMOVED — do not reinstate. `mentors_select_class_code` allowed lookup by
+-- class_code for joining a class:
+--
+--   CREATE POLICY mentors_select_class_code ON mentors FOR SELECT USING (
+--     created_by IS NULL AND class_code IS NOT NULL
+--   );
+--
+-- It has no auth.uid() reference and no column restriction, so it exposed every
+-- unclaimed class-owner row IN FULL to every caller — including `class_code`
+-- (the student join code) and `code` (the mentor's personal sign-in credential,
+-- which /api/auth/link-mentor accepts to claim a workspace). Any signed-in user
+-- could read every class's codes; combined with account deletion releasing owner
+-- rows (user_id -> NULL), that chained into full class takeover.
+--
+-- Nothing needs it: joining a class goes through /api/auth/join-class, which
+-- uses the service-role client and bypasses RLS entirely. If a client-side class
+-- lookup is ever needed, expose a VIEW over (id, name, class_name) only —
+-- never `code` or `class_code`.
+--
+-- Already dropped in production (verified against pg_policies 2026-08-07).
+-- See supabase-fix-cross-tenant-rls.sql.
 
 -- Challenges: mentors manage own; students read class challenges
 CREATE POLICY challenges_select_mentor ON challenges FOR SELECT USING (
