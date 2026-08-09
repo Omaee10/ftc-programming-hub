@@ -14,6 +14,32 @@ import {
 } from "@/lib/supabase/progressColumns";
 import { fetchAllRows, hasMorePages, parsePagination } from "@/lib/supabase/queryHelpers";
 
+/**
+ * Turn a discarded fetchAllRows error into a response, or null to continue.
+ *
+ * Every paged read here used to drop its error on the floor, which defeated the
+ * point of the helper twice over: a genuine query failure (RLS, network) came back
+ * as an empty list that rendered as "no students" or "nothing completed", and a
+ * read that hit the 50k row ceiling came back short but clean. fetchAllRows now
+ * reports the ceiling as an Error, so the signal exists — this is what reads it.
+ *
+ * Typed `unknown` because the two error sources differ: Supabase returns a plain
+ * object with a message, the ceiling returns a real Error.
+ */
+function rowsFailure(error: unknown, what: string): NextResponse | null {
+  if (!error) return null;
+
+  const raw =
+    error instanceof Error
+      ? error.message
+      : (error as { message?: unknown } | null)?.message;
+  const message =
+    typeof raw === "string" && raw.trim() ? raw : `Failed to load ${what}.`;
+
+  console.error(`[dashboard-data] ${what} read failed:`, message);
+  return NextResponse.json({ error: message }, { status: 500 });
+}
+
 const SCOPES: MentorDashboardScope[] = [
   "overview",
   "progress",
@@ -88,14 +114,18 @@ export async function POST(req: Request): Promise<NextResponse> {
       // Paged: `studentIds` is the filter for the pending-submission count
       // below, so a truncated read here would undercount pending reviews on the
       // dashboard tile rather than showing up as a short list anywhere.
-      const { data: classStudents } = await fetchAllRows((from, to) =>
-        db
-          .from("students")
-          .select("id")
-          .eq("mentor_id", ownerId)
-          .order("id")
-          .range(from, to)
+      const { data: classStudents, error: classStudentsError } = await fetchAllRows(
+        (from, to) =>
+          db
+            .from("students")
+            .select("id")
+            .eq("mentor_id", ownerId)
+            .order("id")
+            .range(from, to)
       );
+
+      const classStudentsFailure = rowsFailure(classStudentsError, "students");
+      if (classStudentsFailure) return classStudentsFailure;
 
       const studentIds = classStudents.map((row) => row.id as string);
 
@@ -154,7 +184,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       // filters on `studentIds` — so the truncation would cascade into missing
       // progress and homework rather than showing up as a short student list.
       // `id` is the paging tiebreaker; the display sort on `name` is unchanged.
-      const { data: students } = await fetchAllRows((from, to) =>
+      const { data: students, error: studentsError } = await fetchAllRows((from, to) =>
         db
           .from("students")
           .select(STUDENT_LIST_COLUMNS)
@@ -164,13 +194,16 @@ export async function POST(req: Request): Promise<NextResponse> {
           .range(from, to)
       );
 
+      const studentsFailure = rowsFailure(studentsError, "students");
+      if (studentsFailure) return studentsFailure;
+
       const studentIds = students.map((row) => row.id as string);
 
       // Completions only — the progress tab treats missing rows as incomplete,
       // so a silently truncated read here would show finished work as unfinished.
       // Both per-student reads scale as students x challenges and can exceed
       // PostgREST's row cap, hence fetchAllRows rather than a bare select.
-      const [{ data: progress }, { data: homework }, { data: challenges }] =
+      const [progressResult, homeworkResult, challengesResult] =
         await Promise.all([
           studentIds.length > 0
             ? fetchAllRows((from, to) =>
@@ -205,11 +238,17 @@ export async function POST(req: Request): Promise<NextResponse> {
             : Promise.resolve({ data: [], error: null }),
         ]);
 
+      const progressFailure =
+        rowsFailure(progressResult.error, "progress")
+        ?? rowsFailure(homeworkResult.error, "homework")
+        ?? rowsFailure(challengesResult.error, "challenges");
+      if (progressFailure) return progressFailure;
+
       return NextResponse.json({
         students,
-        progress: progress ?? [],
-        homework: homework ?? [],
-        challenges: challenges ?? [],
+        progress: progressResult.data,
+        homework: homeworkResult.data,
+        challenges: challengesResult.data,
       });
     }
 
@@ -220,7 +259,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       // filters that read, so losing students here silently drops their
       // homework too — the tab would render a short roster AND missing work.
       // `id` is the paging tiebreaker; the display sort on `name` is unchanged.
-      const { data: students } = await fetchAllRows((from, to) =>
+      const { data: students, error: studentsError } = await fetchAllRows((from, to) =>
         db
           .from("students")
           .select(STUDENT_LIST_COLUMNS)
@@ -230,9 +269,12 @@ export async function POST(req: Request): Promise<NextResponse> {
           .range(from, to)
       );
 
+      const studentsFailure = rowsFailure(studentsError, "students");
+      if (studentsFailure) return studentsFailure;
+
       const studentIds = students.map((row) => row.id as string);
 
-      const [{ data: homework }, { data: challenges }] = await Promise.all([
+      const [homeworkResult, challengesResult] = await Promise.all([
         studentIds.length > 0
           ? // `id` is the tiebreaker so paging stays deterministic when several
             // rows share an assigned_at; the primary sort is unchanged.
@@ -258,10 +300,15 @@ export async function POST(req: Request): Promise<NextResponse> {
           : Promise.resolve({ data: [], error: null }),
       ]);
 
+      const homeworkFailure =
+        rowsFailure(homeworkResult.error, "homework")
+        ?? rowsFailure(challengesResult.error, "challenges");
+      if (homeworkFailure) return homeworkFailure;
+
       return NextResponse.json({
         students,
-        homework: homework ?? [],
-        challenges: challenges ?? [],
+        homework: homeworkResult.data,
+        challenges: challengesResult.data,
       });
     }
 
@@ -327,12 +374,8 @@ export async function POST(req: Request): Promise<NextResponse> {
           .range(from, to)
       );
 
-      if (error) {
-        return NextResponse.json(
-          { error: (error as { message?: string }).message ?? "Failed to load challenges." },
-          { status: 500 }
-        );
-      }
+      const challengesFailure = rowsFailure(error, "challenges");
+      if (challengesFailure) return challengesFailure;
 
       return NextResponse.json({ rows });
     }
@@ -344,7 +387,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       // Paged: `studentIds` filters both count queries AND the submission page
       // below, so truncation here would hide whole students' submissions while
       // still reporting a confident total — the pagination would look correct.
-      const { data: students } = await fetchAllRows((from, to) =>
+      const { data: students, error: studentsError } = await fetchAllRows((from, to) =>
         db
           .from("students")
           .select("id, name")
@@ -352,6 +395,9 @@ export async function POST(req: Request): Promise<NextResponse> {
           .order("id")
           .range(from, to)
       );
+
+      const studentsFailure = rowsFailure(studentsError, "students");
+      if (studentsFailure) return studentsFailure;
 
       if (students.length === 0) {
         return NextResponse.json({
