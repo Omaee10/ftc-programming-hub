@@ -38,7 +38,7 @@ export default function REVRoboticsPage() {
                   { label: "Servo Ports", value: "6 ports", sub: "5 V, 2 A max" },
                   { label: "I²C Ports", value: "4 buses", sub: "Sensors & IMU" },
                   { label: "Digital Ports", value: "8 channels", sub: "4 ports × 2" },
-                  { label: "Analog Ports", value: "4 inputs", sub: "0–3.3 V" },
+                  { label: "Analog Ports", value: "4 inputs", sub: "0–5 V input" },
                   { label: "USB-A", value: "2 ports", sub: "Webcam / devices" },
                   { label: "RS485", value: "Expansion Hub", sub: "Daisy chain" },
                 ]}
@@ -73,8 +73,8 @@ export default function REVRoboticsPage() {
                   { label: "Servo Ports", value: "6", note: "300 mA per port" },
                   { label: "I²C Buses", value: "4", note: "Each is independent" },
                   { label: "Digital Ports", value: "8 channels", note: "4 ports × 2 ch" },
-                  { label: "Analog Ports", value: "4", note: "0 – 3.3 V" },
-                  { label: "Connection", value: "RS485 or USB-C", note: "to Control Hub" },
+                  { label: "Analog Ports", value: "4", note: "0 – 5 V input" },
+                  { label: "Connection", value: "RS485 or USB Mini-B", note: "to Control Hub" },
                 ]}
               />
               <NoteBox type="tip">
