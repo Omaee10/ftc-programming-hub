@@ -1,5 +1,6 @@
 import {
   ActivitySquare,
+  Cable,
   Cpu,
   Gamepad2,
   GitBranch,
@@ -248,6 +249,21 @@ export const docCatalog: DocEntry[] = [
     ],
   },
   {
+    slug: "wiring-configuration",
+    title: "Wiring & Configuration",
+    description:
+      "A build-order walkthrough for wiring an FTC robot and naming every device — what to wire first, how to route it, what common mistakes look like when they happen, and how a config name becomes the exact string in your hardwareMap.get() call.",
+    readingTime: "15 min",
+    badge: "Wiring",
+    badgeColor: "emerald",
+    icon: Cable,
+    track: "hardware",
+    navBadge: "New",
+    // A wiring/config walkthrough rather than a coding topic — like
+    // android-studio, it renders without a progress column.
+    challengeTags: [],
+  },
+  {
     slug: "gobilda",
     title: "goBILDA Hardware & Subsystems",
     description:
@@ -316,7 +332,6 @@ export const docCatalog: DocEntry[] = [
     badgeColor: "amber",
     icon: Rocket,
     track: "hardware",
-    navBadge: "New",
     challengeTags: [],
   },
 ];

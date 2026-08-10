@@ -112,6 +112,21 @@ const DOC_DEFS: DocDef[] = [
     ],
   },
   {
+    slug: "wiring-configuration",
+    title: "Wiring & Configuration",
+    description: "Wiring the robot, then naming every device for your code",
+    sections: [
+      { id: "control-hub-ports", title: "Control Hub Port Map", snippet: "What each connector block is for, and what order to wire in", terms: ["control hub", "ports", "port map", "keyed connector", "xt30", "rs485", "usb 3.0", "webcam", "build order", "wiring order", "port budget"] },
+      { id: "power", title: "Power & Battery Wiring", snippet: "Battery, fuse, main switch, wire gauge, routing, and brown-outs", terms: ["power", "battery", "nimh", "12v", "main power switch", "fuse", "20a", "awg", "wire gauge", "xt30", "loose xt30", "brown out", "brownout", "resets", "disconnect", "routing", "zip tie", "smart tug", "strain relief", "grounding strap"] },
+      { id: "motors", title: "Motors — Wiring & Configuration", snippet: "Motor and encoder ports, motor type dropdown, and bad encoder symptoms", terms: ["motor", "motor port", "encoder port", "encoder not moving", "swapped encoder", "isbusy stuck", "configure motor", "motor type", "ticks per rev", "sparkmini", "8 motors"] },
+      { id: "servos", title: "Servos — Wiring & Configuration", snippet: "Header polarity, the 2 A port pairs, and Servo vs CRServo", terms: ["servo", "servo port", "polarity", "backwards", "crservo", "continuous rotation", "servo pair", "2 amp", "servo power module", "servo hub", "5v", "6v"] },
+      { id: "sensors", title: "Sensors, I²C Addressing & Encoders", snippet: "I2C address collisions, the digital N+1 gotcha, through bore encoders", terms: ["sensors", "i2c", "i2c address", "address conflict", "bus conflict", "0x52", "0x29", "0x31", "digital channel", "touch sensor never presses", "analog", "potentiometer", "through bore encoder", "8192", "imu bus 0"] },
+      { id: "expansion-hub", title: "Adding an Expansion Hub", snippet: "Daisy chaining, port numbering, LED blink codes, pre-power-on checks", terms: ["expansion hub", "rs485", "daisy chain", "portal", "scan", "hub address", "address 2", "port numbering", "two hubs", "led", "blink code", "solid green", "blinking orange", "first power on"] },
+      { id: "config-and-code", title: "Configuration & Your Code", snippet: "Config name to hardwareMap.get(), and the five ways it goes wrong", terms: ["configuration", "config name", "hardwaremap", "hardwaremap.get", "tryget", "illegalargumentexception", "unable to find a hardware device", "naming convention", "snake_case", "case sensitive", "typo", "not saved", "wrong config", "init error", "robothardware"] },
+      { id: "further-reading", title: "Further Reading", snippet: "Competition Manual, FTC Docs, and REV Robotics source documentation", terms: ["further reading", "sources", "competition manual", "ftc docs", "rev documentation", "official docs", "wiring diagram", "pinout"] },
+    ],
+  },
+  {
     slug: "gobilda",
     title: "goBILDA Hardware & Subsystems",
     description: "Strafer mecanum, Viper Slide, limit switches, LEDs, and Pinpoint odometry",

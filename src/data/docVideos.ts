@@ -43,6 +43,22 @@ export const DOC_VIDEOS: DocVideo[] = [
     duration: "9:04",
   },
   {
+    docSlug: "wiring-configuration",
+    sectionId: "control-hub-ports",
+    id: "9yTXpZ_AJBk",
+    title: "FTC: The Control and Expansion Hubs",
+    channel: "Edwin Yazbec",
+    duration: "7:23",
+  },
+  {
+    docSlug: "wiring-configuration",
+    sectionId: "config-and-code",
+    id: "R6sl3mNlPes",
+    title: "FTC Programming Test Bench Setup & Configuration File",
+    channel: "Brogan M. Pratt",
+    duration: "12:30",
+  },
+  {
     docSlug: "mecanum-drive",
     sectionId: "how-mecanum-works",
     id: "noqBUEgyQ8A",
