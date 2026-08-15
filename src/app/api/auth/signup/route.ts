@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { applySecurityHeaders } from "@/lib/apiGuard";
-import { AUTH_RATE, checkRateLimit, clientIdFrom, rateLimitHeaders } from "@/lib/rateLimit";
+import {
+  SIGNUP_CODE_FAILURE_RATE,
+  SIGNUP_IP_RATE,
+  checkRateLimit,
+  clientIdFrom,
+  peekRateLimit,
+  rateLimitHeaders,
+} from "@/lib/rateLimit";
 import {
   createAdminClient,
   getSupabaseEnvStatus,
@@ -96,9 +103,13 @@ async function rollbackAuthUser(
   return true;
 }
 
+const TOO_MANY_CODES =
+  "Too many incorrect codes from this network. Wait a few minutes and try again.";
+
 export async function POST(request: Request) {
   const clientIp = clientIdFrom(request);
-  const rate = checkRateLimit(`auth:signup:${clientIp}`, AUTH_RATE);
+  const codeFailureKey = `auth:signup:badcode:${clientIp}`;
+  const rate = checkRateLimit(`auth:signup:${clientIp}`, SIGNUP_IP_RATE);
   if (!rate.ok) {
     return applySecurityHeaders(
       NextResponse.json(
@@ -184,6 +195,37 @@ export async function POST(request: Request) {
     );
   }
 
+  /**
+   * Charge a wrong code to the failure bucket and answer with its 400 — unless
+   * that pushes this network over the limit, in which case answer 429 instead.
+   * Only wrong codes land here, so thirty students redeeming thirty valid codes
+   * from one school NAT never draw the bucket down.
+   */
+  function rejectBadCode(message: string): NextResponse {
+    const failure = checkRateLimit(codeFailureKey, SIGNUP_CODE_FAILURE_RATE);
+    if (!failure.ok) {
+      return applySecurityHeaders(
+        NextResponse.json(
+          { error: TOO_MANY_CODES },
+          { status: 429, headers: rateLimitHeaders(failure) }
+        )
+      );
+    }
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  // Gate before looking anything up. Charging only on failure leaves the bucket
+  // unconsulted on the way in, so an attacker who has already burned through it
+  // would still have a correct guess honoured.
+  if (
+    (studentCode || mentorCode)
+    && !peekRateLimit(codeFailureKey, SIGNUP_CODE_FAILURE_RATE)
+  ) {
+    return applySecurityHeaders(
+      NextResponse.json({ error: TOO_MANY_CODES }, { status: 429 })
+    );
+  }
+
   const admin = createAdminClient();
   let displayName = name;
   let mentorToClaim: MentorClaimRow | null = null;
@@ -206,14 +248,11 @@ export async function POST(request: Request) {
     }
 
     if (!student) {
-      return NextResponse.json({ error: "Invalid student code." }, { status: 400 });
+      return rejectBadCode("Invalid student code.");
     }
 
     if (student.user_id) {
-      return NextResponse.json(
-        { error: "This student code has already been claimed." },
-        { status: 400 }
-      );
+      return rejectBadCode("This student code has already been claimed.");
     }
 
     displayName = student.name;
@@ -233,20 +272,13 @@ export async function POST(request: Request) {
     }
 
     if (!mentorToClaim) {
-      return NextResponse.json(
-        {
-          error:
-            "Invalid mentor code. Use your personal mentor or co-mentor sign-in code from the dashboard — not the student class code.",
-        },
-        { status: 400 }
+      return rejectBadCode(
+        "Invalid mentor code. Use your personal mentor or co-mentor sign-in code from the dashboard — not the student class code."
       );
     }
 
     if (mentorToClaim.user_id) {
-      return NextResponse.json(
-        { error: "This mentor code has already been claimed." },
-        { status: 400 }
-      );
+      return rejectBadCode("This mentor code has already been claimed.");
     }
 
     displayName = mentorToClaim.mentor_name?.trim() || mentorToClaim.name;

@@ -118,6 +118,29 @@ export function checkRateLimit(key: string, opts: RateLimitOptions): RateLimitRe
 }
 
 /**
+ * Is this bucket currently under its limit, without recording a hit?
+ *
+ * Exists for failure-only buckets, where the charge happens after the work
+ * rather than before it. {@link SIGNUP_CODE_FAILURE_RATE} only counts wrong
+ * codes, so the natural shape is "look the code up, charge if it was wrong" —
+ * but that alone leaves a hole: once an attacker has exhausted the bucket with
+ * wrong guesses, the NEXT guess still gets looked up, and a correct one still
+ * succeeds because nothing consulted the bucket on the way in. Gating on this
+ * first closes that, while a legitimate redemption still costs nothing.
+ *
+ * Deliberately does not create a bucket for an unseen key: a pure read must not
+ * grow the map, or probing distinct keys becomes a way to bloat it.
+ */
+export function peekRateLimit(key: string, opts: RateLimitOptions): boolean {
+  const bucket = buckets.get(key);
+  if (!bucket) return true;
+
+  const cutoff = Date.now() - opts.windowMs;
+  const hits = bucket.hits.filter((t) => t >= cutoff);
+  return hits.length < opts.limit;
+}
+
+/**
  * Best-effort client identity for rate-limit bucketing.
  *
  * Order matters. This used to read `x-forwarded-for.split(",")[0]`, the LEFTMOST
@@ -167,8 +190,100 @@ export function rateLimitHeaders(result: RateLimitResult): Record<string, string
   return headers;
 }
 
-/** Auth endpoints: 5 attempts per IP per 15 minutes. */
-export const AUTH_RATE = { limit: 5, windowMs: 15 * 60_000 } as const;
+/**
+ * ── How much these numbers are actually worth ──────────────────────────────
+ *
+ * Every limit below is enforced by the in-memory map at the top of this file,
+ * so it is per-instance and per-process lifetime: two Render instances mean two
+ * independent budgets, and any deploy or cold start resets them to zero. Treat
+ * them as friction against casual hammering, not as guarantees. That is also
+ * why tightening them further buys less than the arithmetic suggests — the
+ * binding controls on real abuse are the per-account checks, the signup
+ * honeypot, and (once wired) email confirmation.
+ */
+
+/**
+ * Signup: 60 attempts per IP per 15 minutes, with backoff.
+ *
+ * Deliberately loose, for the same reason as {@link CODE_REDEEM_IP_RATE}: a
+ * class of ~30 students onboarding together sits behind one school NAT, and
+ * they arrive in a burst because a mentor just read the code out. The previous
+ * shared auth limit was 5/IP/15min, which blocked the sixth student in the room
+ * — on 2026-08-01 it did exactly that to a cohort joining "ITKAN Training", who
+ * then made duplicate accounts trying to get past it.
+ *
+ * The cost is that bulk account creation from a single host goes from 5 to 60
+ * per window. That is accepted: junk signups are properly controlled by email
+ * confirmation, not by throttling the room. Code guessing is handled separately
+ * and much more tightly by {@link SIGNUP_CODE_FAILURE_RATE}.
+ */
+export const SIGNUP_IP_RATE = { limit: 60, windowMs: 15 * 60_000, backoff: true } as const;
+
+/**
+ * Signup attempts that supplied a code and got it WRONG: 10 per IP per 15
+ * minutes, with backoff.
+ *
+ * Counting only failures is the whole point. Signing up with a student, mentor
+ * or class code is a code-existence oracle, so it needs a real limit — but the
+ * old shared 5/IP/15min counted successes too, which meant thirty students
+ * redeeming thirty *valid* codes from one network exhausted the budget before
+ * half the room was in. A legitimate redemption now costs nothing and only
+ * guessing draws down the bucket.
+ *
+ * Net effect versus the 5/IP limit this replaces: an attacker gets 10 wrong
+ * guesses per window instead of 5, but with backoff escalating to 16x the
+ * window (4 hours) under sustained violation — where the old constant had no
+ * backoff at all and handed out a clean 5 every 15 minutes indefinitely. A
+ * sustained sweep of the 6-digit space is slower than it was before.
+ */
+export const SIGNUP_CODE_FAILURE_RATE = {
+  limit: 10,
+  windowMs: 15 * 60_000,
+  backoff: true,
+} as const;
+
+/**
+ * Sign-in: 8 attempts per EMAIL per 15 minutes, with backoff.
+ *
+ * Password guessing targets an account, not an address space, so the tight
+ * bucket is keyed on the identity being attacked rather than on the source. The
+ * per-IP limit this replaces was trivially evaded by rotating IPs against one
+ * victim while also locking out a shared classroom network — wrong on both
+ * ends. Keyed on the normalized email, IP rotation buys an attacker nothing.
+ */
+export const SIGNIN_IDENTITY_RATE = {
+  limit: 8,
+  windowMs: 15 * 60_000,
+  backoff: true,
+} as const;
+
+/**
+ * Sign-in: 60 attempts per IP per 15 minutes, with backoff.
+ *
+ * Bounds automated hammering from a single host. Sized to let a whole class
+ * sign in at once — the same burst that {@link SIGNUP_IP_RATE} accommodates
+ * arrives here a minute later, and limiting signup without limiting sign-in the
+ * same way just moves the 429 one screen to the right.
+ */
+export const SIGNIN_IP_RATE = { limit: 60, windowMs: 15 * 60_000, backoff: true } as const;
+
+/**
+ * Resending a signup confirmation email: 3 per EMAIL per 15 minutes, with
+ * backoff. Keyed on the address so one person mashing "Resend" cannot spend a
+ * shared network's budget, and low because each attempt sends real mail.
+ */
+export const RESEND_CONFIRMATION_IDENTITY_RATE = {
+  limit: 3,
+  windowMs: 15 * 60_000,
+  backoff: true,
+} as const;
+
+/** Resending a signup confirmation email: 30 per IP per 15 minutes, with backoff. */
+export const RESEND_CONFIRMATION_IP_RATE = {
+  limit: 30,
+  windowMs: 15 * 60_000,
+  backoff: true,
+} as const;
 
 /**
  * Redeeming a class or mentor code: 5 attempts per signed-in user per 15
@@ -177,7 +292,9 @@ export const AUTH_RATE = { limit: 5, windowMs: 15 * 60_000 } as const;
  * This is the binding control on guessing codes, not the IP bucket below. One
  * legitimate user redeems once and needs a retry or two for a typo, so 5 is
  * generous; an attacker working through the 900k code space needs a fresh
- * account every 5 guesses, and signup is itself capped at AUTH_RATE per IP.
+ * account every 5 guesses, and minting those accounts is itself capped by
+ * {@link SIGNUP_IP_RATE} — with wrong codes offered at signup drawing down the
+ * much tighter {@link SIGNUP_CODE_FAILURE_RATE}.
  */
 export const CODE_REDEEM_USER_RATE = {
   limit: 5,
