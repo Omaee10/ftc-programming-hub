@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { applySecurityHeaders } from "@/lib/apiGuard";
+import { REQUIRE_EMAIL_CONFIRMATION } from "@/lib/authConfig";
 import {
   SIGNUP_CODE_FAILURE_RATE,
   SIGNUP_IP_RATE,
@@ -13,6 +14,7 @@ import {
   getSupabaseEnvStatus,
   hasServiceRoleKey,
 } from "@/lib/supabase/admin";
+import { joinClassByCode } from "@/lib/supabase/joinClass";
 import {
   databaseKeyErrorMessage,
   findUnclaimedMentor,
@@ -34,18 +36,24 @@ interface SignupBody {
   accountType?: string;
   studentCode?: string;
   mentorCode?: string;
+  /**
+   * A class join code, redeemed during signup.
+   *
+   * Distinct from `studentCode` (a personal, single-use slot code) — this is the
+   * shared 6-digit code a mentor reads out to the room, and it is the only code
+   * path that works when email confirmation is switched on. Membership is
+   * established here, server-side, while the auth user is still unconfirmed, so
+   * confirmation gates only signing IN rather than belonging to the class. That
+   * is the difference between "check your email" being a wait and being a dead
+   * end: on 2026-08-01 it was a dead end, and the cohort made duplicate accounts
+   * rather than wait.
+   */
+  classCode?: string;
   /** Honeypot — real users never see or fill this field. */
   website?: string;
 }
 
 const SIX_DIGIT_CODE = /^\d{6}$/;
-
-/**
- * Temporarily disabled. Flip to true to require users to click a confirmation
- * link before signing in — that also re-enables the "Confirm email" dependency
- * on the Supabase dashboard (Authentication -> Providers -> Email).
- */
-const REQUIRE_EMAIL_CONFIRMATION = false;
 
 function guardResponse(body: Record<string, unknown>, status: number): NextResponse {
   return applySecurityHeaders(NextResponse.json(body, { status }));
@@ -174,6 +182,7 @@ export async function POST(request: Request) {
   const accountType = body.accountType === "mentor" ? "mentor" : body.accountType === "student" ? "student" : null;
   const studentCode = body.studentCode?.trim() ?? "";
   const mentorCode = body.mentorCode?.trim() ?? "";
+  const classCode = body.classCode?.trim() ?? "";
   const honeypot = body.website?.trim() ?? "";
 
   if (honeypot) {
@@ -188,9 +197,10 @@ export async function POST(request: Request) {
     return guardResponse({ error: "Password must be at least 6 characters." }, 400);
   }
 
-  if (studentCode && mentorCode) {
+  const suppliedCodes = [studentCode, mentorCode, classCode].filter(Boolean);
+  if (suppliedCodes.length > 1) {
     return NextResponse.json(
-      { error: "Enter either a student code or a mentor code, not both." },
+      { error: "Enter only one code — a student, mentor, or class code." },
       { status: 400 }
     );
   }
@@ -217,10 +227,7 @@ export async function POST(request: Request) {
   // Gate before looking anything up. Charging only on failure leaves the bucket
   // unconsulted on the way in, so an attacker who has already burned through it
   // would still have a correct guess honoured.
-  if (
-    (studentCode || mentorCode)
-    && !peekRateLimit(codeFailureKey, SIGNUP_CODE_FAILURE_RATE)
-  ) {
+  if (suppliedCodes.length > 0 && !peekRateLimit(codeFailureKey, SIGNUP_CODE_FAILURE_RATE)) {
     return applySecurityHeaders(
       NextResponse.json({ error: TOO_MANY_CODES }, { status: 429 })
     );
@@ -282,6 +289,15 @@ export async function POST(request: Request) {
     }
 
     displayName = mentorToClaim.mentor_name?.trim() || mentorToClaim.name;
+  } else if (classCode) {
+    // Validated for shape only here; joinClassByCode resolves it after the auth
+    // user exists, since joining needs a user id and a profile row to name.
+    if (!SIX_DIGIT_CODE.test(classCode)) {
+      return guardResponse({ error: "Class code must be 6 digits." }, 400);
+    }
+    if (!displayName) {
+      return NextResponse.json({ error: "Your name is required." }, { status: 400 });
+    }
   } else {
     if (!displayName) {
       return NextResponse.json({ error: "Your name is required." }, { status: 400 });
@@ -330,9 +346,11 @@ export async function POST(request: Request) {
     display_name: displayName,
   };
 
-  if (!studentCode && !mentorCode && accountType) {
+  if (!studentCode && !mentorCode && !classCode && accountType) {
     profilePayload.account_type = accountType;
-  } else if (studentCode) {
+  } else if (studentCode || classCode) {
+    // A class code always resolves to a student row, so it fixes the type the
+    // same way a personal student code does.
     profilePayload.account_type = "student";
   } else if (mentorCode) {
     profilePayload.account_type = "mentor";
@@ -395,6 +413,40 @@ export async function POST(request: Request) {
     }
   }
 
+  // Enroll before confirmation, not after. The auth user may still be
+  // unconfirmed at this point, and that is the whole point: the student row is
+  // created and linked now, so a confirmation link that is slow, filtered, or
+  // ignored delays sign-in rather than costing them their place in the class.
+  let joinedTeamName: string | null = null;
+  if (classCode) {
+    const joined = await joinClassByCode(admin, userId, classCode);
+
+    if (!joined.ok) {
+      // Roll back rather than keep a half-set-up account, matching the student
+      // and mentor code paths above. A mistyped class code should send them back
+      // to the form with the email still usable, not strand an account that owns
+      // nothing — stranded accounts are what this whole change exists to stop.
+      const rolledBack = await rollbackAuthUser(
+        admin,
+        userId,
+        email,
+        "class code join failed"
+      );
+
+      if (!rolledBack) {
+        return NextResponse.json({ error: ORPHANED_AUTH_USER_MESSAGE }, { status: 500 });
+      }
+
+      // A wrong code is a wrong code wherever it is caught, so it draws down the
+      // same bucket as the pre-createUser paths.
+      return joined.status === 400
+        ? rejectBadCode(joined.error)
+        : NextResponse.json({ error: joined.error }, { status: joined.status });
+    }
+
+    joinedTeamName = joined.teamName;
+  }
+
   if (REQUIRE_EMAIL_CONFIRMATION) {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "")
@@ -410,18 +462,31 @@ export async function POST(request: Request) {
 
     if (resendErr) {
       console.error("[signup] confirmation email failed:", resendErr.message);
+      // Deliberately still a success. The account exists and any class join has
+      // already been committed, so answering with an error here would tell the
+      // user that signup failed when it did not — and a user who believes signup
+      // failed signs up again with a different address. That is precisely the
+      // duplicate-account pattern of 2026-08-01. The client gets a flag instead
+      // and shows the pending screen with the send failure called out, so the
+      // obvious next move is Resend rather than Start over.
       return guardResponse(
         {
-          error:
-            "Account created, but the confirmation email could not be sent. Check Supabase SMTP settings, then ask an admin to resend confirmation or delete the user and try again.",
+          ok: true,
+          emailConfirmationRequired: true,
+          confirmationEmailFailed: true,
+          ...(joinedTeamName ? { joinedTeamName } : {}),
         },
-        503
+        200
       );
     }
   }
 
   return guardResponse(
-    { ok: true, emailConfirmationRequired: REQUIRE_EMAIL_CONFIRMATION },
+    {
+      ok: true,
+      emailConfirmationRequired: REQUIRE_EMAIL_CONFIRMATION,
+      ...(joinedTeamName ? { joinedTeamName } : {}),
+    },
     200
   );
 }

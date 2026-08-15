@@ -27,14 +27,31 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [accountType, setAccountType] = useState<"student" | "mentor" | null>(null);
   const [showCodeSection, setShowCodeSection] = useState(false);
-  const [codeType, setCodeType] = useState<"student" | "mentor">("student");
+  const [codeType, setCodeType] = useState<"student" | "mentor" | "class">("student");
   const [accessCode, setAccessCode] = useState("");
   const [honeypot, setHoneypot] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  /**
+   * Set once the account exists but still needs an emailed confirmation click.
+   * Rendering a whole panel rather than a one-line message is the point: the
+   * flat "check your email, then sign in" string this replaces gave a stuck user
+   * nothing to do, and they signed up again instead of waiting.
+   */
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    email: string;
+    joinedTeamName: string | null;
+    sendFailed: boolean;
+  } | null>(null);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [resendMessage, setResendMessage] = useState("");
+
   const hasCode = showCodeSection && accessCode.trim().length === 6;
+  /** A class code enrolls the account, so it still needs a name to enroll under. */
+  const classCodeMode = showCodeSection && codeType === "class";
+  const needsName = !hasCode || classCodeMode;
+  const needsAccountType = !hasCode && !classCodeMode;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,11 +64,11 @@ export default function SignupPage() {
       setError("Passwords do not match.");
       return;
     }
-    if (!hasCode && !name.trim()) {
+    if (needsName && !name.trim()) {
       setError("Your name is required.");
       return;
     }
-    if (!hasCode && !accountType) {
+    if (needsAccountType && !accountType) {
       setError("Select whether you are a student or mentor.");
       return;
     }
@@ -60,7 +77,6 @@ export default function SignupPage() {
       return;
     }
     setError("");
-    setSuccessMessage("");
 
     startTransition(async () => {
       const payload: Record<string, string> = {
@@ -68,15 +84,19 @@ export default function SignupPage() {
         password,
         website: honeypot,
       };
-      if (!hasCode) {
+      if (needsName) {
         payload.name = name.trim();
-        if (accountType) payload.accountType = accountType;
+      }
+      if (needsAccountType && accountType) {
+        payload.accountType = accountType;
       }
       if (hasCode) {
         if (codeType === "student") {
           payload.studentCode = accessCode.trim();
-        } else {
+        } else if (codeType === "mentor") {
           payload.mentorCode = accessCode.trim();
+        } else {
+          payload.classCode = accessCode.trim();
         }
       }
 
@@ -86,16 +106,23 @@ export default function SignupPage() {
         body: JSON.stringify(payload),
       });
 
-      const data = (await res.json()) as { error?: string; emailConfirmationRequired?: boolean };
+      const data = (await res.json()) as {
+        error?: string;
+        emailConfirmationRequired?: boolean;
+        confirmationEmailFailed?: boolean;
+        joinedTeamName?: string;
+      };
       if (!res.ok) {
         setError(data.error ?? "Failed to create account.");
         return;
       }
 
       if (data.emailConfirmationRequired) {
-        setSuccessMessage(
-          "Account created. Check your email for a confirmation link, then sign in."
-        );
+        setPendingConfirmation({
+          email: trimmedEmail,
+          joinedTeamName: data.joinedTeamName ?? null,
+          sendFailed: Boolean(data.confirmationEmailFailed),
+        });
         return;
       }
 
@@ -110,6 +137,138 @@ export default function SignupPage() {
       router.refresh();
     });
   };
+
+  const handleResend = async () => {
+    if (!pendingConfirmation || resendState === "sending") return;
+    setResendState("sending");
+    setResendMessage("");
+
+    try {
+      const res = await fetch("/api/auth/resend-confirmation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: pendingConfirmation.email }),
+      });
+      const data = (await res.json()) as { error?: string; message?: string };
+
+      if (!res.ok) {
+        setResendState("error");
+        setResendMessage(data.error ?? "Could not send a new link. Try again shortly.");
+        return;
+      }
+
+      setResendState("sent");
+      setResendMessage(data.message ?? "A new link is on its way.");
+    } catch {
+      setResendState("error");
+      setResendMessage("Could not reach the server. Check your connection and try again.");
+    }
+  };
+
+  if (pendingConfirmation) {
+    return (
+      <div className="relative flex min-h-screen bg-slate-950 px-4">
+        <div className="m-auto w-full max-w-sm py-16">
+          <div className="mb-10 flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 border border-slate-700/60">
+              <Trophy className="h-4 w-4 text-slate-300" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-200">FTC Programming Hub</p>
+              <p className="text-xs text-slate-600">One more step</p>
+            </div>
+          </div>
+
+          <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700/60 bg-slate-800">
+            <Mail className="h-5 w-5 text-slate-300" />
+          </div>
+
+          <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
+            Confirm your email
+          </h1>
+          <p className="mt-2 text-sm text-slate-400 leading-relaxed">
+            Your account is created. We sent a confirmation link to{" "}
+            <strong className="font-medium text-slate-200">{pendingConfirmation.email}</strong>.
+            Click it, then sign in.
+          </p>
+
+          {/*
+            The reassurance that matters most. A student who knows their place in
+            the class is already secured will wait for an email; one who thinks
+            signup failed makes another account, which is what happened before
+            enrollment moved ahead of confirmation.
+          */}
+          {pendingConfirmation.joinedTeamName && (
+            <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3">
+              <p className="text-sm text-emerald-200/90 leading-relaxed">
+                You&apos;re already enrolled in{" "}
+                <strong className="font-medium text-emerald-100">
+                  {pendingConfirmation.joinedTeamName}
+                </strong>
+                . Your spot is saved — confirming just unlocks signing in.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+            <p className="text-sm text-amber-200/90 leading-relaxed">
+              {pendingConfirmation.sendFailed
+                ? "We couldn't send that email just now. Use Resend below — there's no need to sign up again."
+                : "It can take a minute to arrive, and it often lands in your spam or junk folder. Look there before signing up again."}
+            </p>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resendState === "sending"}
+              className="flex items-center justify-center gap-2 rounded-lg btn-primary px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {resendState === "sending" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4" />
+                  Resend confirmation email
+                </>
+              )}
+            </button>
+
+            {resendMessage && (
+              <div
+                className={`flex items-start gap-2 rounded-md border px-3 py-2 ${
+                  resendState === "error"
+                    ? "border-red-500/15 bg-red-500/8"
+                    : "border-emerald-500/15 bg-emerald-500/8"
+                }`}
+              >
+                <span
+                  className={`text-xs leading-relaxed ${
+                    resendState === "error" ? "text-red-400" : "text-emerald-400"
+                  }`}
+                >
+                  {resendMessage}
+                </span>
+              </div>
+            )}
+
+            <Link
+              href="/login"
+              className="text-center text-sm text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              Already confirmed? Sign in
+            </Link>
+          </div>
+        </div>
+        <AuthContributorsFooter />
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex min-h-screen bg-slate-950 px-4">
@@ -194,23 +353,25 @@ export default function SignupPage() {
             />
           </div>
 
-          {!hasCode && (
-            <>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
-                  Your Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Alex Johnson"
-                  disabled={isPending}
-                  autoComplete="name"
-                  className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all"
-                />
-              </div>
+          {needsName && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                Your Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Alex Johnson"
+                disabled={isPending}
+                autoComplete="name"
+                className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:border-slate-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500/30 disabled:opacity-50 transition-all"
+              />
+            </div>
+          )}
 
+          {needsAccountType && (
+            <>
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
                   I am a
@@ -251,7 +412,7 @@ export default function SignupPage() {
               onClick={() => setShowCodeSection((v) => !v)}
               className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-slate-400 hover:text-slate-200 transition-colors"
             >
-              <span>Have a student or mentor code?</span>
+              <span>Have a class, student, or mentor code?</span>
               {showCodeSection ? (
                 <ChevronUp className="h-4 w-4 shrink-0" />
               ) : (
@@ -262,6 +423,17 @@ export default function SignupPage() {
             {showCodeSection && (
               <div className="border-t border-slate-800/60 px-4 pb-4 pt-3 flex flex-col gap-3">
                 <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCodeType("class")}
+                    className={`flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+                      codeType === "class"
+                        ? "bg-slate-700 text-slate-100"
+                        : "bg-slate-800/60 text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Class code
+                  </button>
                   <button
                     type="button"
                     onClick={() => setCodeType("student")}
@@ -289,17 +461,13 @@ export default function SignupPage() {
                 <p className="text-xs text-slate-600">
                   {codeType === "mentor"
                     ? "Link your mentor workspace at signup — then use Sign in to enter your class. Don't use Link mentor workspace after."
-                    : "Link your existing student account — you'll be added to your class automatically."}
+                    : codeType === "class"
+                      ? "The 6-digit code your mentor shares with the whole class. You'll be enrolled as you sign up, so you don't need to join afterwards."
+                      : "Link your existing student account — you'll be added to your class automatically."}
                 </p>
               </div>
             )}
           </div>
-
-          {successMessage && (
-            <div className="flex items-center gap-2 rounded-md border border-emerald-500/15 bg-emerald-500/8 px-3 py-2">
-              <span className="text-xs text-emerald-400">{successMessage}</span>
-            </div>
-          )}
 
           {error && (
             <div className="flex items-center gap-2 rounded-md border border-red-500/15 bg-red-500/8 px-3 py-2">

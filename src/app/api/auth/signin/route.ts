@@ -16,6 +16,19 @@ interface SigninBody {
 
 const TOO_MANY = "Too many sign-in attempts. Try again later.";
 
+/**
+ * GoTrue's own wording for an unconfirmed account is "Email not confirmed",
+ * which says what is wrong but not what to do about it — and the thing to do is
+ * usually "look in your spam folder", because that is where the link ends up.
+ */
+const UNCONFIRMED_EMAIL_MESSAGE =
+  "Your email address hasn't been confirmed yet. Check your inbox for the "
+  + "confirmation link — it is often in the spam or junk folder — or request a new one below.";
+
+function isUnconfirmedEmailError(message: string): boolean {
+  return /email\s+not\s+confirmed/i.test(message);
+}
+
 /** Server-side sign in — sets auth cookies via Vercel when the browser cannot reach Supabase. */
 export async function POST(request: Request): Promise<NextResponse> {
   // Two buckets, because the two abuses have different shapes. Password guessing
@@ -67,8 +80,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
+    const unconfirmed = isUnconfirmedEmailError(error.message);
     return applySecurityHeaders(
-      NextResponse.json({ error: error.message }, { status: 401 })
+      NextResponse.json(
+        {
+          error: unconfirmed ? UNCONFIRMED_EMAIL_MESSAGE : error.message,
+          ...(unconfirmed ? { emailNotConfirmed: true } : {}),
+        },
+        { status: 401 }
+      )
     );
   }
 
