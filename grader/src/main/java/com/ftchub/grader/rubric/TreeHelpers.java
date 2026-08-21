@@ -342,6 +342,14 @@ public final class TreeHelpers {
      *       driver captured the stick value before the loop started and the motor
      *       never responds to subsequent input.</li>
      * </ol>
+     *
+     * <p>Only the method that owns the loop can hold this bug, so a read is counted
+     * as "outside" only when it sits in a method that contains a while loop of its
+     * own. A helper like {@code getForwardPower()} runs afresh on every call, so the
+     * stick read in its body is refreshed every frame even though it is outside the
+     * loop lexically. Scanning the file flatly could not tell that apart from a value
+     * captured once before the loop, which made challenge 55 — whose whole task is
+     * extracting that read into a helper — impossible to pass.
      */
     public static boolean hasSetAndForgetPower(RubricContext ctx) {
         if (!ctx.astAvailable()) return false;
@@ -356,6 +364,12 @@ public final class TreeHelpers {
         boolean[] outsideLoop = {false};
 
         new TreeScanner<Void, Boolean>() {
+            @Override public Void visitMethod(MethodTree node, Boolean inside) {
+                // A helper with no loop of its own re-runs on every call, so a stick
+                // read in its body is refreshed each frame rather than captured once.
+                if (!containsWhileLoop(node)) return null;
+                return super.visitMethod(node, inside);
+            }
             @Override public Void visitWhileLoop(WhileLoopTree node, Boolean inside) {
                 return super.visitWhileLoop(node, true);
             }
@@ -370,6 +384,18 @@ public final class TreeHelpers {
 
         // Bug only present when the axis is captured outside but never refreshed inside.
         return outsideLoop[0] && !insideLoop[0];
+    }
+
+    /** True when {@code subtree} has a while loop anywhere beneath it. */
+    private static boolean containsWhileLoop(Tree subtree) {
+        boolean[] found = {false};
+        new TreeScanner<Void, Void>() {
+            @Override public Void visitWhileLoop(WhileLoopTree node, Void p) {
+                found[0] = true;
+                return null;
+            }
+        }.scan(subtree, null);
+        return found[0];
     }
 
     private static boolean isStickOrTriggerAxis(String fieldName) {
